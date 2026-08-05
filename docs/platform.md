@@ -31,6 +31,8 @@ Clerk instances/keys.
 
 **PostHog** is analytics only. Initialize it after consent/session readiness, identify with non-sensitive stable IDs, and never send credentials or protected content. Maintain event names and properties in `docs/analytics-events.md`.
 
+The web service receives `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`, `NEXT_PUBLIC_APP_ENV`, and `NEXT_PUBLIC_RELEASE_SHA` at build time. Use a distinct PostHog project (or an equivalent environment boundary) for development, preview, and production; set `NEXT_PUBLIC_APP_ENV` to the Railway environment name and `NEXT_PUBLIC_RELEASE_SHA` to the deployed Git commit. The key is public by design, but it must be scoped to its matching PostHog project and is never a substitute for consent.
+
 ## Secret inventory
 
 | Owner | Examples | Store |
