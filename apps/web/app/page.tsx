@@ -11,9 +11,9 @@ import {
 import { StatCard } from "@/components/ui/data-display";
 import { EmptyState } from "@/components/ui/data-display";
 import { Input } from "@/components/ui/input";
-import { TabTrigger, Tabs } from "@/components/ui/tabs";
+import { TabTrigger, Tabs, TabsContent, TabsList } from "@/components/ui/tabs";
 import { Sidebar } from "@/components/sidebar";
-import { Plus, Search, Bell, Sun } from "lucide-react";
+import { Plus } from "lucide-react";
 
 export default function Home() {
   return (
@@ -28,42 +28,28 @@ export default function Home() {
             </span>
           </nav>
 
-          <div className="flex items-center gap-1.5">
+          <div
+            className="flex items-center gap-1.5"
+            aria-label="Preview sync status"
+          >
             <div className="w-2 h-2 rounded-full bg-success-tx flex-none" />
-            <span className="text-xs text-muted font-mono">Synced</span>
+            <span className="text-xs text-muted font-mono">Preview data</span>
           </div>
 
-          <button
-            type="button"
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-btnline bg-card px-3 py-2 text-xs font-semibold text-ink min-h-[36px] cursor-pointer hover:bg-soft transition-colors"
-          >
-            <Search className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Search</span>
-          </button>
-
-          <button
-            type="button"
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-btnline bg-card px-3 py-2 text-xs font-semibold text-ink min-h-[36px] cursor-pointer hover:bg-soft transition-colors relative"
-          >
-            <Bell className="w-3.5 h-3.5" />
-            <span className="inline-grid place-items-center min-w-[18px] h-[18px] rounded-full bg-danger-bg text-danger-tx border border-danger-ln text-[10px] font-bold">
-              3
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-btnline bg-card px-3 py-2 text-xs font-semibold text-ink min-h-[36px] cursor-pointer hover:bg-soft transition-colors"
-          >
-            <Sun className="w-3.5 h-3.5" />
-          </button>
+          <span className="text-xs text-muted">
+            Interactive tools are planned
+          </span>
         </header>
 
         <main className="flex-1 max-w-[1220px] w-full mx-auto px-7 py-6 pb-24">
-          <Banner variant="info" label="Design System Preview">
+          <Banner
+            id="preview-notice"
+            variant="info"
+            label="Design System Preview"
+          >
             This page demonstrates the design tokens and components defined in
-            Work Package 2. Replace with real product content in subsequent work
-            packages.
+            Work Package 2. Product actions are disabled until their related
+            workflows are available.
           </Banner>
 
           <div className="flex items-end justify-between gap-6 flex-wrap mb-4 mt-6">
@@ -78,17 +64,36 @@ export default function Home() {
                 Qualifying sessions and service for Car #262.
               </p>
             </div>
-            <Button variant="primary" size="md">
+            <Button
+              variant="primary"
+              size="md"
+              disabled
+              aria-describedby="preview-notice"
+            >
               <Plus className="w-4 h-4" />
               Add movement
             </Button>
           </div>
 
-          <Tabs className="mb-3">
-            <TabTrigger active>Plan</TabTrigger>
-            <TabTrigger>Work</TabTrigger>
-            <TabTrigger>Records</TabTrigger>
-            <TabTrigger>Forms</TabTrigger>
+          <Tabs className="mb-3" defaultValue="plan">
+            <TabsList>
+              <TabTrigger value="plan">Plan</TabTrigger>
+              <TabTrigger value="work">Work</TabTrigger>
+              <TabTrigger value="records">Records</TabTrigger>
+              <TabTrigger value="forms">Forms</TabTrigger>
+            </TabsList>
+            <TabsContent value="plan" className="sr-only">
+              Plan preview selected.
+            </TabsContent>
+            <TabsContent value="work" className="sr-only">
+              Work preview selected.
+            </TabsContent>
+            <TabsContent value="records" className="sr-only">
+              Records preview selected.
+            </TabsContent>
+            <TabsContent value="forms" className="sr-only">
+              Forms preview selected.
+            </TabsContent>
           </Tabs>
 
           <div className="grid grid-cols-4 gap-2.5 mb-3.5 max-sm:grid-cols-2">
@@ -186,6 +191,8 @@ export default function Home() {
                     variant="secondary"
                     size="sm"
                     className="w-full justify-start"
+                    disabled
+                    aria-describedby="preview-notice"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Add movement
@@ -194,6 +201,8 @@ export default function Home() {
                     variant="secondary"
                     size="sm"
                     className="w-full justify-start"
+                    disabled
+                    aria-describedby="preview-notice"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Add work item
@@ -202,6 +211,8 @@ export default function Home() {
                     variant="secondary"
                     size="sm"
                     className="w-full justify-start"
+                    disabled
+                    aria-describedby="preview-notice"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Add record
@@ -241,21 +252,45 @@ export default function Home() {
                   <Badge variant="danger">danger</Badge>
                 </div>
                 <div className="flex flex-wrap gap-2 mt-3">
-                  <Button variant="primary" size="sm">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled
+                    aria-describedby="preview-notice"
+                  >
                     Primary
                   </Button>
-                  <Button variant="secondary" size="sm">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled
+                    aria-describedby="preview-notice"
+                  >
                     Secondary
                   </Button>
-                  <Button variant="ghost" size="sm">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled
+                    aria-describedby="preview-notice"
+                  >
                     Ghost
                   </Button>
-                  <Button variant="danger" size="sm">
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled
+                    aria-describedby="preview-notice"
+                  >
                     Danger
                   </Button>
                 </div>
                 <div className="mt-3">
-                  <Input placeholder="Search movements..." />
+                  <Input
+                    disabled
+                    aria-describedby="preview-notice"
+                    placeholder="Search movements..."
+                  />
                 </div>
                 <EmptyState
                   title="No results"
