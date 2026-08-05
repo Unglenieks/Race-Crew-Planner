@@ -1,8 +1,8 @@
 # Convex development workflow
 
-Convex is the application data and authorization boundary. Clerk will supply
-identity and session lifecycle in Work Package 4; application roles,
-memberships, and resource-level checks remain in Convex.
+Convex is the application data and authorization boundary. Clerk supplies
+identity and session lifecycle; application roles, memberships, and
+resource-level checks remain in Convex.
 
 ## Local setup
 
@@ -11,7 +11,10 @@ memberships, and resource-level checks remain in Convex.
    into a local file.
 2. Ensure the self-hosted Convex development environment is available. Railway
    provisioning is intentionally deferred to Work Package 6.
-3. Run `pnpm convex:dev`. The CLI checks the functions, regenerates
+3. In Clerk, activate the Convex integration. It provisions the `convex` JWT
+   template. Copy Clerk's Frontend API URL to `CLERK_JWT_ISSUER_DOMAIN` in the
+   matching Convex environment.
+4. Run `pnpm convex:dev`. The CLI checks the functions, regenerates
    `convex/_generated/`, and syncs them to the selected development deployment.
 
 Use `pnpm convex:codegen` after changing a schema or function when a long-lived
@@ -32,6 +35,10 @@ function modules import their typed builders from `convex/_generated/`.
   writing data. Client-provided roles are never trusted.
 - Add an authorization test in the same PR as each protected function. Cover
   unauthenticated, unauthorized, and authorized callers.
+- `convex/auth.config.ts` accepts only the Clerk issuer configured by
+  `CLERK_JWT_ISSUER_DOMAIN`, with audience `convex`. The web app's
+  `ConvexProviderWithClerk` requests that named JWT template for every
+  authenticated Convex request.
 
 ## Environment variables
 
@@ -39,5 +46,7 @@ Use either `CONVEX_DEPLOYMENT` for an already configured development deployment
 or the `CONVEX_SELF_HOSTED_URL` and `CONVEX_SELF_HOSTED_ADMIN_KEY` pair to
 target the self-hosted instance directly. `CONVEX_DEPLOY_KEY` is only for
 non-interactive cloud deployment automation and belongs in the appropriate
-secret store. The browser-facing Convex URL and Clerk configuration are added
-with the Clerk integration; they are not needed by this boundary package.
+secret store. Set `CLERK_JWT_ISSUER_DOMAIN` on the Convex service to its
+matching Clerk Frontend API URL. Set `NEXT_PUBLIC_CONVEX_URL`,
+`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, and `CLERK_SECRET_KEY` on the web service.
+Use separate Clerk applications and Convex URLs per environment.

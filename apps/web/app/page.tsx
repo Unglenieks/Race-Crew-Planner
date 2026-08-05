@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { TabTrigger, Tabs, TabsContent, TabsList } from "@/components/ui/tabs";
 import { Sidebar } from "@/components/sidebar";
 import { Plus } from "lucide-react";
+import { UserButton } from "@clerk/nextjs";
 
 export default function Home() {
   return (
@@ -36,9 +37,7 @@ export default function Home() {
             <span className="text-xs text-muted font-mono">Preview data</span>
           </div>
 
-          <span className="text-xs text-muted">
-            Interactive tools are planned
-          </span>
+          <UserButton />
         </header>
 
         <main className="flex-1 max-w-[1220px] w-full mx-auto px-7 py-6 pb-24">
