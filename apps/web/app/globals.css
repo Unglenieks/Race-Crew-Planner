@@ -1,19 +1,54 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme inline {
+  --color-paper: #f7f8f2;
+  --color-card: #ffffff;
+  --color-side: #eff3ed;
+  --color-topbg: #fbfdf9;
+  --color-ink: #12211b;
+  --color-ink2: #283b32;
+  --color-muted: #4d5f57;
+  --color-faint: #5a6d64;
+  --color-line: #d2ddd0;
+  --color-line2: #e5ebe3;
+  --color-btnline: #c4d3c3;
+  --color-green: #1b6349;
+  --color-green-ink: #134a36;
+  --color-lime: #bee94b;
+  --color-soft: #e5f2df;
+  --color-dark: #173e33;
+  --color-focus: #0f5f45;
+
+  --color-success-bg: #dcefd4;
+  --color-success-tx: #1c5731;
+  --color-success-ln: #a9d3a4;
+  --color-warning-bg: #fcefc3;
+  --color-warning-tx: #6b4c0c;
+  --color-warning-ln: #dcbb63;
+  --color-info-bg: #dbeef9;
+  --color-info-tx: #1a5570;
+  --color-info-ln: #9fcbe0;
+  --color-danger-bg: #fbdfd8;
+  --color-danger-tx: #8b3524;
+  --color-danger-ln: #e0a898;
+  --color-neutral-bg: #e9ede8;
+  --color-neutral-tx: #48554d;
+  --color-neutral-ln: #c6d0c4;
+
+  --font-sans:
+    "Manrope", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "DM Mono", var(--font-geist-mono), ui-monospace, monospace;
+  --font-serif: "Newsreader", ui-serif, Georgia, serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  --background: var(--color-paper);
+  --foreground: var(--color-ink);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  letter-spacing: -0.015em;
 }
