@@ -1,5 +1,7 @@
 # Web application
 
-This workspace will contain the Next.js App Router application. Its first implementation PR should create the app with strict TypeScript, Tailwind CSS, shadcn/ui, Clerk, Convex, and PostHog using the dependency choices documented in `docs/implementation-plan.md`.
+This workspace contains the Next.js App Router application. Work package 1 establishes strict TypeScript, Tailwind CSS, formatting, linting, tests, and a health route.
 
-Do not add production credentials here. Add `apps/web/.env.example` with names and explanatory comments only.
+Initialize local shadcn/ui components in work package 2. Add Convex, Clerk, and PostHog only in their respective later work packages, as ordered in `docs/implementation-plan.md`.
+
+Do not add production credentials here. `apps/web/.env.example` contains names and explanatory comments only.
