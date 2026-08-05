@@ -21,7 +21,13 @@ Each environment has separate data, domain, secrets, Clerk credentials, and Post
 
 ## Identity and analytics
 
-**Clerk** owns authentication and session lifecycle. Configure a Clerk JWT template for Convex; validate claims in Convex; create application-level authorization helpers there. Use distinct development and production Clerk instances/keys.
+**Clerk** owns authentication and session lifecycle. Activate Clerk's Convex
+integration in each Clerk application; it provisions the `convex` JWT template.
+Configure that application's Frontend API URL as `CLERK_JWT_ISSUER_DOMAIN` on
+the matching Convex service, then deploy `convex/auth.config.ts`. The web app
+uses `ConvexProviderWithClerk` to request those tokens. Create application-level
+authorization helpers in Convex, and use distinct development and production
+Clerk instances/keys.
 
 **PostHog** is analytics only. Initialize it after consent/session readiness, identify with non-sensitive stable IDs, and never send credentials or protected content. Maintain event names and properties in `docs/analytics-events.md`.
 
