@@ -1,0 +1,14 @@
+{
+  "name": "race-planner",
+  "private": true,
+  "packageManager": "pnpm@10.15.0",
+  "scripts": {
+    "check:repo": "node scripts/check-repo.mjs",
+    "dev": "pnpm --filter @race-planner/web dev",
+    "build": "pnpm --filter @race-planner/web build",
+    "lint": "pnpm --filter @race-planner/web lint",
+    "typecheck": "pnpm --filter @race-planner/web typecheck",
+    "test": "pnpm --filter @race-planner/web test",
+    "format:check": "pnpm --filter @race-planner/web format:check"
+  }
+}

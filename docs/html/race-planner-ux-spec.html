@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Race Planner — UX build specification v2.0</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap');
+
+:root{
+  --ink:#12211c;--ink2:#26382f;--muted:#4e6058;--faint:#5d7168;
+  --paper:#f7f8f1;--card:#fff;--line:#d3ded1;
+  --green:#1b6349;--green-ink:#134a36;--lime:#bde94c;--soft:#eaf4e5;--dark:#173e33;
+  --amber-bg:#fdf1d4;--amber-line:#c78614;--amber-ink:#5f4a12;
+  --focus:#0f5f45;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:78px}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;color:var(--ink);background:var(--paper);font-family:Manrope,sans-serif;letter-spacing:-.015em;font-size:15px}
+.shell{width:min(1160px,calc(100% - 48px));margin:auto}
+
+/* --- shared type --- */
+.brand{font-size:21px;font-weight:800;letter-spacing:-.07em}
+.brand i{font-style:normal;display:inline-grid;place-items:center;width:26px;height:26px;border-radius:7px;background:var(--green);color:var(--lime);margin-right:7px}
+.mono{font:500 11px DM Mono;color:var(--green-ink);letter-spacing:.1em;text-transform:uppercase}
+p{font-size:15px;line-height:1.7;color:var(--muted)}
+
+/* --- focus: visible for every interactive element --- */
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:3px;border-radius:6px}
+
+.skip{position:absolute;left:-9999px;top:0;background:var(--ink);color:#fff;padding:12px 16px;font:700 13px Manrope;border-radius:0 0 8px 0;z-index:20}
+.skip:focus{left:0}
+
+/* --- masthead --- */
+nav{min-height:74px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:12px 0}
+.navlinks{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.button{border:1px solid var(--ink);border-radius:8px;background:var(--ink);color:#fff;padding:12px 15px;font:700 12px Manrope;text-decoration:none;min-height:44px;display:inline-flex;align-items:center}
+.button.ghost{background:#fff;color:var(--ink2);border-color:#c3d2c2}
+.button:hover{opacity:.9}
+
+/* --- hero --- */
+.hero{padding:64px 0 44px;display:grid;grid-template-columns:1fr .8fr;gap:64px}
+.hero h1{font:600 clamp(38px,5.4vw,66px)/.96 Newsreader,serif;letter-spacing:-.06em;margin:12px 0 20px}
+.hero h1 em{font-style:italic;color:var(--green)}
+.summary{align-self:end;border-left:3px solid var(--lime);padding:15px 18px;background:var(--soft);font-size:14px;line-height:1.65;color:#3f5449}
+.summary b{display:block;font:500 11px DM Mono;color:var(--green-ink);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+
+/* --- document status --- */
+.status{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding-bottom:34px}
+.status div{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:13px 14px}
+.status dt{font:500 11px DM Mono;color:var(--faint);letter-spacing:.08em;text-transform:uppercase;margin:0 0 5px}
+.status dd{margin:0;font-size:14px;font-weight:700;color:var(--ink2)}
+.status dd small{display:block;font-weight:500;font-size:12px;color:var(--muted);margin-top:3px}
+
+/* --- sticky table of contents --- */
+.toc{position:sticky;top:0;z-index:6;padding:11px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:#f7f8f1f2;backdrop-filter:blur(6px)}
+.toc-inner{display:flex;gap:7px;flex-wrap:nowrap;overflow-x:auto;align-items:center;scrollbar-width:thin;padding-bottom:2px}
+.toc a{flex:none}
+.toc b{font:500 11px DM Mono;color:var(--faint);letter-spacing:.08em;text-transform:uppercase;margin-right:4px}
+.toc a{border:1px solid var(--line);border-radius:16px;background:#fff;padding:8px 11px;font:600 12px Manrope;text-decoration:none;color:#3f5a4c;min-height:34px;display:inline-flex;align-items:center;gap:5px}
+.toc a i{font-style:normal;font:500 11px DM Mono;color:var(--faint)}
+.toc a:hover{background:#dcefd7;border-color:#b9d3b4}
+.toc a[aria-current=true]{background:var(--green);border-color:var(--green);color:#fff}
+.toc a[aria-current=true] i{color:var(--lime)}
+
+/* --- sections --- */
+section{padding:60px 0;border-bottom:1px solid var(--line);scroll-margin-top:72px}
+h2{font:600 clamp(28px,4.2vw,45px)/1.02 Newsreader,serif;letter-spacing:-.05em;margin:12px 0 18px;color:var(--ink)}
+h3{font-size:15px;margin:0}
+.lede{max-width:74ch;margin-top:-4px}
+
+/* --- numbered rules --- */
+.rule{display:grid;grid-template-columns:36px 1fr;gap:14px;padding:16px 0;border-top:1px solid var(--line)}
+.rule:first-of-type{margin-top:22px}
+.rule small{font:500 12px DM Mono;color:var(--green-ink)}
+.rule b{font-size:15px;color:var(--ink)}
+.rule span{display:block;font-size:14px;line-height:1.6;color:var(--muted);margin-top:5px}
+
+/* --- specification tables ---
+   Every table is CONTROL / DOES / WHY. On narrow screens the same markup
+   restacks into readable blocks instead of forcing a horizontal scroll. */
+.tablewrap{border:1px solid var(--line);border-radius:11px;background:var(--card);margin-top:22px;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+caption{text-align:left;padding:12px 14px 0;font:500 11px DM Mono;color:var(--faint);letter-spacing:.07em;text-transform:uppercase}
+th{text-align:left;background:#f1f5ef;padding:12px 14px;font:500 11px DM Mono;letter-spacing:.07em;color:#4d6559;border-bottom:1px solid var(--line)}
+td{border-top:1px solid #e7ede5;vertical-align:top;padding:15px 14px;font-size:14px;line-height:1.6}
+tbody tr:first-child td{border-top:0}
+td:first-child{font-weight:700;color:var(--ink);width:22%;font-size:14px}
+td:nth-child(2){color:var(--ink2);width:40%}
+td:last-child{color:var(--muted);width:38%}
+@media(max-width:820px){
+  thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  table,tbody,tr,td{display:block;width:auto}
+  tr{border-top:1px solid var(--line);padding:16px 14px}
+  tbody tr:first-child{border-top:0}
+  td{border:0;padding:0;width:auto!important}
+  td:first-child{font-size:16px;margin-bottom:8px}
+  td:nth-child(2),td:last-child{margin-top:9px;padding-left:11px;border-left:2px solid #e0e8de}
+  td:nth-child(2):before,td:last-child:before{display:block;font:500 11px DM Mono;letter-spacing:.08em;color:var(--faint);margin-bottom:3px}
+  td:nth-child(2):before{content:'WHAT THE USER DOES'}
+  td:last-child:before{content:'WHY IT EXISTS'}
+}
+
+/* --- dark sections --- */
+.dark{background:var(--dark);color:#eef7ec}
+.dark .mono{color:var(--lime)}
+.dark h2,.dark h3{color:#f0f8ed}
+.dark .lede,.dark p{color:#c6d5cc}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:22px}
+.grid.two{grid-template-columns:repeat(2,1fr)}
+.card{border:1px solid #4b7767;border-radius:10px;padding:18px}
+.card i{font-style:normal;color:var(--lime);font:500 11px DM Mono;letter-spacing:.07em;text-transform:uppercase;display:block;margin-bottom:12px}
+.card h3{font-size:15px;margin:0 0 6px}
+.card p{font-size:13px;margin:0;line-height:1.6}
+.light-card{border-color:var(--line);background:var(--card)}
+.light-card i{color:var(--green-ink)}
+.light-card h3{color:var(--ink)}
+.light-card p{color:var(--muted)}
+
+/* --- callouts --- */
+.note{margin-top:22px;padding:15px 17px;background:var(--amber-bg);border-left:3px solid var(--amber-line);color:var(--amber-ink);font-size:14px;line-height:1.6}
+.note b{font:500 11px DM Mono;letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:5px}
+.req{margin-top:22px;padding:15px 17px;background:var(--soft);border-left:3px solid var(--green);color:#3d5347;font-size:14px;line-height:1.6}
+.req b{font:500 11px DM Mono;letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:5px;color:var(--green-ink)}
+.req ul{margin:8px 0 0;padding-left:19px}
+.req li{margin-bottom:5px}
+
+/* --- priorities --- */
+.priority{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:24px}
+.priority div{padding:16px;border:1px solid var(--line);border-radius:9px;background:var(--card)}
+.priority b{display:block;font-size:14px;margin-bottom:6px;color:var(--ink)}
+.priority span{font-size:13px;line-height:1.6;color:var(--muted)}
+
+/* --- back to top --- */
+.totop{position:fixed;right:20px;bottom:20px;z-index:8;background:var(--ink);color:#fff;border:0;border-radius:9px;padding:12px 15px;font:700 12px Manrope;min-height:44px;cursor:pointer;opacity:0;transform:translateY(16px);transition:.18s;pointer-events:none}
+.totop.show{opacity:1;transform:none;pointer-events:auto}
+@media(prefers-reduced-motion:reduce){.totop{transition:none}}
+
+.totop .lbl2{display:inline}
+@media(max-width:620px){
+  .totop{right:14px;bottom:14px;padding:0;width:46px;height:46px;border-radius:50%;font-size:17px}
+  .totop .lbl2{display:none}
+}
+.footer{padding:26px 0;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font:500 11px DM Mono;color:#5c7568}
+
+@media(max-width:900px){.status{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){
+  .shell{width:min(100% - 32px,1160px)}
+  .hero{grid-template-columns:1fr;gap:26px;padding:44px 0 34px}
+  .grid,.grid.two,.priority{grid-template-columns:1fr}
+  section{padding:48px 0}
+  .toc b{display:none}
+}
+@media(max-width:520px){.status{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<a class="skip" href="#principles">Skip to specification</a>
+
+<div class="shell">
+<nav>
+  <div class="brand"><i>⌁</i>race planner</div>
+  <div class="navlinks">
+    <a class="button ghost" href="#changes">What changed in v2.0</a>
+    <a class="button" href="race-planner-static-demo.html">Open the prototype this spec describes →</a>
+  </div>
+</nav>
+</div>
+
+<main>
+<div class="shell">
+<section class="hero" style="border-bottom:0;padding-bottom:26px">
+  <div>
+    <div class="mono">UX build specification / v2.0</div>
+    <h1>Make the tool <em>adapt to the race.</em></h1>
+    <p>This document defines the user experience Race Planner must provide across disciplines: rally, road racing, endurance, karting, track days, drag racing, off-road and club events. It specifies what people can control, what each control does, and why it earns a place in the product.</p>
+    <p>It is written to be testable. Every requirement should be provable by watching one person, on one device, in the conditions the event actually happens in.</p>
+  </div>
+  <aside class="summary">
+    <b>Scope boundary</b>
+    This is a UX specification, not a visual design or technical architecture. A capability is only in scope if a user can perceive, configure, act on, or recover from it. Where a requirement carries a number — type size, contrast, touch target, timeout — that number is part of the user experience and is binding.
+  </aside>
+</section>
+
+<dl class="status">
+  <div><dt>Revision</dt><dd>v2.0<small>Supersedes v1.3</small></dd></div>
+  <div><dt>Status</dt><dd>For review<small>Not yet approved for build</small></dd></div>
+  <div><dt>Companion prototype</dt><dd>race-planner-static-demo.html<small>28 screens · kept in step with §14</small></dd></div>
+  <div><dt>Open questions</dt><dd>3<small>Listed in §14</small></dd></div>
+</dl>
+</div>
+
+<div class="toc">
+  <div class="shell toc-inner">
+    <b>Sections</b>
+    <a href="#changes"><i>00</i>What changed</a>
+    <a href="#principles"><i>01</i>Principles</a>
+    <a href="#shell"><i>02</i>Shell, Today &amp; attention</a>
+    <a href="#views"><i>03</i>Collections &amp; views</a>
+    <a href="#records"><i>04</i>Records &amp; venues</a>
+    <a href="#plan"><i>05</i>Movement plan</a>
+    <a href="#work"><i>06</i>Work &amp; templates</a>
+    <a href="#forms"><i>07</i>Forms &amp; inspections</a>
+    <a href="#trust"><i>08</i>Trust &amp; recovery</a>
+    <a href="#delivery"><i>09</i>Change delivery</a>
+    <a href="#firstrun"><i>10</i>First run &amp; empty states</a>
+    <a href="#offline"><i>11</i>Offline &amp; failure states</a>
+    <a href="#access"><i>12</i>Accessibility &amp; environment</a>
+    <a href="#guardrails"><i>13</i>Guardrails &amp; priorities</a>
+    <a href="#trace"><i>14</i>Traceability</a>
+  </div>
+</div>
+
+<div class="shell">
+
+<section id="changes">
+  <div class="mono">00 / revision notes</div>
+  <h2>What v1.3 got wrong.</h2>
+  <p class="lede">v1.3 described a flexible workspace well and then quietly assumed the important part: that information which is published is information which arrived. It also asserted usability goals — readable, touchable, glove-friendly — without a single number anyone could fail a build against. These are the corrections.</p>
+  <div class="tablewrap">
+    <table>
+      <caption>Findings from the v1.3 review</caption>
+      <thead><tr><th>PROBLEM FOUND IN v1.3</th><th>WHAT CHANGED IN v2.0</th><th>WHY IT MATTERED</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>“Publish” was treated as the end of a change</td>
+          <td>New §09 defines per-recipient delivery state, an unreached list, escalation, and verbal-acknowledgement capture. Publishing is not complete until every affected person is reached or explicitly escalated.</td>
+          <td>The worst realistic failure of this product is a driver leaving service on last night’s instruction. v1.3 could be built exactly to spec and still allow it.</td>
+        </tr>
+        <tr>
+          <td>Usability goals had no thresholds</td>
+          <td>New §12 sets binding minimums for type size, contrast, touch target, keyboard operation, announcement and latency, plus night and sunlight conditions.</td>
+          <td>“Readable contrast” and “generous targets” cannot be reviewed, tested or failed. Numbers can.</td>
+        </tr>
+        <tr>
+          <td>The empty product was undefined</td>
+          <td>New §10 covers first run, minimum event setup, every empty collection, and sample data that can be removed in one action.</td>
+          <td>v1.3 promised a new team could be productive quickly but never described the screen they actually meet first.</td>
+        </tr>
+        <tr>
+          <td>“Failure states” meant offline only</td>
+          <td>§11 now carries a failure matrix: load, permission, deleted record, stale view, publish, upload, export, storage, expired link, revoked access, no search results.</td>
+          <td>Offline is one failure. A crew hits the others on the same day, usually while hurrying.</td>
+        </tr>
+        <tr>
+          <td>Today was the default surface but had no requirements</td>
+          <td>§02 now specifies Today and the attention queue, including what may never be buried and what a user may pin.</td>
+          <td>The most-used screen in the product was the least specified.</td>
+        </tr>
+        <tr>
+          <td>Reversibility was described as archive plus confirmation</td>
+          <td>Guardrail A now splits the two: immediate undo for reversible actions, impact statement and confirmation only for irreversible ones.</td>
+          <td>Confirming everything trains people to confirm without reading, which removes the protection it claims to add.</td>
+        </tr>
+        <tr>
+          <td>Document pointed at the wrong prototype and could not be navigated</td>
+          <td>Link now resolves to the companion prototype; section list is sticky and tracks position; tables restack instead of scrolling sideways; headings scale on small screens; §14 maps every section to a screen.</td>
+          <td>A specification nobody can navigate or trace is not usable by the team meant to build from it.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note">
+    <b>Honest limitation</b>
+    Three questions are still open and are called out in §14 rather than hidden behind confident prose: how a change reaches someone with no data at all, who owns event structure when the owner is driving, and whether cross-event reporting belongs in this product.
+  </div>
+</section>
+
+<section id="principles">
+  <div class="mono">01 / non-negotiable experience principles</div>
+  <h2>Flexibility must be progressive.</h2>
+  <p class="lede">A new team should be productive with a plan, a few places and a checklist. An experienced team must be able to evolve that starting point without having to invent a separate system outside the app.</p>
+
+  <div class="rule"><small>01</small><div><b>Start with defaults; never trap users in them.</b><span>Race Planner supplies practical racing templates and types, but every type, field, status, category, view and template can be changed by an authorized user.</span></div></div>
+  <div class="rule"><small>02</small><div><b>Keep the record separate from its presentation.</b><span>Changing a table column, saved view or personal dashboard does not change the event’s underlying records or another person’s preferred workspace.</span></div></div>
+  <div class="rule"><small>03</small><div><b>Make uncertainty visible.</b><span>Draft, published, confirmed, changed, missing, unassigned and offline states must be explicit. Color may reinforce a state; it must never be the only signal, and a state may never be dropped to save space on a small screen.</span></div></div>
+  <div class="rule"><small>04</small><div><b>Favor optional links over required data entry.</b><span>A user can create a plain plan row, note, task or place in one action. Links to a car, person, venue, source or form are offered in context and can be added later.</span></div></div>
+  <div class="rule"><small>05</small><div><b>A change is not done until it arrives.</b><span>Any instruction that affects where a person goes or what a person does carries a visible delivery and acknowledgement state per recipient. The product never reports success on the sender’s side alone.</span></div></div>
+  <div class="rule"><small>06</small><div><b>Design for the conditions, not the demo.</b><span>Cold hands, gloves, direct sun, darkness, engine noise, one free hand, split attention and no signal are the normal operating environment. Anything that only works seated indoors on a fast connection is unfinished.</span></div></div>
+  <div class="rule"><small>07</small><div><b>Prefer undo to confirmation.</b><span>Reversible actions happen immediately and offer undo. Confirmation is reserved for what cannot be undone, and must state the specific impact rather than ask a generic question.</span></div></div>
+</section>
+
+<section id="shell">
+  <div class="mono">02 / workspace shell, today and attention</div>
+  <h2>Every screen should answer: where am I, what needs attention, and what can I do?</h2>
+  <div class="tablewrap">
+    <table>
+      <caption>Persistent shell controls</caption>
+      <thead><tr><th>CONTROL</th><th>USER ACTION &amp; RESULT</th><th>WHY IT EXISTS</th></tr></thead>
+      <tbody>
+        <tr><td>Event switcher</td><td>Opens the event picker; creates, duplicates, archives or opens an event; shows date range, timezone, selected vehicle(s), sharing state and offline readiness.</td><td>Teams often operate multiple events and cars. Context must be unmistakable before a user edits a plan or completes a form.</td></tr>
+        <tr><td>Primary navigation</td><td>Moves among Today, Plan, Work, Records, Forms and Files. Users may reorder, hide or pin modules they have access to; the event owner sets the default order. When a detail screen is open, its parent module stays visibly selected.</td><td>Different disciplines and roles do not work in the same sequence. Navigation should reflect the crew’s operating model, and a user three levels deep must still know where they are.</td></tr>
+        <tr><td>Global Add</td><td>Creates a movement, work item, record, form submission, file, note or saved view. The menu remembers the user’s common choices and supports a keyboard shortcut, shown with the correct modifier for the user’s platform.</td><td>Capture must stay fast when information arrives over a radio, phone call or paddock conversation.</td></tr>
+        <tr><td>Search / command palette</td><td>Searches names, IDs, notes and file text; also opens views and invokes actions such as “add venue” or “download Saturday.” Results show record type and event context, are keyboard-navigable, and an empty result explains what was searched and offers to create the thing instead.</td><td>Users should not need to remember which module owns a fact in a live event, and a dead end must still offer a way forward.</td></tr>
+        <tr><td>Attention indicator</td><td>Carries a count and opens a focused queue: assigned work, plan changes needing acknowledgement, changes the user published that have not reached everyone, failed form rules, mentions, sync conflicts and expiring access. Items are dismissible only by resolution or explicit snooze with a stated return time.</td><td>It prevents a generic notification stream from burying the information that can affect the day.</td></tr>
+        <tr><td>Sync / offline status</td><td>Always visible, on every screen size. Shows last successful sync, queued change count, conflicts, downloaded package size and a direct route to resolve a problem.</td><td>“Offline ready” is an operational condition, not decorative status text — so it cannot be the thing that gets hidden on a phone.</td></tr>
+        <tr><td>Draft indicator</td><td>When a user holds unpublished edits, the affected screen states how many and offers review. Leaving the screen or the app does not discard them or hide them.</td><td>Editing without publishing is a normal, deliberate state. It must never be a state the user has forgotten they are in.</td></tr>
+        <tr><td>Display mode</td><td>Switches day, night and high-contrast presentation, following the device setting by default and remembering an explicit choice per device.</td><td>The same crew uses this screen in a bright paddock at noon and in a dark car at 22:00. One palette cannot serve both.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <caption>Today and the attention queue</caption>
+      <thead><tr><th>CONTROL</th><th>USER ACTION &amp; RESULT</th><th>WHY IT EXISTS</th></tr></thead>
+      <tbody>
+        <tr><td>Run of day</td><td>Shows what is next in event time, with place, people, status and source. Each entry opens its movement detail, and each is actionable from Today without going to Plan first.</td><td>Most sessions in a live event are a ten-second check of the next commitment, not a planning session.</td></tr>
+        <tr><td>Summary counts</td><td>Displays counts such as movements today, work due, changes awaiting review and next handoff. Every count is a control that opens the exact filtered list behind it.</td><td>A number that cannot be opened forces the user to go and rebuild the filter that produced it.</td></tr>
+        <tr><td>Change banner</td><td>States what changed since the user last looked, who changed it, on whose authority, and what the user must do about it. It persists until acknowledged rather than passing by.</td><td>The one thing a briefing surface exists to do is stop someone acting on superseded information.</td></tr>
+        <tr><td>Pinned blocks</td><td>Lets a user pin a filtered collection, map, latest changes or a freeform note. Pinning is personal and never alters event data or another person’s Today.</td><td>A driver, crew chief and organizer liaison need different first screens from the same event.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="req">
+    <b>Required rule</b>
+    Nothing in the attention queue may be cleared by the system on the user’s behalf. An item leaves the queue when it is resolved, explicitly snoozed with a stated return time, or no longer applies — and in the last case the queue says so rather than silently removing it.
+  </div>
+</section>
+
+<section id="views">
+  <div class="mono">03 / collections, views and layout</div>
+  <h2>Any collection needs more than one useful surface.</h2>
+  <p class="lede">A collection is a set of records such as movements, work, places or cars. Views are user-configured ways of seeing the same set. A crew may use a table during planning, a timeline during race day and a map while traveling.</p>
+  <div class="tablewrap">
+    <table>
+      <caption>View and field controls</caption>
+      <thead><tr><th>CONTROL</th><th>USER ACTION &amp; RESULT</th><th>WHY IT EXISTS</th></tr></thead>
+      <tbody>
+        <tr><td>New view</td><td>Starts a table, timeline, calendar, board, map, list or document view. The user names it, chooses private/shared/default visibility and may start from a template.</td><td>Different questions require different arrangements; creating a useful view must not require spreadsheet expertise.</td></tr>
+        <tr><td>Fields / columns</td><td>Adds a field to the collection; chooses field type, help text, default, allowed values, validation and whether it is required. In a current view, users show, hide, reorder, resize or freeze fields.</td><td>Teams need different information without making every screen unreadably dense.</td></tr>
+        <tr><td>Filter, sort and group</td><td>Builds readable conditions using current fields; can save the result to the view. A visible summary states active filters and a one-click reset clears them.</td><td>Saved operational slices—“my open work,” “Saturday car 262,” “unconfirmed venues”—are more valuable than one master list.</td></tr>
+        <tr><td>View settings</td><td>Sets compact/comfortable density, grouping, visible totals, conditional highlighting, pinned summary blocks and time zone/display preferences. A user can reset only their local changes.</td><td>High-density planning and quick mobile scanning are both legitimate, but must not impose on one another.</td></tr>
+        <tr><td>Responsive behaviour of a view</td><td>On a narrow screen a view reflows: rows stack, secondary fields move to a second line, and the record’s state and primary action stay on screen. The user may choose which fields lead on small screens.</td><td>Dropping columns to fit a phone is how a status or a primary action disappears at exactly the moment it matters. Reflow is required; truncation of state is not permitted.</td></tr>
+        <tr><td>Share / lock view</td><td>Shares a view with roles or named people, makes it an event default, or locks its structure while still allowing permitted data edits.</td><td>A race director or crew chief needs a dependable shared briefing; individuals still need freedom to experiment safely.</td></tr>
+        <tr><td>Bulk selection</td><td>Selects rows with mouse, keyboard or filter; supports edit, assign, tag, move, export, duplicate, archive and change status, with a review count before applying and a single undo after.</td><td>Real event data arrives in batches. Repetitive one-record editing encourages errors.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note"><b>Required rule</b>All view configuration is reversible. The product must distinguish “this view changed” from “these records changed,” and state who will see the result before save.</div>
+</section>
+</div>
+
+<section id="records" class="dark">
+  <div class="shell">
+    <div class="mono">04 / records, venues and categories</div>
+    <h2>Let teams name their world without corrupting the event’s official facts.</h2>
+    <p class="lede">Race Planner should ship with racing-aware record types, but the user—not the product—decides the vocabulary. “Venue,” “paddock,” “pit,” “service,” “fuel,” “medical,” “supplier,” “marshal post” and “hospitality” may all matter in different series.</p>
+    <div class="grid">
+      <article class="card"><i>+ Record</i><h3>Add a record</h3><p>Creates a person, place, vehicle, service, equipment item, organization or a user-defined type. The creator can begin with only a name, then add details and links later.</p></article>
+      <article class="card"><i>+ Type</i><h3>Add or edit a record type</h3><p>Names the type, chooses its icon, defaults, fields, allowed links and list behavior. Existing types can be renamed or archived; their records remain intact and discoverable.</p></article>
+      <article class="card"><i>+ Category</i><h3>Group places or services</h3><p>Creates a user-owned category such as Fuel, Tire support, Catering, Recovery, Charging or Media. It can be ordered, renamed, recolored and shown in a map or list view.</p></article>
+    </div>
+  </div>
+</section>
+
+<div class="shell">
+<section>
+  <div class="mono">04b / venue-specific controls</div>
+  <h2>A location is more than an address.</h2>
+  <div class="tablewrap">
+    <table>
+      <caption>Place, venue and travel controls</caption>
+      <thead><tr><th>CONTROL</th><th>USER ACTION &amp; RESULT</th><th>WHY IT EXISTS</th></tr></thead>
+      <tbody>
+        <tr><td>Add venue</td><td>Creates an official location from blank, a template or a map search. User selects a type or creates one, then enters address/coordinates, access notes, hours, contacts, map/directions and source.</td><td>Official locations need stronger context than a generic pin, while still allowing a one-minute capture.</td></tr>
+        <tr><td>Add service / nearby place</td><td>Creates a crew-useful place and assigns one or more categories. A service can also be promoted to an official venue if its role changes.</td><td>“Fuel near the track” and “official paddock entrance” are different truths; mixing them loses operational clarity.</td></tr>
+        <tr><td>Manage categories</td><td>Adds, renames, reorders, merges, archives and colors categories; chooses whether a category appears in the left navigation, map legend or default filter. Removing a category asks whether to reassign its records.</td><td>Users need their own taxonomy, but category cleanup must not silently orphan records.</td></tr>
+        <tr><td>Travel context</td><td>Adds a travel estimate or route note from any selected place to another. It records calculation/author/date and can be shown in plan, map or place detail.</td><td>“15 minutes from paddock” is often more actionable than a street address.</td></tr>
+        <tr><td>Venue confirmation</td><td>Sets source-backed confirmation state, verification date and responsible person; can request acknowledgement from affected roles after an important change.</td><td>A changed gate, paddock or inspection location needs an auditable, visible handoff—not just an edited note.</td></tr>
+        <tr><td>Record detail panel</td><td>Opens a stable panel with properties, linked records, activity, comments, files, source excerpts and actions. Users can choose which sections are expanded by default in their view.</td><td>Context belongs beside the object, not scattered across separate modules.</td></tr>
+        <tr><td>Offline map and directions</td><td>States whether the map area and route for a place are downloaded, and hands off to device navigation with the access note attached rather than the bare address.</td><td>The last mile of a venue change is a gate, a lot and a wrong entrance — details a map pin alone will not carry.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="plan">
+  <div class="mono">05 / movement plan</div>
+  <h2>Planning must be as easy as a document and as dependable as a schedule.</h2>
+  <div class="tablewrap">
+    <table>
+      <caption>Plan controls</caption>
+      <thead><tr><th>CONTROL</th><th>USER ACTION &amp; RESULT</th><th>WHY IT EXISTS</th></tr></thead>
+      <tbody>
+        <tr><td>Quick movement row</td><td>Adds a row with time and description; time may be exact, approximate, a range, all-day or intentionally blank. A movement becomes structured only when the user adds people, place, vehicle, status or links.</td><td>Early planning is incomplete by nature. Required schema should not force fake precision.</td></tr>
+        <tr><td>Day / session organizer</td><td>Creates, renames, reorders and groups days, sessions, legs, runs, stints or user-defined sections. Selecting one changes the records shown and the selection survives navigation away and back.</td><td>Race formats vary. The product cannot assume a five-day rally or a single race day — and a day selector that does not filter is a decoration.</td></tr>
+        <tr><td>Publish changes</td><td>Lets an authorized person keep edits as draft, publish a selected change, add a reason/source and assign acknowledgement. The product highlights the delta, notifies only affected people, keeps the previous value in history, and then tracks delivery per §09.</td><td>Race-day changes must be actionable without creating alert fatigue or erasing the original instruction.</td></tr>
+        <tr><td>Conflict / overlap helper</td><td>Optionally flags overlapping commitments for the same person, car, place or resource. It never blocks a save; the user can dismiss, explain or resolve the conflict.</td><td>It catches accidental double booking while respecting the realities of parallel teams and exceptions.</td></tr>
+        <tr><td>Plan export / print</td><td>Exports the selected view to printable PDF, spreadsheet, share link or compact offline brief. The preview shows the exact filter, timezone and generated time, and the printed output repeats them on the page.</td><td>Some teams still need a laminated sheet or a simple handoff outside the app — and a printed sheet with no timestamp becomes a hazard the moment the plan changes.</td></tr>
+        <tr><td>Superseded output</td><td>When a plan changes after an export or share link was produced, the product marks that output as out of date wherever it can still be seen, and tells the person who created it.</td><td>Paper and links outlive the change that invalidates them. The product knows; the crew should too.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="work">
+  <div class="mono">06 / work, checklists and templates</div>
+  <h2>Work should fit the crew’s habits, not redefine them.</h2>
+  <div class="tablewrap">
+    <table>
+      <caption>Work and template controls</caption>
+      <thead><tr><th>CONTROL</th><th>USER ACTION &amp; RESULT</th><th>WHY IT EXISTS</th></tr></thead>
+      <tbody>
+        <tr><td>Create checklist / work collection</td><td>Starts blank or from a template; chooses item types, statuses, fields, view and access. A checklist can remain a plain tick list or evolve into a richer work collection.</td><td>Meal prep and a multi-car service operation should not be forced into the same complexity on day one.</td></tr>
+        <tr><td>Task controls</td><td>Supports completion, owner, due context, status, priority, comments, attachments, linked records and custom fields. Each is optional; “complete” is always one obvious control that works with gloves and offers undo.</td><td>Fast completion is critical, but richer coordination should be available when needed.</td></tr>
+        <tr><td>Templates</td><td>Creates, edits, versions, copies and archives templates. When applying one, users choose destination, linked vehicle/day and whether edits are local or update the template.</td><td>Teams repeat work but need to adapt it by event, car and weather without damaging the source template.</td></tr>
+        <tr><td>Recurrence / automation</td><td>Optionally creates recurring work or rules based on a date, status or plan event. The setup screen previews the exact records that will be created or notified, and every automated record says which rule produced it.</td><td>Automation should reduce routine work without surprising a crew on a busy day, or leaving them unable to find out where a task came from.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="forms">
+  <div class="mono">07 / forms and inspections</div>
+  <h2>Flexible capture; permanent completed evidence.</h2>
+  <div class="tablewrap">
+    <table>
+      <caption>Form controls</caption>
+      <thead><tr><th>CONTROL</th><th>USER ACTION &amp; RESULT</th><th>WHY IT EXISTS</th></tr></thead>
+      <tbody>
+        <tr><td>Form builder</td><td>Adds, reorders, groups and configures text, number, date/time, select, multi-select, boolean, file/photo, person, signature, record link, calculated and repeatable fields. Each field has instructions, required state, defaults and validation.</td><td>Inspection, inventory, incident and handoff forms share a flexible pattern but require different data.</td></tr>
+        <tr><td>Conditional logic</td><td>Shows a field, section, required state or follow-up action only when a defined answer meets a condition. The builder includes a plain-language preview of the rule.</td><td>It keeps completion short while still collecting exception detail when it matters.</td></tr>
+        <tr><td>Submit / save draft</td><td>Saves a local draft at any time, clearly marks incomplete required fields, and submits with timestamp, submitter, applicable signatures and linked records.</td><td>Field users need safe interruption and must know whether a record is actually complete.</td></tr>
+        <tr><td>Blocked submission</td><td>If required answers are missing, the product names how many, lists them as links, marks each field in place, moves focus to the first one, and keeps that message on screen until resolved. It never reports the block only in a message that disappears.</td><td>A transient toast is the least reliable place to put the reason someone cannot finish — especially on a phone, in the dark, with one hand.</td></tr>
+        <tr><td>Template versioning</td><td>Creates a new template version for structural edits. Completed submissions retain the version, field labels, rules and choices that existed at completion.</td><td>Historical inspections cannot become ambiguous when the template evolves.</td></tr>
+        <tr><td>Follow-up creation</td><td>Lets a configured answer create or suggest a work item, plan note or escalation. The resulting record links back to the exact answer that triggered it.</td><td>Finding a defect must lead cleanly to action without altering the original inspection.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="trust">
+  <div class="mono">08 / source, activity, permissions and recovery</div>
+  <h2>Flexibility needs a memory.</h2>
+  <div class="tablewrap">
+    <table>
+      <caption>Trust and recovery controls</caption>
+      <thead><tr><th>CONTROL</th><th>USER ACTION &amp; RESULT</th><th>WHY IT EXISTS</th></tr></thead>
+      <tbody>
+        <tr><td>Source attachment / excerpt</td><td>Attaches an original file, link, photo or quoted excerpt to a fact or change. The detail view displays source, author, date and the records that rely on it.</td><td>Teams must be able to distinguish a clean operational summary from the document that justified it.</td></tr>
+        <tr><td>Activity &amp; comments</td><td>Shows human-readable history, comments, mentions, acknowledgements and linked changes on a record. Users can filter noise from their personal activity view, and the filters actually change what is listed.</td><td>Event work is collaborative; trust requires knowing what changed and why.</td></tr>
+        <tr><td>Permissions</td><td>Separates event role from product access. Owners choose who can view, comment, create, edit, publish, manage structure, submit forms and see sensitive collections.</td><td>A driver, crew member, organizer contact and temporary volunteer may all need different access without different event identities.</td></tr>
+        <tr><td>Undo</td><td>Any reversible action — completing an item, applying a filter, a bulk edit, an archive — can be undone immediately from where it happened, without hunting through history.</td><td>Recovery that requires knowing the audit trail exists is not recovery for someone with cold hands and 40 seconds.</td></tr>
+        <tr><td>Archive / restore</td><td>Archives records, views, templates and categories with an explanation of impact. Users can restore within the retention window; destructive deletion requires explicit elevated confirmation.</td><td>Configuration freedom must not permit accidental loss of an event’s operational history.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="delivery">
+  <div class="mono">09 / change delivery and acknowledgement</div>
+  <h2>Published is not the same as received.</h2>
+  <p class="lede">This is the requirement v1.3 was missing. A movement plan is only worth what the crew acts on, so the product must treat reaching a person as part of the change, and must never let the publisher believe a change landed when it did not.</p>
+  <div class="tablewrap">
+    <table>
+      <caption>Delivery controls and states</caption>
+      <thead><tr><th>CONTROL</th><th>USER ACTION &amp; RESULT</th><th>WHY IT EXISTS</th></tr></thead>
+      <tbody>
+        <tr><td>Per-recipient delivery state</td><td>Each affected person carries an explicit state: not sent, sent, delivered to a device, opened, acknowledged, unreachable, or acknowledged by another route. The publisher sees the list, not a total.</td><td>“8 people notified” hides the one person who never got it — which is the only fact that mattered.</td></tr>
+        <tr><td>Unreached list</td><td>Shows who has not received or acknowledged a change, with when each was last online and their next likely contact point. It stays available until the change is fully reached or deliberately closed.</td><td>Closing this gap is a human task. The product’s job is to make the gap impossible to overlook.</td></tr>
+        <tr><td>Severity</td><td>The publisher marks a change routine or critical. Routine changes batch; critical changes alert immediately, repeat, override quiet settings and require acknowledgement.</td><td>Without severity, everything alerts, so people mute the channel and the critical change is the one they miss.</td></tr>
+        <tr><td>Escalation</td><td>If a critical change is unacknowledged after a chosen interval, the product notifies a named fallback — crew chief, team manager, or the whole crew — and records that it did.</td><td>Someone driving, under a car or in a stage cannot answer. The plan for that must exist before it is needed.</td></tr>
+        <tr><td>Out-of-band acknowledgement</td><td>Anyone may record that a person was reached by radio, phone or in person, naming who confirmed it and when. The record shows the change was closed this way.</td><td>Most real acknowledgement happens by voice. If the product cannot record that, its delivery data becomes fiction.</td></tr>
+        <tr><td>Recipient view of a change</td><td>The recipient sees what changed, the previous instruction, who authorised it, the source, what they must do, and one obvious acknowledge control. Acknowledging is one action and states what it commits them to.</td><td>Acknowledgement must mean “I have read and will act,” which requires showing enough to make that true.</td></tr>
+        <tr><td>Offline recipients</td><td>A change queued for an offline person is stated as pending delivery to the publisher, and is presented to the recipient on reconnect as new even if it is hours old, with its original time and current validity.</td><td>A change discovered late must not look like a change already handled.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="req">
+    <b>Required rules</b>
+    <ul>
+      <li>No change that affects location, timing, safety or scrutineering may be marked complete while any affected recipient is unreached and un-escalated.</li>
+      <li>The publisher’s confirmation screen reports reach, not send: “6 of 8 reached, 2 pending” — never “published successfully.”</li>
+      <li>Acknowledgement is always attributable to a person and a time, including when it is recorded on someone’s behalf, in which case both people are named.</li>
+      <li>A superseded instruction stays readable in history, marked superseded, with what replaced it.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="firstrun">
+  <div class="mono">10 / first run and empty states</div>
+  <h2>The first screen is not a blank grid.</h2>
+  <p class="lede">v1.3 promised that a new team could be productive quickly, then never described what they meet. Emptiness is a designed state: it must teach the model of the product in one screen and produce something real in one action.</p>
+  <div class="grid two">
+    <article class="card light-card"><i>Minimum event</i><h3>Four answers, then work</h3><p>Creating an event requires a name and a date range. Timezone is proposed from the device, discipline and vehicle are optional, and every skipped answer stays easy to add later. No wizard step may block a user who does not yet know the answer.</p></article>
+    <article class="card light-card"><i>Every empty collection</i><h3>Purpose, action, example</h3><p>An empty plan, checklist, record list or form list states what it is for, offers one primary action, offers a relevant template, and shows one example entry marked clearly as an example. It never shows only column headings.</p></article>
+    <article class="card light-card"><i>Sample event</i><h3>Explorable, and removable in one action</h3><p>A new account may open a fully populated sample event to learn from. It is labelled as sample everywhere it appears and can be removed in one action without touching real events.</p></article>
+    <article class="card light-card"><i>Progressive disclosure</i><h3>Earn the complexity</h3><p>Field types, automation, permissions, versioning and view sharing stay available but not prominent until a team has a plan and a checklist in use. Nothing is hidden behind a setting the user cannot find when they want it.</p></article>
+  </div>
+  <div class="note">
+    <b>Required rule</b>
+    Empty is also a runtime state, not just a first-run state: a filtered view with no matches must state the filter that produced the emptiness and offer to clear it. A user must never have to guess whether they are looking at no data or the wrong question.
+  </div>
+</section>
+</div>
+
+<section id="offline" class="dark">
+  <div class="shell">
+    <div class="mono">11 / mobile, offline and failure states</div>
+    <h2>Assume weak signal, gloves, noise and partial attention.</h2>
+    <div class="grid">
+      <article class="card"><i>Offline manager</i><h3>Make availability deliberate</h3><p>Users choose the full event, selected days, selected views, maps and files to download. Before leaving signal, the product states what is included and what is missing.</p></article>
+      <article class="card"><i>Queued changes</i><h3>Never pretend a save traveled</h3><p>Each local edit visibly states saved locally / queued / synced / needs resolution. Conflicts open a comparison with an explicit choice, never a silent overwrite.</p></article>
+      <article class="card"><i>Field-friendly controls</i><h3>Make core actions touchable</h3><p>Mobile prioritizes Today, search, quick add, check off, capture photo, directions and plan detail. Controls meet the targets in §12, and no meaning is carried by hover alone.</p></article>
+    </div>
+    <div class="grid" style="grid-template-columns:1fr">
+      <article class="card"><i>Failure matrix</i><h3>Every failure names a cause and a next step</h3><p>A failure state must say what failed, whether the user’s data is safe, and what to do now. “Something went wrong” is not an acceptable string anywhere in the product.</p></article>
+    </div>
+  </div>
+</section>
+
+<div class="shell">
+<section>
+  <div class="mono">11b / required failure states</div>
+  <h2>The other things that go wrong.</h2>
+  <div class="tablewrap">
+    <table>
+      <caption>Failure matrix</caption>
+      <thead><tr><th>FAILURE</th><th>WHAT THE USER SEES AND CAN DO</th><th>WHY IT EXISTS</th></tr></thead>
+      <tbody>
+        <tr><td>Content will not load</td><td>The screen states that it could not load, whether a cached copy is being shown and how old it is, and offers retry. Cached content is labelled as cached with its time.</td><td>Stale data presented as current is more dangerous than a visible error.</td></tr>
+        <tr><td>Permission denied</td><td>Names what was refused, who can grant it, and offers to request access. It does not silently hide the control that led there.</td><td>A control that fails without explanation reads as a broken product and produces a phone call.</td></tr>
+        <tr><td>Record changed or archived by someone else</td><td>States who changed it and when, shows the current value beside the user’s open copy, and lets them re-apply their edit deliberately.</td><td>Two people editing the same movement during a live event is normal, not exceptional.</td></tr>
+        <tr><td>Stale open view</td><td>When underlying records change while a view is open, the view says so and offers refresh rather than reordering under the user’s hands.</td><td>Content moving mid-tap causes the wrong record to be opened or completed.</td></tr>
+        <tr><td>Publish or sync failure</td><td>The change stays intact and marked unpublished, states why it failed and what remains queued, and offers retry. It is never discarded.</td><td>Losing a typed change during a live event destroys trust in the product permanently.</td></tr>
+        <tr><td>Upload or photo failure</td><td>Keeps the file queued locally with its target record, states the reason, and retries when possible. The form does not lose the rest of its answers.</td><td>Evidence is usually captured once, in conditions that cannot be recreated.</td></tr>
+        <tr><td>Export or print failure</td><td>States the failure, keeps the configured output, and offers retry or a simpler format.</td><td>An export usually happens minutes before someone leaves.</td></tr>
+        <tr><td>Offline storage full or download incomplete</td><td>States what did and did not download, which days or maps are missing, and offers to reduce the package.</td><td>“Offline ready” must never be shown for a partial package.</td></tr>
+        <tr><td>Expired share link or revoked access mid-session</td><td>Explains that access ended, who to ask, and what the person can still see. Anything already downloaded is stated plainly.</td><td>Temporary volunteers and organizer contacts routinely lose access while still holding a device.</td></tr>
+        <tr><td>No search results</td><td>States what was searched and where, and offers to widen the scope or create the record instead.</td><td>An empty result is the most common dead end in a workspace product.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="access">
+  <div class="mono">12 / accessibility and operating environment</div>
+  <h2>Requirements you can fail a build against.</h2>
+  <p class="lede">v1.3 asked for readable contrast and generous targets without saying what either meant, which made them unreviewable. These thresholds are minimums, not aspirations, and apply to the shipped product on the smallest supported screen.</p>
+  <div class="tablewrap">
+    <table>
+      <caption>Binding minimums</caption>
+      <thead><tr><th>REQUIREMENT</th><th>THRESHOLD</th><th>WHY IT EXISTS</th></tr></thead>
+      <tbody>
+        <tr><td>Type size</td><td>Body text at least 15px; secondary and metadata text never below 12px; labels and status text never below 11px and never in all-caps below 12px. Text scales with the operating system setting up to 200% without loss of function.</td><td>Dense 8–10px metadata was unreadable for the people this product is for, in the conditions they use it in.</td></tr>
+        <tr><td>Contrast</td><td>At least 4.5:1 for all text and 3:1 for icons, control borders and focus rings, in every display mode including night.</td><td>Low-contrast greys disappear in sunlight and behind a scratched, wet or gloved-on screen.</td></tr>
+        <tr><td>Touch targets</td><td>At least 44×44px on touch devices and 32×32px with a pointer, with at least 8px between adjacent targets. Row actions, checkboxes and overflow menus are included in this rule.</td><td>Gloves and vibration make a 16px tick box a coin toss.</td></tr>
+        <tr><td>Keyboard operation</td><td>Every action reachable and operable by keyboard, with a visible focus indicator, logical order, Escape closing overlays and focus returning to where it was opened from.</td><td>Planning happens on a laptop, at speed, and some users cannot use a pointer at all.</td></tr>
+        <tr><td>Assistive technology</td><td>Controls have programmatic labels; dialogs are announced and trap focus; status changes such as sync, publish result and validation errors are announced, not only shown.</td><td>State that is only visual excludes people and disappears the moment attention moves.</td></tr>
+        <tr><td>State without color</td><td>Every status carries text or shape in addition to color, including in dense views and print.</td><td>Color-only status fails for colorblind users, in sunlight, and on a photocopied sheet.</td></tr>
+        <tr><td>Display modes</td><td>Day, night and high-contrast modes; follows the device setting; remembers an explicit choice; night mode avoids large bright surfaces.</td><td>A white screen in a dark car at 22:00 destroys night vision for the person holding it and the driver beside them.</td></tr>
+        <tr><td>Motion</td><td>Respects reduced-motion settings; no essential information conveyed only by animation; nothing that moves under the user’s finger after tap.</td><td>Movement in a moving vehicle causes errors and nausea.</td></tr>
+        <tr><td>Latency and feedback</td><td>Any action gives feedback within 100ms. Anything longer than 1s shows progress. Locally available data opens without waiting for the network. Sync state resolves within 5s or is explicitly stated as queued.</td><td>Silence after a tap is read as failure, and the tap is repeated.</td></tr>
+        <tr><td>One-hand reach</td><td>On phones the primary actions of a screen sit within thumb reach; destructive actions do not.</td><td>The other hand is holding a tool, a radio, a door or a tire.</td></tr>
+        <tr><td>Feedback that must persist</td><td>Anything that blocks the user, changes shared state, or needs a decision is shown in place until resolved. Transient messages are limited to confirmations of completed reversible actions, and always carry an undo.</td><td>A 3-second message is the wrong container for a reason someone cannot submit.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="guardrails">
+  <div class="mono">13 / UX guardrails and delivery priorities</div>
+  <h2>Power should not create a new burden.</h2>
+  <div class="rule"><small>A</small><div><b>Undo for the reversible; an impact statement for the rest.</b><span>Reversible actions apply immediately and offer undo where they happened. Irreversible actions — merging a category, deleting a record type, removing access, permanent deletion — state which records, users and views are affected, then require explicit confirmation. Do not confirm everything; it teaches people to confirm nothing.</span></div></div>
+  <div class="rule"><small>B</small><div><b>No hidden mode changes.</b><span>Draft, edit, selected, filtered, offline, shared and display-mode states must be visible in the immediate workspace. Avoid controls that silently alter another user’s experience.</span></div></div>
+  <div class="rule"><small>C</small><div><b>No required field unless it changes a real outcome.</b><span>Required fields should be limited to identity, safety, compliance, routing or a configured workflow need. Everything else should be easy to add later.</span></div></div>
+  <div class="rule"><small>D</small><div><b>No universal racing taxonomy.</b><span>Provide starter templates for disciplines, but a team must be able to rename “movement,” “service,” “session,” “vehicle,” “status” and categories to match its vocabulary.</span></div></div>
+  <div class="rule"><small>E</small><div><b>No control that does nothing.</b><span>Every visible control either acts, explains why it cannot act, or is not shown. A control that is present but inert — a filter tab that does not filter, a count that does not open, a menu that never appears — is a defect, not an unfinished feature.</span></div></div>
+  <div class="rule"><small>F</small><div><b>No claim the product cannot support.</b><span>Counts, statuses, “offline ready” and “notified” must reflect verified state. If the product does not know, it says it does not know.</span></div></div>
+
+  <div class="priority">
+    <div><b>Build first</b><span>Event context; quick capture; configurable collections/fields; table and list views with required responsive reflow; plan; work; linked records; offline status; source and history; first-run and empty states; the §12 minimums; undo.</span></div>
+    <div><b>Build next</b><span>Saved shared views; map, board and timeline; templates; configurable forms; publishing with §09 delivery tracking and escalation; permissions; export with supersede marking; attention queue.</span></div>
+    <div><b>Prove before expanding</b><span>Automations, formulas, deep conditional logic and cross-event reporting should follow observed team workflows, not assumed complexity.</span></div>
+  </div>
+  <div class="note">
+    <b>Sequencing note</b>
+    §12 is not a later hardening pass. Type size, contrast, target size, keyboard operation and persistent feedback are cheap at the start and expensive to retrofit, because they change layout density everywhere.
+  </div>
+</section>
+
+<section id="trace" style="border-bottom:0">
+  <div class="mono">14 / traceability and open questions</div>
+  <h2>Every section has a screen.</h2>
+  <p class="lede">The companion prototype exists to make this document reviewable by people who will not read it end to end. If a requirement here has no screen, it has not been designed yet — and that is worth seeing.</p>
+  <div class="tablewrap">
+    <table>
+      <caption>Spec section → prototype screen</caption>
+      <thead><tr><th>SECTION</th><th>PROTOTYPE SCREENS</th><th>REVIEW NOTE</th></tr></thead>
+      <tbody>
+        <tr><td>02 Shell, Today &amp; attention</td><td>Today · Attention &amp; acknowledgements · Event switcher</td><td>Counts on Today open the filtered list behind them; the attention queue is its own screen rather than a badge with nowhere to go.</td></tr>
+        <tr><td>03 Collections &amp; views</td><td>Views &amp; fields · Movement plan (day selector, filters)</td><td>Timeline, calendar, board and map are named but not drawn. They are build-next and deliberately unspecified in layout.</td></tr>
+        <tr><td>04 Records &amp; venues</td><td>Records directory · Venue detail · Types &amp; categories · Travel context</td><td>Category merge and archive demonstrate the impact statement required by Guardrail A.</td></tr>
+        <tr><td>05 Movement plan</td><td>Movement plan · Movement detail · Publish change · Export &amp; print</td><td>The day selector filters real rows; the draft state is visible on the plan.</td></tr>
+        <tr><td>06 Work &amp; templates</td><td>Work &amp; checklists · Work item detail · Templates · Automation setup</td><td>Completion offers undo; each checklist tab shows its own items.</td></tr>
+        <tr><td>07 Forms</td><td>Forms &amp; inspections · Form builder · Submission / draft · Template versions</td><td>Blocked submission is demonstrated in place, with field-level errors and focus movement.</td></tr>
+        <tr><td>08 Trust &amp; recovery</td><td>Files &amp; sources · Activity &amp; comments · People &amp; permissions · Archive &amp; restore</td><td>Activity filters change the list.</td></tr>
+        <tr><td>09 Change delivery</td><td>Publish change · Attention &amp; acknowledgements</td><td>Publishing reports reach, not send, and names who is unreached.</td></tr>
+        <tr><td>10 First run &amp; empty states</td><td>First run &amp; empty states</td><td>Includes the runtime empty state for a filter with no matches.</td></tr>
+        <tr><td>11 Offline &amp; failure</td><td>Offline manager · System &amp; failure states</td><td>The failure matrix is shown as real components, not prose.</td></tr>
+        <tr><td>12 Accessibility &amp; environment</td><td>Applies to every screen · night mode in the shell</td><td>Not a screen. Reviewed by operating the prototype with a keyboard only, at 200% text, in night mode.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note">
+    <b>Open questions — not yet answered by this spec</b>
+    <b style="margin-top:9px">01</b>
+    When a person has no data connection at all for hours, the product cannot reach them. Does the event owner get a required pre-departure briefing checkpoint, or is voice contact simply accepted as the fallback and recorded per §09?
+    <b style="margin-top:9px">02</b>
+    Who owns event structure while the owner is driving? Permissions currently assume the owner is reachable, which during a stage they are not.
+    <b style="margin-top:9px">03</b>
+    Does cross-event reporting belong in this product at all, or does it belong to whatever the team already uses for the season?
+  </div>
+</section>
+
+<footer class="footer">
+  <span>⌁ RACE PLANNER / UX BUILD SPEC v2.0</span>
+  <span>USER EXPERIENCE ONLY / FOR REVIEW</span>
+  <span><a href="race-planner-static-demo.html" style="color:inherit">COMPANION PROTOTYPE</a> · 2026</span>
+</footer>
+</div>
+</main>
+
+<button class="totop" id="totop" type="button" aria-label="Back to the section list">↑<span class="lbl2"> Back to sections</span></button>
+
+<script>
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var targets = links.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+  var totop = document.getElementById('totop');
+
+  function mark(){
+    var best = 0, bestTop = -Infinity;
+    for (var i = 0; i < targets.length; i++){
+      if (!targets[i]) continue;
+      var top = targets[i].getBoundingClientRect().top - 120;
+      if (top <= 0 && top > bestTop){ bestTop = top; best = i; }
+    }
+    links.forEach(function(a, i){
+      if (i === best) a.setAttribute('aria-current', 'true');
+      else a.removeAttribute('aria-current');
+    });
+    var strip = document.querySelector('.toc-inner'), cur = links[best];
+    if (strip && cur && strip.scrollWidth > strip.clientWidth){
+      var l = cur.offsetLeft, r = l + cur.offsetWidth;
+      if (l < strip.scrollLeft + 8) strip.scrollLeft = l - 16;
+      else if (r > strip.scrollLeft + strip.clientWidth - 8) strip.scrollLeft = r - strip.clientWidth + 16;
+    }
+    totop.classList.toggle('show', window.scrollY > 700);
+  }
+
+  var queued = false;
+  window.addEventListener('scroll', function(){
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(function(){ mark(); queued = false; });
+  }, {passive:true});
+
+  totop.addEventListener('click', function(){
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({top:0, behavior: reduce ? 'auto' : 'smooth'});
+    document.querySelector('.toc a').focus();
+  });
+
+  mark();
+})();
+</script>
+</body>
+</html>

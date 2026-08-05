@@ -1,0 +1,2460 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Race Planner — prototype</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap');
+
+/* ============================================================
+   TOKENS
+   Type floor: 12px secondary, 15px body. Contrast >= 4.5:1.
+   Targets: 36px pointer, 44px touch. Day + night palettes.
+   ============================================================ */
+:root{
+  --paper:#f7f8f2;--card:#fff;--side:#eff3ed;--topbg:#fbfdf9;
+  --ink:#12211b;--ink2:#283b32;--muted:#4d5f57;--faint:#5a6d64;
+  --line:#d2ddd0;--line2:#e5ebe3;--btnline:#c4d3c3;
+  --green:#1b6349;--green-ink:#134a36;--lime:#bee94b;--soft:#e5f2df;--dark:#173e33;
+  --focus:#0f5f45;--shadow:0 8px 26px #12211b1f;
+  --g-bg:#dcefd4;--g-tx:#1c5731;--g-ln:#a9d3a4;
+  --y-bg:#fcefc3;--y-tx:#6b4c0c;--y-ln:#dcbb63;
+  --b-bg:#dbeef9;--b-tx:#1a5570;--b-ln:#9fcbe0;
+  --r-bg:#fbdfd8;--r-tx:#8b3524;--r-ln:#e0a898;
+  --n-bg:#e9ede8;--n-tx:#48554d;--n-ln:#c6d0c4;
+  --p-bg:#eae1f5;--p-tx:#553c78;--p-ln:#c4b0dd;
+}
+html[data-theme=night]{
+  --paper:#0d1512;--card:#141f1a;--side:#101a16;--topbg:#121d18;
+  --ink:#e9f2ea;--ink2:#d3e2d7;--muted:#a7bcb0;--faint:#93a89c;
+  --line:#2b3a33;--line2:#22302a;--btnline:#38493f;
+  --green:#7ec79f;--green-ink:#9fdcb8;--lime:#bee94b;--soft:#1a2a22;--dark:#0b120f;
+  --focus:#9fdcb8;--shadow:0 8px 26px #00000066;
+  --g-bg:#17311f;--g-tx:#a8dcae;--g-ln:#2f5c3a;
+  --y-bg:#332813;--y-tx:#e8c877;--y-ln:#5e4a1c;
+  --b-bg:#12303d;--b-tx:#9ed2e8;--b-ln:#265163;
+  --r-bg:#3a1d16;--r-tx:#f0ac97;--r-ln:#663329;
+  --n-bg:#1e2823;--n-tx:#b3c1b8;--n-ln:#374338;
+  --p-bg:#271d38;--p-tx:#c9b1e6;--p-ln:#453259;
+}
+*{box-sizing:border-box}
+/* hidden must win over every display rule below, or a "hidden" banner,
+   conditional field or filtered row stays on screen. */
+[hidden]{display:none!important}
+/* nothing scrolled-to may hide under the sticky top bar */
+html{scroll-padding-top:84px}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.45 Manrope,sans-serif;letter-spacing:-.015em}
+h1,h2,h3{letter-spacing:-.04em}
+
+/* focus is never invisible */
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:6px}
+.skip{position:absolute;left:-9999px;top:0;z-index:40;background:var(--ink);color:var(--paper);padding:13px 17px;font:700 14px Manrope;border-radius:0 0 8px 0}
+.skip:focus{left:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ============================================================ SHELL */
+.app{display:grid;grid-template-columns:274px 1fr;min-height:100vh}
+.app>*{min-width:0}/* let the content column shrink; otherwise a scrollable
+   child forces the whole page wider than the viewport */
+.main,.split>*,.grid>*{min-width:0}
+/* the drawer scrim must never take part in the grid */
+.scrim{display:none;position:fixed;inset:0;background:#0a1511a6;z-index:24}
+.side{background:var(--side);border-right:1px solid var(--line);padding:18px 14px 30px;position:sticky;top:0;height:100vh;overflow:auto}
+.brand{font-size:22px;font-weight:800;letter-spacing:-.07em;margin:0 8px 18px;display:flex;align-items:center}
+.brand i{display:inline-grid;place-items:center;width:27px;height:27px;border-radius:7px;background:var(--green);color:var(--lime);font-style:normal;margin-right:7px;font-size:15px}
+html[data-theme=night] .brand i{color:#0d1512}
+.event{width:100%;text-align:left;border:1px solid var(--btnline);background:var(--card);border-radius:9px;padding:11px 12px;margin-bottom:14px;color:var(--ink);cursor:pointer;min-height:44px}
+.event b{display:block;font-size:14px}
+.event small{display:block;font-size:12px;color:var(--muted);margin-top:3px}
+.label{font:500 11px DM Mono;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:16px 8px 7px}
+.tree{display:grid;gap:2px}
+.tree button{border:0;background:transparent;border-radius:7px;padding:9px 10px;color:var(--ink2);text-align:left;font:600 13px Manrope;cursor:pointer;min-height:38px;display:flex;align-items:center;gap:8px;width:100%}
+.tree button:hover{background:var(--soft)}
+.tree button[aria-current=page]{background:var(--green);color:var(--card)}
+html[data-theme=night] .tree button[aria-current=page]{color:#0d1512}
+.tree button.parentactive{background:var(--soft);color:var(--green-ink)}
+.tree button.indent{padding-left:30px;font-weight:500;font-size:12.5px}
+.tree .dot{flex:none;width:16px;text-align:center;color:var(--green)}
+.tree button[aria-current=page] .dot{color:inherit}
+.tree .group{font:500 11px DM Mono;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);padding:13px 10px 4px}
+.sidefoot{margin:18px 8px 0;padding-top:13px;border-top:1px solid var(--line);font:500 11px DM Mono;color:var(--muted);line-height:1.7}
+.sidefoot b{color:var(--green-ink)}
+.sidefoot a{color:var(--muted)}
+
+/* ============================================================ TOP BAR (sticky) */
+.top{position:sticky;top:0;z-index:12;min-height:64px;background:var(--topbg);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:10px 26px;flex-wrap:wrap}
+.crumb{color:var(--muted);font-size:12.5px;margin-right:auto;min-width:130px}
+.crumb b{color:var(--ink)}
+#navtoggle{display:none}
+.count{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--r-bg);color:var(--r-tx);border:1px solid var(--r-ln);font:700 11.5px Manrope}
+.tool .count{margin-left:2px}
+.syncdot{width:9px;height:9px;border-radius:50%;background:var(--g-tx);flex:none}
+
+/* ============================================================ BUTTONS */
+button,.btn,.tool{font-family:Manrope,sans-serif}
+.btn,.tool{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:9px 13px;border:1px solid var(--btnline);background:var(--card);color:var(--ink2);border-radius:8px;font:600 13px Manrope;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn:hover,.tool:hover{background:var(--soft)}
+.btn.primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.btn.primary:hover{opacity:.9;background:var(--ink)}
+.btn.soft{background:var(--soft);color:var(--green-ink);border-color:var(--g-ln)}
+.btn.danger{background:var(--r-bg);color:var(--r-tx);border-color:var(--r-ln)}
+.tool[aria-selected=true],.tool.on{background:var(--green);color:var(--card);border-color:var(--green)}
+html[data-theme=night] .tool[aria-selected=true],html[data-theme=night] .tool.on{color:#0d1512}
+.dots{width:36px;height:36px;flex:none;display:inline-grid;place-items:center;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--faint);font-size:18px;cursor:pointer;line-height:1}
+.dots:hover{background:var(--soft);border-color:var(--btnline)}
+@media(pointer:coarse){.btn,.tool,.event,.tree button{min-height:44px}.dots{width:44px;height:44px}}
+
+/* ============================================================ PAGE */
+.main{max-width:1220px;margin:auto;padding:26px 28px 90px;width:100%}
+.page{display:none}
+.page.show{display:block}
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:26px;margin-bottom:18px;flex-wrap:wrap}
+.head h1{font:600 clamp(28px,3.6vw,38px)/1.05 Newsreader,serif;letter-spacing:-.05em;margin:6px 0 0;outline:0}
+.head p{max-width:52ch;margin:0;color:var(--muted);font-size:13.5px;line-height:1.6}
+.mono{font:500 11px DM Mono;color:var(--green-ink);letter-spacing:.09em;text-transform:uppercase}
+.toolbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:13px}
+.spacer{flex:1 1 auto}
+
+/* ============================================================ SURFACES */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid.three{grid-template-columns:repeat(3,1fr)}
+.split{display:grid;grid-template-columns:1.35fr .65fr;gap:14px;align-items:start}
+.card,.list,.detail{background:var(--card);border:1px solid var(--line);border-radius:10px}
+.card,.detail{padding:16px}
+.card h2,.detail h2{font-size:15px;margin:0 0 5px}
+.card p,.detail p{margin:0;color:var(--muted);font-size:13px;line-height:1.6}
+.sectionhead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:11px;flex-wrap:wrap}
+.sectionhead h2{margin:0;font-size:15px}
+.sectionhead p{font-size:12px;color:var(--muted);margin:3px 0 0}
+
+/* rows: wrap, never hide. state + action always on screen. */
+.list{overflow:visible}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:9px 14px;padding:13px 15px;border-bottom:1px solid var(--line2)}
+.row:last-child{border-bottom:0}
+.row.head{background:var(--side);padding:9px 15px}
+.row.head span{font:500 11px DM Mono;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+.c-time{flex:0 0 64px;font:500 13px DM Mono;color:var(--ink2)}
+.c-main{flex:1 1 190px;min-width:150px}
+.c-main b{display:block;font-size:14px;font-weight:700}
+.c-main small{display:block;font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.45}
+.c-meta{flex:0 1 180px;font-size:12.5px;color:var(--muted);line-height:1.45}
+.c-state{flex:0 0 auto}
+.c-act{flex:0 0 auto;display:flex;gap:6px;align-items:center;margin-left:auto}
+@media(min-width:921px){
+  .row .c-state{flex:0 0 134px}
+  .row .c-act{flex:0 0 auto;min-width:112px;justify-content:flex-end}
+  .row.head .c-act{flex:0 0 112px}
+}
+
+/* tags: text + border, never colour alone */
+.tag{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--n-ln);background:var(--n-bg);color:var(--n-tx);border-radius:14px;padding:5px 10px;font:700 11.5px Manrope;letter-spacing:0;white-space:nowrap}
+.tag:before{content:attr(data-glyph);font-size:11px}
+.tag.green{background:var(--g-bg);color:var(--g-tx);border-color:var(--g-ln)}
+.tag.yellow{background:var(--y-bg);color:var(--y-tx);border-color:var(--y-ln)}
+.tag.blue{background:var(--b-bg);color:var(--b-tx);border-color:var(--b-ln)}
+.tag.red{background:var(--r-bg);color:var(--r-tx);border-color:var(--r-ln)}
+.tag.purple{background:var(--p-bg);color:var(--p-tx);border-color:var(--p-ln)}
+
+/* stats are controls, not decoration */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.stat{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:13px 14px;text-align:left;cursor:pointer;color:var(--ink);min-height:76px}
+.stat:hover{border-color:var(--green)}
+.stat b{display:block;font:600 27px/1 Newsreader,serif}
+.stat small{display:block;font-size:12.5px;color:var(--muted);margin-top:5px}
+.stat span{display:block;font:500 11px DM Mono;color:var(--green-ink);letter-spacing:.06em;text-transform:uppercase;margin-top:6px}
+
+/* banners: persistent, typed, never a toast */
+.banner{display:flex;gap:12px;align-items:flex-start;padding:13px 15px;border-radius:9px;border:1px solid var(--y-ln);background:var(--y-bg);color:var(--y-tx);font-size:13.5px;line-height:1.55;margin-bottom:13px;flex-wrap:wrap}
+.banner b{display:block;font:500 11px DM Mono;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px}
+.banner .bmain{flex:1 1 300px}
+.banner .bact{display:flex;gap:7px;flex-wrap:wrap}
+.banner.info{background:var(--b-bg);border-color:var(--b-ln);color:var(--b-tx)}
+.banner.err{background:var(--r-bg);border-color:var(--r-ln);color:var(--r-tx)}
+.banner.ok{background:var(--g-bg);border-color:var(--g-ln);color:var(--g-tx)}
+.banner .tool{background:transparent;border-color:currentColor;color:inherit}
+
+.callout{padding:12px 14px;background:var(--soft);border-left:3px solid var(--green);font-size:13px;color:var(--ink2);line-height:1.55;margin-top:13px;border-radius:0 8px 8px 0}
+.callout b{display:block;font:500 11px DM Mono;letter-spacing:.07em;text-transform:uppercase;color:var(--green-ink);margin-bottom:3px}
+
+/* fields, forms */
+.field{padding:11px 0;border-top:1px solid var(--line2)}
+.field:first-child{border:0;padding-top:0}
+.field label,.flabel{display:block;font:500 11px DM Mono;color:var(--faint);letter-spacing:.07em;text-transform:uppercase;margin-bottom:5px}
+.field span{font-size:13.5px;display:block;line-height:1.5}
+.field .tool{margin-top:6px}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.input{display:grid;gap:6px;align-content:start}
+.input.full{grid-column:1/-1}
+.input label{font:500 11px DM Mono;color:var(--faint);letter-spacing:.07em;text-transform:uppercase}
+.input input,.input select,.input textarea{width:100%;border:1px solid var(--btnline);border-radius:8px;background:var(--card);padding:11px;font:500 14px Manrope;color:var(--ink);min-height:44px}
+.input textarea{height:82px;resize:vertical;line-height:1.5}
+.input .hint{font-size:12px;color:var(--muted)}
+.input .req{color:var(--r-tx);font-weight:700}
+.input.bad input,.input.bad select,.input.bad textarea{border-color:var(--r-tx);border-width:2px;background:var(--r-bg)}
+.errmsg{display:none;font-size:12.5px;font-weight:700;color:var(--r-tx)}
+.input.bad .errmsg{display:block}
+.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
+.actions.left{justify-content:flex-start}
+
+/* checklist items */
+.task{display:flex;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid var(--line2);flex-wrap:wrap}
+.task:last-child{border-bottom:0}
+.check{flex:none;display:inline-grid;place-items:center;width:28px;height:28px;border:2px solid var(--btnline);border-radius:7px;cursor:pointer;background:var(--card);color:transparent;font-size:15px;font-weight:700}
+.check[aria-checked=true]{background:var(--green);border-color:var(--green);color:var(--card)}
+html[data-theme=night] .check[aria-checked=true]{color:#0d1512}
+.task .c-main{flex:1 1 150px;min-width:125px}
+.task .c-main b{font-size:14px}
+.task[data-done=true] .c-main b{text-decoration:line-through;color:var(--muted)}
+
+/* tabs */
+.tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:13px;padding-bottom:3px}
+.tabs button{flex:none;border:1px solid var(--btnline);border-radius:8px;padding:9px 12px;background:var(--card);color:var(--ink2);font:600 13px Manrope;cursor:pointer;min-height:44px;text-align:left;line-height:1.3}
+.tabs button small{display:block;font-size:11.5px;font-weight:500;color:var(--muted);margin-top:2px}
+.tabs button[aria-selected=true]{background:var(--green);border-color:var(--green);color:var(--card)}
+.tabs button[aria-selected=true] small{color:inherit;opacity:.85}
+html[data-theme=night] .tabs button[aria-selected=true],html[data-theme=night] .tabs button[aria-selected=true] small{color:#0d1512}
+.tabpanel{display:none}
+.tabpanel.show{display:block}
+
+/* map, activity, workflow, source */
+.map{height:250px;border-radius:9px;background:linear-gradient(125deg,#e0ece0 0 42%,#cfe3e8 42% 48%,#eaf0e2 48%);position:relative;overflow:hidden;border:1px solid var(--line)}
+html[data-theme=night] .map{background:linear-gradient(125deg,#1b2a24 0 42%,#16282e 42% 48%,#1e2c22 48%)}
+.map:before,.map:after{content:'';position:absolute;background:#9bbb8d;height:5px;width:130%;transform:rotate(-26deg);top:45%;left:-15%}
+html[data-theme=night] .map:before,html[data-theme=night] .map:after{background:#3c5b46}
+.map:after{transform:rotate(41deg);top:65%}
+.pin{position:absolute;background:var(--dark);color:#eef8eb;padding:6px 9px;border-radius:13px;font:600 11.5px Manrope;border:1px solid #ffffff40}
+html[data-theme=night] .pin{background:#e9f2ea;color:#0d1512}
+.pin.a{top:33%;left:30%}.pin.b{top:57%;left:58%}.pin.c{top:16%;left:70%}
+.activity{border-left:2px solid var(--line);margin:13px 0 0 8px;padding-left:17px}
+.activity>div{position:relative;padding:0 0 15px;font-size:13.5px}
+.activity>div:last-child{padding-bottom:0}
+.activity>div:before{content:'';position:absolute;width:9px;height:9px;border-radius:50%;background:var(--green);left:-23px;top:4px;border:2px solid var(--card)}
+.activity small{display:block;color:var(--muted);font-size:12.5px;margin-top:3px;line-height:1.5}
+.source{background:var(--soft);border:1px solid var(--line);border-radius:9px;padding:13px;font-size:13px;color:var(--ink2);line-height:1.55}
+.source b{display:block;font:500 11px DM Mono;color:var(--green-ink);letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px}
+.source small{display:block;font-size:12.5px;color:var(--muted);margin-top:4px}
+.workflow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:13px;border:1px solid var(--line);border-radius:9px;background:var(--card)}
+.workflow span{background:var(--soft);border-radius:7px;padding:9px 11px;font-size:12.5px;color:var(--ink2)}
+.workflow i{font-style:normal;color:var(--faint)}
+
+/* empty states */
+.empty{padding:38px 22px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.6}
+.empty b{display:block;font-size:16px;color:var(--ink);margin-bottom:6px;letter-spacing:-.03em}
+.empty p{max-width:46ch;margin:0 auto 14px}
+.empty .actions{justify-content:center;margin-top:0}
+.example{border:1px dashed var(--btnline);border-radius:9px;padding:11px 13px;margin:14px auto 0;max-width:420px;text-align:left;background:var(--side)}
+.example .flabel{color:var(--faint)}
+
+/* dialogs */
+.modal{display:none;position:fixed;inset:0;background:#0a15118f;z-index:30;align-items:center;justify-content:center;padding:16px}
+.modal.show{display:flex}
+.modalcard{width:min(600px,100%);max-height:88vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;box-shadow:var(--shadow)}
+.modalcard h2{font:600 25px/1.1 Newsreader,serif;letter-spacing:-.05em;margin:6px 0 14px}
+.modalhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.close{border:1px solid var(--btnline);background:var(--card);color:var(--ink2);width:36px;height:36px;border-radius:8px;font-size:18px;cursor:pointer;flex:none;line-height:1}
+.impact{background:var(--y-bg);border:1px solid var(--y-ln);color:var(--y-tx);border-radius:9px;padding:13px;font-size:13.5px;line-height:1.55;margin-bottom:14px}
+.impact b{display:block;font:500 11px DM Mono;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px}
+
+/* row overflow menu */
+.menu{display:none;position:absolute;z-index:35;min-width:212px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px;box-shadow:var(--shadow)}
+.menu.show{display:block}
+.menu .mtitle{font:500 11px DM Mono;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);padding:7px 9px 5px}
+.menu button{display:block;width:100%;text-align:left;border:0;background:transparent;color:var(--ink2);padding:10px;border-radius:7px;font:600 13px Manrope;cursor:pointer;min-height:40px}
+.menu button:hover{background:var(--soft)}
+.menu button.danger{color:var(--r-tx)}
+.menu hr{border:0;border-top:1px solid var(--line2);margin:5px 0}
+
+/* toast: confirmations of reversible actions only, with undo */
+.toast{visibility:hidden;position:fixed;left:50%;bottom:22px;transform:translate(-50%,120px);z-index:38;display:flex;align-items:center;gap:14px;background:var(--dark);color:#eef8eb;border:1px solid #ffffff26;border-radius:10px;padding:13px 15px;font-size:13.5px;transition:transform .2s,visibility .2s;max-width:min(560px,calc(100% - 32px));box-shadow:var(--shadow)}
+html[data-theme=night] .toast{background:#e9f2ea;color:#0d1512;border-color:#00000026}
+.toast.show{visibility:visible;transform:translate(-50%,0)}
+.toast button{border:1px solid currentColor;background:transparent;color:inherit;border-radius:7px;padding:8px 11px;font:700 12.5px Manrope;cursor:pointer;min-height:36px;flex:none}
+@media(prefers-reduced-motion:reduce){.toast{transition:none}}
+
+/* prototype note blocks */
+.fixlist{display:grid;gap:10px;margin-top:6px}
+.fix{border:1px solid var(--line);border-left:3px solid var(--green);background:var(--card);border-radius:0 9px 9px 0;padding:13px 15px}
+.fix b{display:block;font-size:14px;margin-bottom:4px}
+.fix span{display:block;font-size:13px;color:var(--muted);line-height:1.6}
+.fix i{font-style:normal;font:500 11px DM Mono;letter-spacing:.07em;text-transform:uppercase;color:var(--green-ink);display:block;margin-bottom:5px}
+
+/* ============================================================ RESPONSIVE
+   The sidebar becomes a real drawer. Sync state and every row's
+   status + primary action stay visible at all widths. */
+@media(max-width:920px){
+  .app{grid-template-columns:1fr}
+  .side{position:fixed;inset:0 auto 0 0;width:min(300px,86vw);height:100vh;z-index:25;transform:translateX(-102%);transition:transform .2s;box-shadow:var(--shadow)}
+  .app.navopen .side{transform:none}
+  .app.navopen .scrim{display:block}
+  #navtoggle{display:inline-flex}
+  .top{padding:10px 16px}
+  .main{padding:20px 16px 80px}
+  .grid,.grid.three,.split,.form{grid-template-columns:1fr}
+  .stats{grid-template-columns:1fr 1fr}
+  .row.head{display:none}
+  .c-time{flex:0 0 auto}
+  .c-meta{flex:1 1 100%}
+  .c-act{margin-left:0}
+  @media(prefers-reduced-motion:reduce){.side{transition:none}}
+}
+@media(max-width:620px){
+  /* icon-only header: every control stays reachable, including sync state,
+     without the bar eating a fifth of a phone screen */
+  .top{min-height:56px;padding:8px 12px;gap:6px;flex-wrap:nowrap}
+  .top .lbl{display:none}
+  /* icon-only, but never smaller than a fingertip */
+  .top .tool{padding:9px;min-width:44px}
+  .crumb{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1 1 30px;margin-right:0}
+}
+@media(max-width:560px){
+  .stats{grid-template-columns:1fr}
+  .head{display:block}
+  .head p{margin-top:11px}
+}
+@media print{
+  .side,.top,.toast,.modal,.menu{display:none!important}
+  .page{display:block!important}
+  body{background:#fff}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#maincontent">Skip to page content</a>
+
+<div class="app" id="app">
+<div class="scrim" id="scrim" aria-hidden="true"></div>
+
+<!-- ==================================================== SIDEBAR -->
+<aside class="side" id="side" aria-label="Screens">
+  <div class="brand"><i>⌁</i>race planner</div>
+
+  <button class="event" data-go="events" aria-label="Sno Drift 2026. Change event.">
+    <b>Sno*Drift 2026 ▾</b>
+    <small>Feb 4–8 · Eastern (EST) · Car 262 · shared with 8</small>
+  </button>
+
+  <div class="label" id="treelabel">Page tree</div>
+  <nav class="tree" id="tree" aria-labelledby="treelabel">
+    <button data-page="today"><span class="dot" aria-hidden="true">◉</span>Today</button>
+    <button data-page="attention"><span class="dot" aria-hidden="true">!</span>Attention &amp; acknowledgements</button>
+    <button data-page="events"><span class="dot" aria-hidden="true">⌄</span>Event switcher</button>
+
+    <div class="group" role="presentation">Plan</div>
+    <button data-page="plan"><span class="dot" aria-hidden="true">↗</span>Movement plan</button>
+    <button class="indent" data-page="movement" data-parent="plan">Movement detail</button>
+    <button class="indent" data-page="publish" data-parent="plan">Publish change</button>
+    <button class="indent" data-page="export" data-parent="plan">Export &amp; print</button>
+
+    <div class="group" role="presentation">Work</div>
+    <button data-page="work"><span class="dot" aria-hidden="true">□</span>Work &amp; checklists</button>
+    <button class="indent" data-page="task" data-parent="work">Work item detail</button>
+    <button class="indent" data-page="templates" data-parent="work">Templates</button>
+    <button class="indent" data-page="automation" data-parent="work">Automation setup</button>
+
+    <div class="group" role="presentation">Records</div>
+    <button data-page="records"><span class="dot" aria-hidden="true">⌖</span>Records directory</button>
+    <button class="indent" data-page="place" data-parent="records">Venue / place detail</button>
+    <button class="indent" data-page="types" data-parent="records">Types &amp; categories</button>
+    <button class="indent" data-page="travel" data-parent="records">Travel context</button>
+
+    <div class="group" role="presentation">Forms</div>
+    <button data-page="forms"><span class="dot" aria-hidden="true">▣</span>Forms &amp; inspections</button>
+    <button class="indent" data-page="builder" data-parent="forms">Form builder</button>
+    <button class="indent" data-page="submission" data-parent="forms">Submission / draft</button>
+    <button class="indent" data-page="versions" data-parent="forms">Template versions</button>
+
+    <div class="group" role="presentation">Trust &amp; setup</div>
+    <button data-page="library"><span class="dot" aria-hidden="true">◎</span>Files &amp; sources</button>
+    <button class="indent" data-page="activity" data-parent="library">Activity &amp; comments</button>
+    <button data-page="views"><span class="dot" aria-hidden="true">▤</span>Views &amp; fields</button>
+    <button data-page="people"><span class="dot" aria-hidden="true">◌</span>People &amp; permissions</button>
+    <button data-page="offline"><span class="dot" aria-hidden="true">⇣</span>Offline manager</button>
+    <button data-page="archive"><span class="dot" aria-hidden="true">◫</span>Archive &amp; restore</button>
+
+    <div class="group" role="presentation">Designed states</div>
+    <button data-page="firstrun"><span class="dot" aria-hidden="true">○</span>First run &amp; empty states</button>
+    <button data-page="states"><span class="dot" aria-hidden="true">△</span>System &amp; failure states</button>
+    <button data-page="notes"><span class="dot" aria-hidden="true">✎</span>What changed in v2</button>
+  </nav>
+
+  <div class="sidefoot">
+    <b>● READY OFFLINE</b><br>
+    42 records · 6 files · 3 map areas<br>
+    Last synced 2 min ago<br>
+    <a href="race-planner-ux-spec.html">↗ UX build specification</a>
+    <div style="margin-top:11px">
+      <button class="tool" id="themebtn" aria-pressed="false" aria-label="Switch to night mode">☾<span id="themelbl"> Night mode</span></button>
+    </div>
+  </div>
+</aside>
+
+<!-- ==================================================== MAIN -->
+<main>
+<header class="top">
+  <button class="tool" id="navtoggle" aria-expanded="false" aria-controls="side" aria-label="Screens menu">☰<span class="lbl"> Screens</span></button>
+  <span class="crumb"><span class="ev">SNO*DRIFT 2026</span><span class="lbl"> / <b id="crumb">TODAY</b></span></span>
+  <button class="tool" id="searchbtn" data-modal="search" aria-label="Search and commands">⌕<span class="lbl"> Search <span id="kbdhint" aria-hidden="true">⌘K</span></span></button>
+  <button class="tool" data-go="attention" id="attnbtn" aria-label="Attention queue"><span class="lbl">Attention </span><span class="count" id="attncount">3</span></button>
+  <button class="tool" data-go="offline" aria-label="Sync status: synced 2 minutes ago"><span class="syncdot" aria-hidden="true"></span><span class="lbl"> Synced 2m</span></button>
+  <button class="btn primary" data-modal="add">+ Add</button>
+</header>
+
+<div class="main" id="maincontent" tabindex="-1">
+
+<!-- ==================================================== TODAY -->
+<section class="page" id="p-today" aria-labelledby="t-today">
+  <div class="head">
+    <div>
+      <div class="mono">Saturday · Feb 7 · 09:12 EST</div>
+      <h1 id="t-today" tabindex="-1">Today at a glance</h1>
+    </div>
+    <p>The default briefing surface: what is next, what is assigned to you, and what changed since you last looked. Every count opens the list behind it.</p>
+  </div>
+
+  <div class="banner" id="todaybanner">
+    <div class="bmain">
+      <b>Change since your last briefing · 08:07</b>
+      Saturday Parc Exposé moved from <s>Lewiston Parc</s> to <strong>Briley Park</strong>. Published by Dan from the organizer bulletin. The plan, map and driver checklist are updated. <strong>You have not acknowledged this yet.</strong>
+    </div>
+    <div class="bact">
+      <button class="tool" data-go="movement">See the change</button>
+      <button class="btn primary" id="ackbanner">Acknowledge</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <button class="stat" data-go="plan"><b>6</b><small>Movements today</small><span>Open Saturday plan →</span></button>
+    <button class="stat" data-go="work"><b>2</b><small>Work due before 14:20</small><span>Open filtered work →</span></button>
+    <button class="stat" data-go="attention"><b>1</b><small>Change needs your review</small><span>Open attention queue →</span></button>
+    <button class="stat" data-go="plan"><b>18:00</b><small>Next handoff · final inspection</small><span>Open movement →</span></button>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="sectionhead">
+        <div><h2>Run of day</h2><p>Shared view “Saturday operations” · source-linked</p></div>
+        <button class="tool" data-go="plan">Open plan →</button>
+      </div>
+      <div class="list">
+        <div class="row">
+          <span class="c-time">09:30</span>
+          <div class="c-main"><b>Parc Exposé opens for load-in</b><small>WideOpen · Briley Park · changed 08:07</small></div>
+          <span class="tag yellow c-state" data-glyph="▲">NEEDS ACK</span>
+          <span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Parc Exposé opens for load-in" aria-label="More actions for Parc Exposé opens for load-in" aria-expanded="false">⋯</button></span>
+        </div>
+        <div class="row">
+          <span class="c-time">11:00</span>
+          <div class="c-main"><b>FCO Leg 2</b><small>All team · official timing · confirmed</small></div>
+          <span class="tag green c-state" data-glyph="✓">READY</span>
+          <span class="c-act"><button class="tool" data-go="plan">Open</button><button class="dots" data-menu="FCO Leg 2" aria-label="More actions for FCO Leg 2" aria-expanded="false">⋯</button></span>
+        </div>
+        <div class="row">
+          <span class="c-time">18:00</span>
+          <div class="c-main"><b>Final inspection and load up</b><small>Crew · linked inspection form</small></div>
+          <span class="tag purple c-state" data-glyph="◇">PLANNED</span>
+          <span class="c-act"><button class="tool" data-go="submission">Open form</button><button class="dots" data-menu="Final inspection and load up" aria-label="More actions for Final inspection and load up" aria-expanded="false">⋯</button></span>
+        </div>
+      </div>
+      <div class="callout"><b>Personal, not shared</b>Pin a filtered collection, map, latest changes or a freeform note here. Pinning never alters event data or another person’s Today.</div>
+    </div>
+
+    <div class="card">
+      <div class="sectionhead">
+        <div><h2>Your work</h2><p>Filter: assigned to you · today · incomplete</p></div>
+        <button class="tool" data-go="work">All work →</button>
+      </div>
+      <div class="task" data-done="true">
+        <span class="check" role="checkbox" aria-checked="true" tabindex="0" aria-label="Load car for Parc Exposé">✓</span>
+        <div class="c-main"><b>Load car for Parc Exposé</b><small>RRC · linked to Briley Park · done 08:40</small></div>
+        <span class="tag green c-state" data-glyph="✓">DONE</span>
+        <span class="c-act"><button class="dots" data-menu="Load car for Parc Exposé" aria-label="More actions for Load car for Parc Exposé" aria-expanded="false">⋯</button></span>
+      </div>
+      <div class="task" data-done="false">
+        <span class="check" role="checkbox" aria-checked="false" tabindex="0" aria-label="Driver and co-driver final gear check"></span>
+        <div class="c-main"><b>Driver / co-driver final gear check</b><small>WideOpen · due before 14:20</small></div>
+        <span class="tag yellow c-state" data-glyph="▲">DUE SOON</span>
+        <span class="c-act"><button class="tool" data-go="task">Open</button><button class="dots" data-menu="Driver / co-driver final gear check" aria-label="More actions for gear check" aria-expanded="false">⋯</button></span>
+      </div>
+      <div class="task" data-done="false">
+        <span class="check" role="checkbox" aria-checked="false" tabindex="0" aria-label="Document tire choices"></span>
+        <div class="c-main"><b>Document tire choices</b><small>Mechanic · photo evidence requested</small></div>
+        <span class="tag purple c-state" data-glyph="◇">IN PROGRESS</span>
+        <span class="c-act"><button class="dots" data-menu="Document tire choices" aria-label="More actions for Document tire choices" aria-expanded="false">⋯</button></span>
+      </div>
+      <div class="callout"><b>Completion is reversible</b>Ticking an item applies immediately and offers undo. No confirmation dialog stands between a crew member and a tick box.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================================================== ATTENTION -->
+<section class="page" id="p-attention" aria-labelledby="t-attention">
+  <div class="head">
+    <div>
+      <div class="mono">Focused queue · §02 and §09</div>
+      <h1 id="t-attention" tabindex="-1">Attention &amp; acknowledgements</h1>
+    </div>
+    <p>Everything that can affect the day, in one list. Nothing here is cleared by the product on your behalf — an item leaves when it is resolved, or snoozed with a stated return time.</p>
+  </div>
+
+  <div class="toolbar" role="tablist" aria-label="Attention filters" data-tabs="attn">
+    <button class="tool" role="tab" aria-selected="true" aria-controls="attn-all" id="attntab-all">Everything <span class="count">3</span></button>
+    <button class="tool" role="tab" aria-selected="false" aria-controls="attn-me" id="attntab-me">Waiting on me</button>
+    <button class="tool" role="tab" aria-selected="false" aria-controls="attn-them" id="attntab-them">Waiting on others</button>
+    <span class="spacer"></span>
+    <button class="tool" data-say="Snooze asks for a return time and states that the item will come back — it is never dismissed silently.">Snooze rules</button>
+  </div>
+
+  <div class="tabpanel show" id="attn-all" role="tabpanel" aria-labelledby="attntab-all">
+    <div class="list">
+      <div class="row">
+        <span class="tag yellow c-state" data-glyph="▲">ACK NEEDED</span>
+        <div class="c-main"><b>Saturday Parc Exposé location changed</b><small>Published by Dan 08:07 · organizer bulletin attached · affects your 09:30 movement</small></div>
+        <span class="c-meta">You + 1 other have not acknowledged</span>
+        <span class="c-act"><button class="tool" data-go="movement">Review</button><button class="btn primary" data-resolve="Acknowledged. Dan can see that you were reached at 09:12.">Acknowledge</button></span>
+      </div>
+      <div class="row">
+        <span class="tag red c-state" data-glyph="●">UNREACHED</span>
+        <div class="c-main"><b>2 of 8 people have not received your 08:07 change</b><small>Cam — last online 07:40 · Jesse — offline, queued for delivery</small></div>
+        <span class="c-meta">Escalates to crew chief at 09:40</span>
+        <span class="c-act"><button class="tool" data-say="Unreached list opened. It stays available until every affected person is reached or the change is deliberately closed.">See who</button><button class="tool" data-modal="verbal">Record radio ack</button></span>
+      </div>
+      <div class="row">
+        <span class="tag red c-state" data-glyph="●">CONFLICT</span>
+        <div class="c-main"><b>Place note edited in two places</b><small>Your offline edit and Avery’s edit both changed Service Park access notes</small></div>
+        <span class="c-meta">Nothing was overwritten</span>
+        <span class="c-act"><button class="tool" data-go="offline">Compare and choose</button></span>
+      </div>
+      <div class="row">
+        <span class="tag blue c-state" data-glyph="◇">EXPIRING</span>
+        <div class="c-main"><b>Cam’s access expires Sunday 20:00</b><small>Temporary volunteer · view Today and submit handoff form</small></div>
+        <span class="c-meta">No action required today</span>
+        <span class="c-act"><button class="tool" data-go="people">Manage access</button></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabpanel" id="attn-me" role="tabpanel" aria-labelledby="attntab-me">
+    <div class="list">
+      <div class="row">
+        <span class="tag yellow c-state" data-glyph="▲">ACK NEEDED</span>
+        <div class="c-main"><b>Saturday Parc Exposé location changed</b><small>Affects your 09:30 movement · acknowledging means you have read it and will act</small></div>
+        <span class="c-meta">Requested by Dan 08:08</span>
+        <span class="c-act"><button class="tool" data-go="movement">Review</button><button class="btn primary" data-resolve="Acknowledged at 09:12. Recorded against your name.">Acknowledge</button></span>
+      </div>
+      <div class="row">
+        <span class="tag red c-state" data-glyph="●">CONFLICT</span>
+        <div class="c-main"><b>Place note edited in two places</b><small>Your local copy is safe and unchanged</small></div>
+        <span class="c-meta">Needs your decision</span>
+        <span class="c-act"><button class="tool" data-go="offline">Compare and choose</button></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabpanel" id="attn-them" role="tabpanel" aria-labelledby="attntab-them">
+    <div class="list">
+      <div class="row">
+        <span class="tag red c-state" data-glyph="●">UNREACHED</span>
+        <div class="c-main"><b>Cam has not received the 08:07 change</b><small>Last online 07:40 · next likely contact: service in at 12:30</small></div>
+        <span class="c-meta">Escalates 09:40</span>
+        <span class="c-act"><button class="tool" data-modal="verbal">Record radio ack</button></span>
+      </div>
+      <div class="row">
+        <span class="tag yellow c-state" data-glyph="▲">QUEUED</span>
+        <div class="c-main"><b>Jesse is offline — change queued for delivery</b><small>Will be presented as new on reconnect, with its original 08:07 time</small></div>
+        <span class="c-meta">No escalation set</span>
+        <span class="c-act"><button class="tool" data-say="Escalation set: if unacknowledged by 10:15 the crew chief is notified, and the record states that it was.">Set escalation</button></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout"><b>Why this screen exists</b>v1.3 specified an attention indicator with nowhere to go. A badge that opens nothing sends people back to rebuild the filter that produced the number.</div>
+</section>
+
+<!-- ==================================================== EVENTS -->
+<section class="page" id="p-events" aria-labelledby="t-events">
+  <div class="head">
+    <div>
+      <div class="mono">Event context</div>
+      <h1 id="t-events" tabindex="-1">Events</h1>
+    </div>
+    <p>Switch, create, duplicate or archive events before editing their plan, records or offline package. Each event carries its own dates, timezone, vehicles, sharing and offline state.</p>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn primary" data-go="firstrun">+ New event</button>
+    <button class="tool" data-say="Sno*Drift 2026 duplicated as a draft event. Records were copied; published changes and acknowledgements were not.">Duplicate</button>
+    <button class="tool"
+      data-confirm-title="Archive Sno*Drift 2026?"
+      data-confirm-impact="8 people lose it from their event list, 42 records and 6 files leave default search, and 2 queued offline changes will sync before archiving. Restore is available for 30 days."
+      data-confirm-cta="Archive event"
+      data-confirm-done="Sno*Drift 2026 archived. Restore is available for 30 days from Archive &amp; restore.">Archive</button>
+  </div>
+
+  <div class="list">
+    <div class="row">
+      <span class="tag green c-state" data-glyph="●">ACTIVE</span>
+      <div class="c-main"><b>Sno*Drift 2026</b><small>Feb 4–8 · America/New_York · Rally · Car 262</small></div>
+      <span class="c-meta">Shared with 8 · 2 queued changes</span>
+      <span class="tag green c-state" data-glyph="⇣">OFFLINE READY</span>
+      <span class="c-act"><button class="btn primary" data-go="today">Open</button><button class="dots" data-menu="Sno*Drift 2026" aria-label="More actions for Sno Drift 2026" aria-expanded="false">⋯</button></span>
+    </div>
+    <div class="row">
+      <span class="tag c-state" data-glyph="◇">UPCOMING</span>
+      <div class="c-main"><b>Lake Superior Performance Rally</b><small>Oct 16–18 · America/Chicago · Rally · Car 262</small></div>
+      <span class="c-meta">Shared with 3 · plan not started</span>
+      <span class="tag yellow c-state" data-glyph="▲">NOT DOWNLOADED</span>
+      <span class="c-act"><button class="tool" data-go="firstrun">Open</button><button class="dots" data-menu="Lake Superior Performance Rally" aria-label="More actions for Lake Superior Performance Rally" aria-expanded="false">⋯</button></span>
+    </div>
+    <div class="row">
+      <span class="tag blue c-state" data-glyph="◈">SAMPLE</span>
+      <div class="c-main"><b>Example event — learn the tool</b><small>Fully populated · labelled as sample everywhere it appears</small></div>
+      <span class="c-meta">Not shared</span>
+      <span class="tag c-state" data-glyph="○">REMOVABLE</span>
+      <span class="c-act"><button class="tool" data-go="today">Open</button><button class="tool"
+        data-confirm-title="Remove the sample event?"
+        data-confirm-impact="Only sample data is removed. Sno*Drift 2026 and Lake Superior are untouched. You can add the sample back at any time."
+        data-confirm-cta="Remove sample"
+        data-confirm-done="Sample event removed. Your real events were untouched.">Remove</button></span>
+    </div>
+  </div>
+  <div class="callout"><b>Event identity</b>Timezone is shown as a real zone, not an abbreviation, because a crew crossing into Central during an event needs to know which clock the plan is written in.</div>
+</section>
+<!-- ==================================================== MOVEMENT PLAN -->
+<section class="page" id="p-plan" aria-labelledby="t-plan">
+  <div class="head">
+    <div>
+      <div class="mono">Movement collection · view “Saturday operations”</div>
+      <h1 id="t-plan" tabindex="-1">Movement plan</h1>
+    </div>
+    <p>Plain rows can become structured schedule records when people, places, vehicles, sources or statuses matter. Time may be exact, approximate, a range or deliberately blank.</p>
+  </div>
+
+  <div class="banner info" id="draftbanner" hidden>
+    <div class="bmain"><b>Unpublished draft edits</b><span id="draftmsg">You hold 1 draft edit on this plan. Nobody else can see it yet.</span></div>
+    <div class="bact"><button class="tool" data-go="publish">Review and publish</button><button class="tool" id="discarddraft">Discard</button></div>
+  </div>
+
+  <div class="toolbar">
+    <button class="tool on" data-say="Table view is active. The same records can be arranged as a timeline, calendar, board or map without duplicating data.">▤ Table</button>
+    <button class="tool" data-say="Timeline is a build-next view: the same records placed on the time field, with a lane per person, car or session.">⌁ Timeline</button>
+    <button class="tool" data-say="Calendar is a build-next view: day and week arrangement of the same records.">▦ Calendar</button>
+    <button class="tool" data-go="place">⌖ Map</button>
+    <button class="tool" data-go="views">+ New view</button>
+    <span class="spacer"></span>
+    <button class="tool" id="filterbtn" aria-pressed="false">⌕ Only unconfirmed</button>
+    <button class="tool" data-go="views">☷ Fields</button>
+    <button class="tool" data-go="export">Export</button>
+  </div>
+
+  <div class="banner" id="filterbanner" hidden>
+    <div class="bmain"><b>Active filter</b>Showing only movements whose time or place is not yet confirmed. <span id="filtercount"></span></div>
+    <div class="bact"><button class="tool" id="filterreset">Clear filter</button></div>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Event days" data-tabs="planday">
+    <button role="tab" aria-selected="false" aria-controls="day-wed" id="daytab-wed">Wed 4<small>3 movements</small></button>
+    <button role="tab" aria-selected="false" aria-controls="day-thu" id="daytab-thu">Thu 5<small>3 movements</small></button>
+    <button role="tab" aria-selected="false" aria-controls="day-fri" id="daytab-fri">Fri 6<small>5 movements</small></button>
+    <button role="tab" aria-selected="true" aria-controls="day-sat" id="daytab-sat">Sat 7<small>6 movements</small></button>
+    <button role="tab" aria-selected="false" aria-controls="day-sun" id="daytab-sun">Sun 8<small>3 movements</small></button>
+  </div>
+
+  <div class="tabpanel" id="day-wed" role="tabpanel" aria-labelledby="daytab-wed">
+    <div class="list">
+      <div class="row head"><span class="c-time">Time</span><span class="c-main">Movement</span><span class="c-meta">Place / people</span><span class="c-state">Status</span><span class="c-act" aria-hidden="true"></span></div>
+      <div class="row"><span class="c-time">14:00</span><div class="c-main"><b>Trailer load and depart shop</b><small>Fuel stop at Grayling planned</small></div><span class="c-meta">All team · RRC shop</span><span class="tag green c-state" data-glyph="✓">READY</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Trailer load and depart shop" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row"><span class="c-time">19:30</span><div class="c-main"><b>Arrive Lewiston · hotel check-in</b><small>Two rooms held under RRC</small></div><span class="c-meta">All team · Lewiston</span><span class="tag green c-state" data-glyph="✓">READY</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Arrive Lewiston" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row" data-unconfirmed="true"><span class="c-time">21:00</span><div class="c-main"><b>Route book review</b><small>≈ Approximate — start depends on arrival</small></div><span class="c-meta">Driver, co-driver</span><span class="tag purple c-state" data-glyph="◇">PLANNED</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Route book review" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+    </div>
+  </div>
+
+  <div class="tabpanel" id="day-thu" role="tabpanel" aria-labelledby="daytab-thu">
+    <div class="list">
+      <div class="row head"><span class="c-time">Time</span><span class="c-main">Movement</span><span class="c-meta">Place / people</span><span class="c-state">Status</span><span class="c-act" aria-hidden="true"></span></div>
+      <div class="row"><span class="c-time">08:00</span><div class="c-main"><b>Recce leg 1</b><small>Two passes permitted</small></div><span class="c-meta">Driver, co-driver · recce car</span><span class="tag blue c-state" data-glyph="●">CONFIRMED</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Recce leg 1" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row"><span class="c-time">13:00</span><div class="c-main"><b>Recce leg 2</b><small>Route book notes due after</small></div><span class="c-meta">Driver, co-driver</span><span class="tag blue c-state" data-glyph="●">CONFIRMED</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Recce leg 2" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row" data-unconfirmed="true"><span class="c-time">17:00</span><div class="c-main"><b>Tech inspection window</b><small>Range 17:00–19:00 — exact slot not issued</small></div><span class="c-meta">Crew · Scrutineering bay</span><span class="tag yellow c-state" data-glyph="▲">UNCONFIRMED</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Tech inspection window" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+    </div>
+  </div>
+
+  <div class="tabpanel" id="day-fri" role="tabpanel" aria-labelledby="daytab-fri">
+    <div class="list">
+      <div class="row head"><span class="c-time">Time</span><span class="c-main">Movement</span><span class="c-meta">Place / people</span><span class="c-state">Status</span><span class="c-act" aria-hidden="true"></span></div>
+      <div class="row"><span class="c-time">07:30</span><div class="c-main"><b>Scrutineering</b><small>Logbook and safety gear required</small></div><span class="c-meta">Crew · Scrutineering bay</span><span class="tag blue c-state" data-glyph="●">CONFIRMED</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Scrutineering" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row"><span class="c-time">09:00</span><div class="c-main"><b>Parc Exposé · Lewiston Parc</b><small>Friday location — unchanged by today’s bulletin</small></div><span class="c-meta">WideOpen · Lewiston Parc</span><span class="tag green c-state" data-glyph="✓">READY</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Parc Exposé Friday" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row" data-unconfirmed="true"><span class="c-time">11:30</span><div class="c-main"><b>Shakedown</b><small>≈ Approximate — order not published</small></div><span class="c-meta">Driver · Shakedown stage</span><span class="tag yellow c-state" data-glyph="▲">UNCONFIRMED</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Shakedown" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row"><span class="c-time">14:00</span><div class="c-main"><b>Leg 1 start</b><small>Official time commitment</small></div><span class="c-meta">All team</span><span class="tag blue c-state" data-glyph="●">CONFIRMED</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Leg 1 start" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row"><span class="c-time">20:30</span><div class="c-main"><b>Service C · 30 minutes</b><small>Tire change and fluid check</small></div><span class="c-meta">Crew · Service Park</span><span class="tag green c-state" data-glyph="✓">READY</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Service C" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+    </div>
+  </div>
+
+  <div class="tabpanel show" id="day-sat" role="tabpanel" aria-labelledby="daytab-sat">
+    <div class="list">
+      <div class="row head"><span class="c-time">Time</span><span class="c-main">Movement</span><span class="c-meta">Place / people</span><span class="c-state">Status</span><span class="c-act" aria-hidden="true"></span></div>
+      <div class="row"><span class="c-time">08:30</span><div class="c-main"><b>Team departs for service area</b><small>Service entrance is the west lot, not the spectator gate</small></div><span class="c-meta">All team · Service Park</span><span class="tag green c-state" data-glyph="✓">READY</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Team departs for service area" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row" data-unconfirmed="true"><span class="c-time">09:30</span><div class="c-main"><b>Parc Exposé opens for load-in</b><small>Changed 08:07 · source: organizer bulletin · 2 people unreached</small></div><span class="c-meta">WideOpen · Briley Park</span><span class="tag yellow c-state" data-glyph="▲">NEEDS ACK</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Parc Exposé opens for load-in" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row"><span class="c-time">11:00</span><div class="c-main"><b>FCO Leg 2</b><small>Official time commitment</small></div><span class="c-meta">All team</span><span class="tag blue c-state" data-glyph="●">CONFIRMED</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="FCO Leg 2" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row"><span class="c-time">13:40</span><div class="c-main"><b>Service B · 25 minutes</b><small>Linked checklist: Service-out v3</small></div><span class="c-meta">Crew · Service Park</span><span class="tag green c-state" data-glyph="✓">READY</span><span class="c-act"><button class="tool" data-go="work">Open</button><button class="dots" data-menu="Service B" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row" data-unconfirmed="true"><span class="c-time">16:20</span><div class="c-main"><b>Regroup and tire change window</b><small>≈ Approximate — depends on Leg 3 running order</small></div><span class="c-meta">Crew · Regroup</span><span class="tag yellow c-state" data-glyph="▲">UNCONFIRMED</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Regroup and tire change window" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row"><span class="c-time">18:00</span><div class="c-main"><b>Final inspection and load up</b><small>Linked form: post-event vehicle inspection v4</small></div><span class="c-meta">Crew · Service Park</span><span class="tag purple c-state" data-glyph="◇">PLANNED</span><span class="c-act"><button class="tool" data-go="submission">Open form</button><button class="dots" data-menu="Final inspection and load up" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+    </div>
+  </div>
+
+  <div class="tabpanel" id="day-sun" role="tabpanel" aria-labelledby="daytab-sun">
+    <div class="list">
+      <div class="row head"><span class="c-time">Time</span><span class="c-main">Movement</span><span class="c-meta">Place / people</span><span class="c-state">Status</span><span class="c-act" aria-hidden="true"></span></div>
+      <div class="row"><span class="c-time">08:00</span><div class="c-main"><b>Depart hotel</b><small>Cooler and spares loaded the night before</small></div><span class="c-meta">All team</span><span class="tag green c-state" data-glyph="✓">READY</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Depart hotel" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row"><span class="c-time">09:15</span><div class="c-main"><b>Leg 4 start</b><small>Official time commitment</small></div><span class="c-meta">All team</span><span class="tag blue c-state" data-glyph="●">CONFIRMED</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Leg 4 start" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row" data-unconfirmed="true"><span class="c-time">15:00</span><div class="c-main"><b>Awards and load out</b><small>≈ Approximate — follows final results</small></div><span class="c-meta">All team · Briley Park</span><span class="tag purple c-state" data-glyph="◇">PLANNED</span><span class="c-act"><button class="tool" data-go="movement">Open</button><button class="dots" data-menu="Awards and load out" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+    </div>
+  </div>
+
+  <div class="empty" id="planempty" hidden>
+    <b>No movements match this filter</b>
+    <p>The day has movements, but none are unconfirmed. This is a filtered result, not an empty plan.</p>
+    <div class="actions"><button class="tool" id="filterreset2">Clear filter</button></div>
+  </div>
+
+  <div class="callout"><b>Bulk and view controls</b>Select rows to edit, assign, tag, duplicate, archive, export or change status. A review count appears before applying any bulk action, and a single undo appears after it.</div>
+</section>
+
+<!-- ==================================================== MOVEMENT DETAIL -->
+<section class="page" id="p-movement" aria-labelledby="t-movement">
+  <div class="head">
+    <div>
+      <div class="mono">Movement detail · published 08:07 · 2 of 8 unreached</div>
+      <h1 id="t-movement" tabindex="-1">Parc Exposé opens for load-in</h1>
+    </div>
+    <p>A stable detail page keeps schedule data, linked records, source, delivery state, activity and comments together.</p>
+  </div>
+
+  <div class="split">
+    <div class="detail">
+      <div class="form">
+        <div class="input"><label for="mv-time">Time</label><input id="mv-time" value="09:30"></div>
+        <div class="input">
+          <label for="mv-conf">Time confidence</label>
+          <select id="mv-conf">
+            <option>Exact — confirmed by organizer</option>
+            <option>Approximate</option>
+            <option>Range</option>
+            <option>All day</option>
+            <option>Intentionally blank</option>
+          </select>
+          <span class="hint">Shown to everyone, so nobody reads an estimate as a commitment.</span>
+        </div>
+        <div class="input full">
+          <label for="mv-place">Place</label>
+          <select id="mv-place">
+            <option>Briley Park · Official venue · confirmed today</option>
+            <option>Lewiston Parc · Official venue · Friday only</option>
+            <option>Service Park · Service area</option>
+          </select>
+        </div>
+        <div class="input"><label for="mv-people">People</label><input id="mv-people" value="WideOpen (driver, co-driver)"></div>
+        <div class="input">
+          <label for="mv-status">Status</label>
+          <select id="mv-status"><option>Needs acknowledgement</option><option>Ready</option><option>Confirmed</option><option>Planned</option><option>Complete</option></select>
+        </div>
+        <div class="input full"><label for="mv-notes">Notes</label><textarea id="mv-notes">Saturday only. Do not use Friday’s Lewiston Parc address. Enter by the west lot.</textarea></div>
+      </div>
+      <div class="actions">
+        <button class="tool" data-go="plan">Back to plan</button>
+        <button class="tool" id="savedraft">Save as draft</button>
+        <button class="btn primary" data-go="publish">Review and publish</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="source">
+        <b>Source attachment</b>
+        Organizer bulletin — Saturday Parc.pdf
+        <br><small>Attached by Dan · 08:07 · 5 records rely on this fact</small>
+        <div class="actions left" style="margin-top:11px"><button class="tool" data-go="library">Open source</button></div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h2>Delivery state</h2>
+        <p>Per person, not a total. This change is not complete while anyone is unreached.</p>
+        <div class="field"><label>Acknowledged · 4</label><span>Dan, Avery, Sam, Riley</span></div>
+        <div class="field"><label>Delivered, not opened · 2</label><span>Morgan, Alex · last online 08:55</span></div>
+        <div class="field"><label>Unreached · 2</label><span>Cam — last online 07:40<br>Jesse — offline, queued<br><button class="tool" data-modal="verbal">Record radio ack</button></span></div>
+        <div class="field"><label>Escalation</label><span>Crew chief notified at 09:40 if still unacknowledged</span></div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h2>Activity</h2>
+        <div class="activity">
+          <div><b>Location changed</b><small>Dan changed Lewiston Parc to Briley Park · 08:07 · source attached</small></div>
+          <div><b>Acknowledgement requested</b><small>Driver and co-driver · 08:08 · marked critical</small></div>
+          <div><b>Previous instruction superseded</b><small>“Lewiston Parc” remains readable in history</small></div>
+        </div>
+        <div class="actions left"><button class="tool" data-go="activity">Full activity →</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================================================== PUBLISH -->
+<section class="page" id="p-publish" aria-labelledby="t-publish">
+  <div class="head">
+    <div>
+      <div class="mono">Review before publish</div>
+      <h1 id="t-publish" tabindex="-1">Publish plan change</h1>
+    </div>
+    <p>Draft edits stay private until an authorized person publishes a selected delta with a reason and targeted acknowledgement. Publishing reports who was reached, not how many were sent to.</p>
+  </div>
+
+  <div class="banner ok" id="publishresult" hidden>
+    <div class="bmain"><b>Published 09:12 · 6 of 8 reached</b>Cam and Jesse have not received this change. It stays open in your attention queue until they are reached or escalated.</div>
+    <div class="bact"><button class="tool" data-go="attention">See who is unreached</button></div>
+  </div>
+
+  <div class="grid">
+    <div class="detail">
+      <div class="banner info" style="margin-bottom:14px">
+        <div class="bmain"><b>Delta to publish</b>Place changed from <s>Lewiston Parc</s> to <strong>Briley Park</strong>. The previous value stays in record history, marked superseded.</div>
+      </div>
+      <div class="form">
+        <div class="input full">
+          <label for="pb-source">Reason / source</label>
+          <select id="pb-source"><option>Organizer bulletin — Saturday Parc.pdf</option><option>Radio call from organizer control</option><option>No source — my own decision</option></select>
+        </div>
+        <div class="input">
+          <label for="pb-who">Notify affected people</label>
+          <select id="pb-who"><option>Affected only — 8 people</option><option>Driver and co-driver — 2 people</option><option>Whole event — 11 people</option></select>
+        </div>
+        <div class="input">
+          <label for="pb-sev">Severity</label>
+          <select id="pb-sev"><option>Critical — alerts now, repeats, overrides quiet hours</option><option>Routine — batched with the next digest</option></select>
+        </div>
+        <div class="input">
+          <label for="pb-ack">Require acknowledgement</label>
+          <select id="pb-ack"><option>Yes — from 2 assigned people</option><option>Yes — from everyone affected</option><option>No</option></select>
+        </div>
+        <div class="input">
+          <label for="pb-esc">Escalate if unacknowledged</label>
+          <select id="pb-esc"><option>After 30 minutes → crew chief</option><option>After 15 minutes → whole crew</option><option>Do not escalate</option></select>
+        </div>
+        <div class="input full"><label for="pb-msg">Message</label><textarea id="pb-msg">Saturday Parc Exposé location changed to Briley Park. Review directions before leaving service. Enter by the west lot.</textarea></div>
+      </div>
+      <div class="actions">
+        <button class="tool" data-go="movement">Keep as draft</button>
+        <button class="btn primary" id="dopublish">Publish this change</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Impact statement</h2>
+      <p>Before you publish, this is what changes and who is affected.</p>
+      <div class="field"><label>Records affected</label><span>1 movement · 1 map route · 1 linked checklist · 1 export from 07:50 will be marked out of date</span></div>
+      <div class="field"><label>Visible to</label><span>8 event members</span></div>
+      <div class="field"><label>Acknowledgement required from</label><span>2 people — driver and co-driver</span></div>
+      <div class="field"><label>Currently offline</label><span>1 person (Jesse) — delivery will be queued and reported as pending</span></div>
+      <div class="callout"><b>Guardrail</b>Publishing never overwrites an earlier operational instruction, and never reports success while an affected person is unreached.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================================================== EXPORT -->
+<section class="page" id="p-export" aria-labelledby="t-export">
+  <div class="head">
+    <div>
+      <div class="mono">Plan handoff</div>
+      <h1 id="t-export" tabindex="-1">Export &amp; print</h1>
+    </div>
+    <p>Create a shareable output from the exact saved view, filters and timezone currently selected — and know when that output stops being true.</p>
+  </div>
+
+  <div class="banner">
+    <div class="bmain"><b>One earlier output is out of date</b>The PDF generated at 07:50 does not include the 08:07 Parc Exposé change. Anyone holding that sheet has the wrong location.</div>
+    <div class="bact"><button class="tool" data-say="Regenerated. The superseded output is marked out of date wherever it can still be seen, and the person who created it was told.">Regenerate</button></div>
+  </div>
+
+  <div class="grid three">
+    <div class="card">
+      <h2>Printable brief</h2>
+      <p>Compact PDF for a laminated sheet or crew handoff. The filter, timezone and generation time print on every page.</p>
+      <div class="actions"><button class="btn primary" data-say="PDF preview generated: Saturday operations, Eastern time, generated 09:12, filter shown in the footer.">Preview PDF</button></div>
+    </div>
+    <div class="card">
+      <h2>Spreadsheet</h2>
+      <p>Exports the visible columns, current sorting and selected rows — nothing hidden, nothing extra.</p>
+      <div class="actions"><button class="tool" data-say="Spreadsheet prepared: 6 rows, 5 visible columns, current sort by time.">Export .xlsx</button></div>
+    </div>
+    <div class="card">
+      <h2>Share link</h2>
+      <p>Read-only event view with an expiry and named recipients. Recipients see the change banner too.</p>
+      <div class="actions"><button class="tool" data-say="Draft link ready: read-only, expires Sunday 20:00, 2 named recipients. It will show a change banner if the plan moves.">Create link</button></div>
+    </div>
+  </div>
+
+  <div class="detail" style="margin-top:14px">
+    <div class="field"><label>Output summary</label><span>Saturday operations · 6 movements · America/New_York · generated Feb 7 at 09:12 · filter: Saturday, all statuses</span></div>
+    <div class="field"><label>Offline brief</label><span>Includes plan, routes, venue access notes and 4 selected attachments · 6 MB</span></div>
+    <div class="field"><label>If the plan changes</label><span>This output is marked out of date and you are told, because paper outlives the change that invalidates it</span></div>
+  </div>
+</section>
+
+<!-- ==================================================== WORK -->
+<section class="page" id="p-work" aria-labelledby="t-work">
+  <div class="head">
+    <div>
+      <div class="mono">Work collection · crew-owned</div>
+      <h1 id="t-work" tabindex="-1">Work &amp; checklists</h1>
+    </div>
+    <p>A tick list can stay simple or become a richer collection with owners, statuses, context, attachments and custom fields. Completion is one control, and it can be undone.</p>
+  </div>
+
+  <div class="toolbar" role="tablist" aria-label="Checklists" data-tabs="checklists">
+    <button class="tool" role="tab" aria-selected="true" aria-controls="cl-service" id="cltab-service">Service-out<span class="sr"> checklist</span></button>
+    <button class="tool" role="tab" aria-selected="false" aria-controls="cl-meal" id="cltab-meal">Meal &amp; cooler</button>
+    <button class="tool" role="tab" aria-selected="false" aria-controls="cl-recce" id="cltab-recce">Recce kit</button>
+    <button class="tool" data-say="A new checklist starts blank or from a template, and can stay a plain tick list forever.">+ Checklist</button>
+    <span class="spacer"></span>
+    <button class="tool" data-say="Board view groups the same items by status, owner or any select field. It is a view, not a different collection.">▦ Board</button>
+    <button class="tool" data-go="templates">Templates</button>
+  </div>
+
+  <div class="split">
+    <div>
+      <div class="tabpanel show" id="cl-service" role="tabpanel" aria-labelledby="cltab-service">
+        <div class="list">
+          <div class="task" data-done="true"><span class="check" role="checkbox" aria-checked="true" tabindex="0" aria-label="Final torque check">✓</span><div class="c-main"><b>Final torque check</b><small>Avery · wheel nuts marked · 1 comment</small></div><span class="tag green c-state" data-glyph="✓">DONE</span><span class="c-act"><button class="dots" data-menu="Final torque check" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+          <div class="task" data-done="false"><span class="check" role="checkbox" aria-checked="false" tabindex="0" aria-label="Driver and co-driver final gear check"></span><div class="c-main"><b>Driver / co-driver final gear check</b><small>WideOpen · due before 14:20</small></div><span class="tag yellow c-state" data-glyph="▲">OPEN</span><span class="c-act"><button class="tool" data-go="task">Open</button><button class="dots" data-menu="Driver / co-driver final gear check" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+          <div class="task" data-done="false"><span class="check" role="checkbox" aria-checked="false" tabindex="0" aria-label="Document tire choices"></span><div class="c-main"><b>Document tire choices</b><small>Mechanic · photo evidence requested</small></div><span class="tag purple c-state" data-glyph="◇">IN PROGRESS</span><span class="c-act"><button class="dots" data-menu="Document tire choices" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+          <div class="task" data-done="false"><span class="check" role="checkbox" aria-checked="false" tabindex="0" aria-label="Fuel to 60 litres"></span><div class="c-main"><b>Fuel to 60 litres</b><small>Auto-created by rule “Service-out fuel” · 13:40 Service B</small></div><span class="tag c-state" data-glyph="○">NOT STARTED</span><span class="c-act"><button class="dots" data-menu="Fuel to 60 litres" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+        </div>
+      </div>
+
+      <div class="tabpanel" id="cl-meal" role="tabpanel" aria-labelledby="cltab-meal">
+        <div class="list">
+          <div class="task" data-done="true"><span class="check" role="checkbox" aria-checked="true" tabindex="0" aria-label="Cooler packed">✓</span><div class="c-main"><b>Cooler packed and iced</b><small>Sam · 06:30</small></div><span class="tag green c-state" data-glyph="✓">DONE</span><span class="c-act"><button class="dots" data-menu="Cooler packed and iced" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+          <div class="task" data-done="false"><span class="check" role="checkbox" aria-checked="false" tabindex="0" aria-label="Hot food for evening service"></span><div class="c-main"><b>Hot food for evening service</b><small>Sam · 6 people · vegetarian x1</small></div><span class="tag yellow c-state" data-glyph="▲">OPEN</span><span class="c-act"><button class="dots" data-menu="Hot food for evening service" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+          <div class="task" data-done="false"><span class="check" role="checkbox" aria-checked="false" tabindex="0" aria-label="Refill water jugs"></span><div class="c-main"><b>Refill water jugs</b><small>Anyone · Service Park tap is on the west side</small></div><span class="tag c-state" data-glyph="○">NOT STARTED</span><span class="c-act"><button class="dots" data-menu="Refill water jugs" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+        </div>
+        <div class="callout"><b>Same collection, less structure</b>This checklist uses only “complete” and an owner. It was never forced to adopt the fields the service list needs.</div>
+      </div>
+
+      <div class="tabpanel" id="cl-recce" role="tabpanel" aria-labelledby="cltab-recce">
+        <div class="list">
+          <div class="task" data-done="false"><span class="check" role="checkbox" aria-checked="false" tabindex="0" aria-label="Route books and pens"></span><div class="c-main"><b>Route books and pens</b><small>Co-driver</small></div><span class="tag c-state" data-glyph="○">NOT STARTED</span><span class="c-act"><button class="dots" data-menu="Route books and pens" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+          <div class="task" data-done="false"><span class="check" role="checkbox" aria-checked="false" tabindex="0" aria-label="Studded winter tires on recce car"></span><div class="c-main"><b>Studded winter tires on recce car</b><small>Avery · required for Thursday recce</small></div><span class="tag yellow c-state" data-glyph="▲">OPEN</span><span class="c-act"><button class="dots" data-menu="Studded winter tires on recce car" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Collection controls</h2>
+      <p>Structure this crew chose for itself — not a shape the product imposed.</p>
+      <div class="field"><label>Item types</label><span>Task, decision, reminder, issue<button class="tool" data-say="A custom item type asks for a name, icon and which fields it carries.">+ Custom type</button></span></div>
+      <div class="field"><label>Fields</label><span>Owner, due context, status, vehicle, movement, place, attachments<button class="tool" data-go="views">Manage fields</button></span></div>
+      <div class="field"><label>Automations</label><span>Notify owner on published plan change · every created item names the rule that made it<button class="tool" data-go="automation">Configure</button></span></div>
+      <div class="field"><label>Access</label><span>Crew can edit · driver can view and complete<button class="tool" data-go="people">Permissions</button></span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================================================== TASK DETAIL -->
+<section class="page" id="p-task" aria-labelledby="t-task">
+  <div class="head">
+    <div>
+      <div class="mono">Work item detail</div>
+      <h1 id="t-task" tabindex="-1">Driver / co-driver final gear check</h1>
+    </div>
+    <p>One obvious completion control; everything else is optional coordination detail.</p>
+  </div>
+
+  <div class="split">
+    <div class="detail">
+      <div class="form">
+        <div class="input full"><label for="tk-name">Task</label><input id="tk-name" value="Driver / co-driver final gear check"></div>
+        <div class="input"><label for="tk-owner">Owner</label><select id="tk-owner"><option>WideOpen</option><option>Avery</option><option>Sam</option><option>Unassigned</option></select></div>
+        <div class="input"><label for="tk-status">Status</label><select id="tk-status"><option>Open</option><option>In progress</option><option>Blocked</option><option>Complete</option></select></div>
+        <div class="input"><label for="tk-due">Due context</label><input id="tk-due" value="Before 14:20"><span class="hint">Free text is allowed — “before service B” is often more useful than a timestamp.</span></div>
+        <div class="input"><label for="tk-pri">Priority</label><select id="tk-pri"><option>High</option><option>Normal</option><option>Low</option></select></div>
+        <div class="input full"><label for="tk-link">Linked records</label><input id="tk-link" value="Car 262 · Parc Exposé opens for load-in"></div>
+        <div class="input full"><label for="tk-comment">Comment</label><textarea id="tk-comment" placeholder="Add a handoff note or @mention someone"></textarea></div>
+      </div>
+      <div class="actions">
+        <button class="btn soft" id="taskcomplete">✓ Mark complete</button>
+        <button class="btn primary" data-say="Saved. Queued for sync — you are offline for 2 changes.">Save</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Context</h2>
+      <p>Assigned by Avery · 1 linked movement · 0 files · created from the Service-out checklist.</p>
+      <div class="activity">
+        <div><b>Assigned to WideOpen</b><small>by Avery · 07:45</small></div>
+        <div><b>Due context set</b><small>“Before 14:20” · 07:46</small></div>
+        <div><b>Linked to a movement</b><small>Parc Exposé opens for load-in · 08:09</small></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================================================== TEMPLATES -->
+<section class="page" id="p-templates" aria-labelledby="t-templates">
+  <div class="head">
+    <div>
+      <div class="mono">Reusable work</div>
+      <h1 id="t-templates" tabindex="-1">Checklist templates</h1>
+    </div>
+    <p>Version, copy and archive repeatable work without forcing event-specific changes back into the source template.</p>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn primary" data-say="New template starts blank or from the checklist you have open.">+ New template</button>
+    <button class="tool" data-say="Duplicating a template creates an independent copy. Nothing links back to the original.">Duplicate</button>
+  </div>
+
+  <div class="list">
+    <div class="row">
+      <span class="tag green c-state" data-glyph="●">ACTIVE</span>
+      <div class="c-main"><b>Service-out v3</b><small>12 items · last changed Jun 18 by Avery</small></div>
+      <span class="c-meta">Used by 4 events</span>
+      <span class="c-act"><button class="tool" data-say="Applying asks for event, vehicle and day. Local edits will not change the template unless you explicitly promote them.">Apply</button><button class="dots" data-menu="Service-out v3" aria-label="More actions" aria-expanded="false">⋯</button></span>
+    </div>
+    <div class="row">
+      <span class="tag c-state" data-glyph="◫">ARCHIVED</span>
+      <div class="c-main"><b>Winter recce kit v1</b><small>8 items · superseded by v2 on Jul 23</small></div>
+      <span class="c-meta">Retained for history</span>
+      <span class="c-act"><button class="tool" data-say="Restored to the template list. Existing historical links stayed intact the whole time.">Restore</button><button class="dots" data-menu="Winter recce kit v1" aria-label="More actions" aria-expanded="false">⋯</button></span>
+    </div>
+    <div class="row">
+      <span class="tag green c-state" data-glyph="●">ACTIVE</span>
+      <div class="c-main"><b>Winter recce kit v2</b><small>11 items · adds studded tire check</small></div>
+      <span class="c-meta">Used by 2 events</span>
+      <span class="c-act"><button class="tool" data-say="Applying asks for event, vehicle and day.">Apply</button><button class="dots" data-menu="Winter recce kit v2" aria-label="More actions" aria-expanded="false">⋯</button></span>
+    </div>
+  </div>
+  <div class="callout"><b>Archiving is reversible; deleting is not</b>Archive keeps history and can be undone for 30 days. Permanent deletion asks separately, states what breaks, and requires an owner.</div>
+</section>
+
+<!-- ==================================================== AUTOMATION -->
+<section class="page" id="p-automation" aria-labelledby="t-automation">
+  <div class="head">
+    <div>
+      <div class="mono">Optional automation</div>
+      <h1 id="t-automation" tabindex="-1">Create a work rule</h1>
+    </div>
+    <p>Automation setup always previews exactly which records will be created and who will be notified — before it is enabled.</p>
+  </div>
+
+  <div class="detail">
+    <div class="workflow">
+      <span>When <b>a plan change is published</b></span><i>→</i>
+      <span>if <b>the movement is on Saturday</b></span><i>→</i>
+      <span>notify <b>the assigned crew</b></span>
+    </div>
+    <div class="form" style="margin-top:15px">
+      <div class="input"><label for="au-trig">Trigger</label><select id="au-trig"><option>Plan change published</option><option>Work status changes</option><option>Date/time reaches</option><option>Form answer matches</option></select></div>
+      <div class="input"><label for="au-act">Action</label><select id="au-act"><option>Notify owner</option><option>Create work item</option><option>Add plan note</option><option>Request acknowledgement</option></select></div>
+      <div class="input full"><label for="au-prev">Preview — what will actually happen</label><textarea id="au-prev" readonly>Right now this rule would notify 2 people (WideOpen driver, co-driver) with one acknowledgement request. It would create 0 records. Anything it does create will say “created by rule: Saturday change notice”.</textarea></div>
+    </div>
+    <div class="actions">
+      <button class="tool" data-go="work">Cancel</button>
+      <button class="btn primary" data-say="Rule enabled for this event only. Every record it creates will name it, so nobody has to guess where a task came from.">Enable rule</button>
+    </div>
+  </div>
+</section>
+<!-- ==================================================== RECORDS -->
+<section class="page" id="p-records" aria-labelledby="t-records">
+  <div class="head">
+    <div>
+      <div class="mono">People, places, vehicles &amp; services</div>
+      <h1 id="t-records" tabindex="-1">Records directory</h1>
+    </div>
+    <p>Teams can use racing-aware starters or define their own types, links and properties. Capture is name-first: everything else can be added later.</p>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn primary" data-modal="add">+ Record</button>
+    <button class="tool" data-go="types">Manage types</button>
+    <button class="tool" data-go="types">Manage categories</button>
+    <span class="spacer"></span>
+    <button class="tool" data-say="Type filter: venue, service, vehicle, person, organization, equipment, or any type this team created.">⌕ Filter type</button>
+    <button class="tool" data-go="place">⌖ Map view</button>
+  </div>
+
+  <div class="grid">
+    <div class="list">
+      <div class="row">
+        <span class="tag blue c-state" data-glyph="⌖">VENUE</span>
+        <div class="c-main"><b>Briley Park</b><small>Official Parc Exposé · confirmed today by Dan</small></div>
+        <span class="c-meta">5 linked movements</span>
+        <span class="c-act"><button class="tool" data-go="place">Open</button><button class="dots" data-menu="Briley Park" aria-label="More actions" aria-expanded="false">⋯</button></span>
+      </div>
+      <div class="row">
+        <span class="tag green c-state" data-glyph="◈">SERVICE</span>
+        <div class="c-main"><b>Service Park</b><small>Fuel · tire support · recovery nearby</small></div>
+        <span class="c-meta">Car 262 · 4 movements</span>
+        <span class="c-act"><button class="tool" data-go="place">Open</button><button class="dots" data-menu="Service Park" aria-label="More actions" aria-expanded="false">⋯</button></span>
+      </div>
+      <div class="row">
+        <span class="tag purple c-state" data-glyph="◇">VEHICLE</span>
+        <div class="c-main"><b>Car 262</b><small>WideOpen · active · logbook current</small></div>
+        <span class="c-meta">18 linked records</span>
+        <span class="c-act"><button class="tool" data-go="place">Open</button><button class="dots" data-menu="Car 262" aria-label="More actions" aria-expanded="false">⋯</button></span>
+      </div>
+      <div class="row">
+        <span class="tag yellow c-state" data-glyph="▲">VENUE · UNCONFIRMED</span>
+        <div class="c-main"><b>Lewiston Parc</b><small>Friday only · no source attached since Jan 12</small></div>
+        <span class="c-meta">2 linked movements</span>
+        <span class="c-act"><button class="tool" data-go="place">Open</button><button class="dots" data-menu="Lewiston Parc" aria-label="More actions" aria-expanded="false">⋯</button></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Quick capture</h2>
+      <p>Create a person, place, vehicle, service, equipment item, organization or a user-defined record with only a name. Links and details can wait until you are not standing in a service park.</p>
+      <div class="form" style="margin-top:12px">
+        <div class="input full"><label for="rc-name">Name</label><input id="rc-name" placeholder="e.g. Grayling fuel — 24h"></div>
+        <div class="input full"><label for="rc-type">Type <span class="hint">(optional)</span></label><select id="rc-type"><option>Decide later</option><option>Venue</option><option>Service</option><option>Person</option><option>Vehicle</option><option>Organization</option><option>Equipment</option></select></div>
+      </div>
+      <div class="actions"><button class="btn primary" data-say="Record created with just a name. It is findable in search immediately, and you can add a type, category or source whenever you want.">Create record</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================================================== PLACE -->
+<section class="page" id="p-place" aria-labelledby="t-place">
+  <div class="head">
+    <div>
+      <div class="mono">Official venue · confirmed · source-backed</div>
+      <h1 id="t-place" tabindex="-1">Briley Park</h1>
+    </div>
+    <p>A place carries more than an address: access, contacts, sources, confirmation state, routes, offline availability and the operational work linked to it.</p>
+  </div>
+
+  <div class="split">
+    <div>
+      <div class="map" role="img" aria-label="Map showing Briley Park, Service Park and a fuel stop">
+        <span class="pin a">Briley Park</span>
+        <span class="pin b">Service Park</span>
+        <span class="pin c">Fuel</span>
+      </div>
+      <div class="toolbar" style="margin-top:11px">
+        <button class="tool" data-go="travel">Add travel context</button>
+        <button class="tool" data-say="Handed off to device navigation with the access note attached — “enter west lot, avoid spectator gate” — not just the address.">Directions</button>
+        <button class="tool" data-say="Acknowledgement requested from the driver, co-driver and service crew. You will see who has and has not been reached.">Request acknowledgement</button>
+      </div>
+      <div class="banner ok" style="margin-top:11px">
+        <div class="bmain"><b>Offline</b>This map area, the route from Service Park and the access photo are downloaded. Directions will work with no signal.</div>
+      </div>
+    </div>
+
+    <div class="detail">
+      <div class="field"><label>Type &amp; confirmation</label><span>Official venue · <strong>Confirmed</strong> · verified Feb 7 by Dan</span></div>
+      <div class="field"><label>Address / coordinates</label><span>Briley Park, Lewiston, MI · 44.88, −84.30</span></div>
+      <div class="field"><label>Access notes</label><span>Saturday only. Enter by the west lot; avoid the spectator gate.</span></div>
+      <div class="field"><label>Hours &amp; contacts</label><span>08:30–16:00 · Organizer control: M. Brown</span></div>
+      <div class="field"><label>Categories</label><span>Parc Exposé · Official</span></div>
+      <div class="field"><label>Source</label><span>Organizer bulletin — Saturday Parc.pdf<button class="tool" data-go="library">Open source</button></span></div>
+      <div class="field"><label>Linked work</label><span>2 movements today · 1 checklist item<button class="tool" data-go="work">Open work</button></span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================================================== TYPES -->
+<section class="page" id="p-types" aria-labelledby="t-types">
+  <div class="head">
+    <div>
+      <div class="mono">Structure management</div>
+      <h1 id="t-types" tabindex="-1">Record types &amp; categories</h1>
+    </div>
+    <p>Teams control their own vocabulary. Archive and merge paths preserve existing records, and every irreversible step states what it affects first.</p>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="sectionhead">
+        <div><h2>Record types</h2><p>Icons, defaults, fields, links and list behaviour</p></div>
+        <button class="tool" data-say="New type asks for a name, icon, default fields and allowed links. Nothing is locked afterwards.">+ Type</button>
+      </div>
+      <div class="field"><label>Venue</label><span>Address, access notes, hours, confirmation, source<button class="tool" data-say="Editing a type changes future records and offers to backfill existing ones — it never silently rewrites them.">Edit</button></span></div>
+      <div class="field"><label>Service</label><span>Categories, contacts, travel context<button class="tool" data-say="Renaming is safe: 12 existing services keep every field and link, and search finds both names for 30 days.">Rename</button></span></div>
+      <div class="field"><label>Vehicle</label><span>Roster, identifiers, linked history</span></div>
+      <div class="field"><label>Marshal post</label><span>Created by this team on Jan 9 · 6 records<button class="tool"
+        data-confirm-title="Archive the “Marshal post” type?"
+        data-confirm-impact="6 records keep all their data and stay searchable, but leave default lists and the map legend. 1 saved view filters on this type and will show an empty result with an explanation. No records are deleted."
+        data-confirm-cta="Archive type"
+        data-confirm-done="Type archived. Its 6 records are intact and still searchable.">Archive</button></span></div>
+    </div>
+
+    <div class="card">
+      <div class="sectionhead">
+        <div><h2>Place categories</h2><p>Map legend and filter taxonomy</p></div>
+        <button class="tool" data-say="Category added. Choose colour, ordering and whether it appears in navigation, the map legend or the default filter.">+ Category</button>
+      </div>
+      <div class="field"><label><span class="tag green" data-glyph="●">FUEL</span> Fuel</label><span>4 places · shown in map legend<button class="tool" data-say="Reordering changes the legend and filter order for everyone in this event. It changes no records.">Reorder</button></span></div>
+      <div class="field"><label><span class="tag blue" data-glyph="●">TIRE</span> Tire support</label><span>3 places<button class="tool"
+        data-confirm-title="Merge “Tire support” into “Fuel”?"
+        data-confirm-impact="3 places move to Fuel. The Tire support category and its colour are removed from the legend, 2 saved views that filter on it will be rewritten to Fuel, and this cannot be undone."
+        data-confirm-cta="Merge categories"
+        data-confirm-done="Merged. 3 places moved to Fuel and 2 saved views were rewritten.">Merge</button></span></div>
+      <div class="field"><label><span class="tag yellow" data-glyph="●">RECOVERY</span> Recovery</label><span>2 places<button class="tool"
+        data-confirm-title="Archive the “Recovery” category?"
+        data-confirm-impact="2 places would become uncategorised. Choose to reassign them to another category first, or continue and they will appear as uncategorised in the map legend."
+        data-confirm-cta="Archive anyway"
+        data-confirm-done="Category archived. 2 places are now uncategorised and flagged in the records list.">Archive</button></span></div>
+      <div class="callout"><b>Guardrail A in practice</b>Reversible steps — reorder, rename, archive — happen with an undo. Merge and delete cannot be undone, so they state exactly what breaks before you commit.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================================================== TRAVEL -->
+<section class="page" id="p-travel" aria-labelledby="t-travel">
+  <div class="head">
+    <div>
+      <div class="mono">Place-to-place context</div>
+      <h1 id="t-travel" tabindex="-1">Travel estimate</h1>
+    </div>
+    <p>“15 minutes from the paddock” is more actionable than a street address — as long as the crew can see who estimated it, how, and when.</p>
+  </div>
+
+  <div class="detail">
+    <div class="form">
+      <div class="input"><label for="tv-from">From</label><select id="tv-from"><option>Service Park</option><option>Briley Park</option><option>Lewiston hotel</option></select></div>
+      <div class="input"><label for="tv-to">To</label><select id="tv-to"><option>Briley Park</option><option>Service Park</option><option>Grayling fuel</option></select></div>
+      <div class="input"><label for="tv-est">Estimate</label><input id="tv-est" value="15 minutes"></div>
+      <div class="input"><label for="tv-auth">Calculation / author</label><input id="tv-auth" value="Google Maps · Dan · Feb 7"><span class="hint">Recorded so a stale estimate can be judged rather than trusted.</span></div>
+      <div class="input full"><label for="tv-note">Route note</label><textarea id="tv-note">Use the west lot entrance. Add 10 minutes during the spectator arrival window (09:00–09:45).</textarea></div>
+    </div>
+    <div class="actions">
+      <button class="tool" data-go="place">Cancel</button>
+      <button class="btn primary" data-say="Travel context saved. It now appears in the plan, on the map and on both place details, with your name and today’s date.">Save travel context</button>
+    </div>
+  </div>
+</section>
+
+<!-- ==================================================== FORMS -->
+<section class="page" id="p-forms" aria-labelledby="t-forms">
+  <div class="head">
+    <div>
+      <div class="mono">Capture &amp; evidence</div>
+      <h1 id="t-forms" tabindex="-1">Forms &amp; inspections</h1>
+    </div>
+    <p>Configurable templates serve inspection, inventory, incident and handoff flows. Completed submissions keep the structure they were completed against, forever.</p>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn primary" data-go="builder">+ New form template</button>
+    <button class="tool" data-go="submission">+ New submission</button>
+    <span class="spacer"></span>
+    <button class="tool" data-say="Status filter: draft, submitted, needs follow-up, or submitted against a historic version.">⌕ Filter status</button>
+    <button class="tool" data-go="versions">Versions</button>
+  </div>
+
+  <div class="list">
+    <div class="row">
+      <span class="tag green c-state" data-glyph="●">ACTIVE</span>
+      <div class="c-main"><b>Post-event vehicle inspection</b><small>v4 · 12 fields · requires signature · 1 conditional rule</small></div>
+      <span class="c-meta">3 submissions · 1 draft</span>
+      <span class="c-act"><button class="tool" data-go="builder">Edit template</button><button class="dots" data-menu="Post-event vehicle inspection" aria-label="More actions" aria-expanded="false">⋯</button></span>
+    </div>
+    <div class="row">
+      <span class="tag yellow c-state" data-glyph="▲">DRAFT TEMPLATE</span>
+      <div class="c-main"><b>Service bay handoff</b><small>v1 · 7 fields · follow-up rule not yet configured</small></div>
+      <span class="c-meta">Not yet usable</span>
+      <span class="c-act"><button class="tool" data-go="builder">Continue building</button><button class="dots" data-menu="Service bay handoff" aria-label="More actions" aria-expanded="false">⋯</button></span>
+    </div>
+    <div class="row">
+      <span class="tag red c-state" data-glyph="▲">NEEDS FOLLOW-UP</span>
+      <div class="c-main"><b>Incident report — 22:40 Friday</b><small>Submitted by Avery · created 1 high-priority work item</small></div>
+      <span class="c-meta">Follow-up open</span>
+      <span class="c-act"><button class="tool" data-go="task">Open work item</button><button class="dots" data-menu="Incident report" aria-label="More actions" aria-expanded="false">⋯</button></span>
+    </div>
+  </div>
+</section>
+
+<!-- ==================================================== BUILDER -->
+<section class="page" id="p-builder" aria-labelledby="t-builder">
+  <div class="head">
+    <div>
+      <div class="mono">Form builder · post-event vehicle inspection v4</div>
+      <h1 id="t-builder" tabindex="-1">Build a form</h1>
+    </div>
+    <p>Fields, instructions, required state, defaults, validation and rules stay explicit — and every rule has a plain-language preview.</p>
+  </div>
+
+  <div class="split">
+    <div class="list">
+      <div class="row"><span class="c-time">⠿ 01</span><div class="c-main"><b>Vehicle</b><small>Record link · required</small></div><span class="c-meta">Car / asset</span><span class="c-act"><button class="tool" data-say="Field settings opened: type, label, instructions, default, validation and required state.">Edit</button><button class="dots" data-menu="Vehicle field" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row"><span class="c-time">⠿ 02</span><div class="c-main"><b>Damage observed?</b><small>Boolean · required</small></div><span class="c-meta">Yes / No</span><span class="c-act"><button class="tool" data-say="Field settings opened.">Edit</button><button class="dots" data-menu="Damage observed field" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row" style="background:var(--soft)"><span class="c-time">⠿ 03</span><div class="c-main"><b>Damage photo</b><small>File / photo · conditional · selected</small></div><span class="c-meta">Shows if damage = Yes</span><span class="c-act"><button class="tool on">Editing</button><button class="dots" data-menu="Damage photo field" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+      <div class="row"><span class="c-time">⠿ 04</span><div class="c-main"><b>Inspector signature</b><small>Signature · required</small></div><span class="c-meta">Evidence</span><span class="c-act"><button class="tool" data-say="Field settings opened.">Edit</button><button class="dots" data-menu="Inspector signature field" aria-label="More actions" aria-expanded="false">⋯</button></span></div>
+    </div>
+
+    <div class="detail">
+      <h2>Selected field · Damage photo</h2>
+      <div class="form" style="margin-top:12px">
+        <div class="input"><label for="fb-type">Field type</label><select id="fb-type"><option>File / photo</option><option>Text</option><option>Number</option><option>Date/time</option><option>Select</option><option>Boolean</option><option>Signature</option><option>Record link</option><option>Repeatable group</option></select></div>
+        <div class="input"><label for="fb-req">Required state</label><select id="fb-req"><option>Required when shown</option><option>Always required</option><option>Never required</option></select></div>
+        <div class="input full"><label for="fb-rule">Rule — in plain language</label><textarea id="fb-rule" readonly>Show “Damage photo” and require it when “Damage observed?” is Yes. When that happens, suggest creating a high-priority work item linked to this answer.</textarea></div>
+      </div>
+      <div class="actions">
+        <button class="tool" data-say="Add text, number, date/time, select, multi-select, boolean, file, person, signature, record link, calculated or repeatable field.">+ Add field</button>
+        <button class="btn primary"
+          data-confirm-title="Publish v5 of this template?"
+          data-confirm-impact="New submissions will use v5. The 3 completed submissions keep v4 — their labels, choices and rules stay exactly as they were at completion. 1 open draft will be asked whether to move to v5 or finish on v4."
+          data-confirm-cta="Publish v5"
+          data-confirm-done="v5 published. Completed submissions still show v4, and the open draft was asked which version to finish on.">Publish v5</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================================================== SUBMISSION -->
+<section class="page" id="p-submission" aria-labelledby="t-submission">
+  <div class="head">
+    <div>
+      <div class="mono">Draft submission · saved locally · v4</div>
+      <h1 id="t-submission" tabindex="-1">Post-event vehicle inspection</h1>
+    </div>
+    <p>Drafts survive interruption. If required answers are missing, the reason stays on screen and points at the fields — it is never delivered in a message that disappears.</p>
+  </div>
+
+  <div class="detail">
+    <div class="banner err" id="suberr" hidden>
+      <div class="bmain">
+        <b id="suberrhead">2 answers are needed before you can submit</b>
+        <span id="suberrlist"></span><br>
+        Your draft is safely saved locally — nothing you have typed is at risk.
+      </div>
+    </div>
+    <div class="banner ok" id="subok" hidden>
+      <div class="bmain"><b>Submitted 18:07</b>Recorded against v4 with your name, the timestamp, your signature and the linked vehicle. This evidence is now permanent.</div>
+    </div>
+
+    <form id="subform" novalidate>
+      <div class="form">
+        <div class="input" id="w-vehicle">
+          <label for="sb-vehicle">Vehicle <span class="req" aria-hidden="true">*</span><span class="sr">(required)</span></label>
+          <select id="sb-vehicle" required aria-describedby="e-vehicle"><option value="Car 262">Car 262</option><option value="">Choose a vehicle…</option></select>
+          <span class="errmsg" id="e-vehicle">Choose the vehicle this inspection covers.</span>
+        </div>
+        <div class="input" id="w-damage">
+          <label for="sb-damage">Damage observed? <span class="req" aria-hidden="true">*</span><span class="sr">(required)</span></label>
+          <select id="sb-damage" required aria-describedby="e-damage"><option value="">Select an answer…</option><option value="no">No</option><option value="yes">Yes</option></select>
+          <span class="errmsg" id="e-damage">Answer yes or no — a photo is only requested if you answer yes.</span>
+        </div>
+        <div class="input full" id="w-photo" hidden>
+          <label for="sb-photo">Damage photo <span class="req" aria-hidden="true">*</span><span class="sr">(required when damage is observed)</span></label>
+          <input id="sb-photo" placeholder="Attach or capture a photo" aria-describedby="e-photo">
+          <span class="hint">Requested because you answered yes. It will be attached to this answer, and can create a follow-up work item.</span>
+          <span class="errmsg" id="e-photo">A photo is required when damage is observed.</span>
+        </div>
+        <div class="input full"><label for="sb-notes">Notes</label><textarea id="sb-notes" placeholder="Optional inspection notes"></textarea></div>
+        <div class="input"><label for="sb-time">Inspection time</label><input id="sb-time" value="Feb 7, 2026 18:04"></div>
+        <div class="input" id="w-sign">
+          <label for="sb-sign">Inspector signature <span class="req" aria-hidden="true">*</span><span class="sr">(required)</span></label>
+          <input id="sb-sign" placeholder="Type your name to sign" required aria-describedby="e-sign">
+          <span class="errmsg" id="e-sign">Sign to confirm you carried out this inspection.</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="tool" type="button" id="savedraftsub">Save draft</button>
+        <button class="btn primary" type="submit">Submit inspection</button>
+      </div>
+    </form>
+  </div>
+  <div class="callout"><b>Try it</b>Submit with the answers empty. The block is explained in place, each field is marked, focus moves to the first one, and the message stays until you resolve it.</div>
+</section>
+
+<!-- ==================================================== VERSIONS -->
+<section class="page" id="p-versions" aria-labelledby="t-versions">
+  <div class="head">
+    <div>
+      <div class="mono">Immutable history</div>
+      <h1 id="t-versions" tabindex="-1">Template versions</h1>
+    </div>
+    <p>Structural edits create a new version. Completed evidence always retains the labels, rules and choices that existed when it was submitted.</p>
+  </div>
+
+  <div class="list">
+    <div class="row">
+      <span class="tag green c-state" data-glyph="●">CURRENT</span>
+      <div class="c-main"><b>v4 · Post-event vehicle inspection</b><small>Published Feb 5 · added the conditional damage photo</small></div>
+      <span class="c-meta">0 completed · 1 draft</span>
+      <span class="c-act"><button class="tool" data-go="builder">Open</button><button class="dots" data-menu="v4 template" aria-label="More actions" aria-expanded="false">⋯</button></span>
+    </div>
+    <div class="row">
+      <span class="tag c-state" data-glyph="◫">HISTORIC</span>
+      <div class="c-main"><b>v3 · Post-event vehicle inspection</b><small>Published Jun 18 · original field labels preserved</small></div>
+      <span class="c-meta">3 completed submissions</span>
+      <span class="c-act"><button class="tool" data-say="Historic versions are read-only. Each submission opens against the exact schema it was completed with.">View evidence</button><button class="dots" data-menu="v3 template" aria-label="More actions" aria-expanded="false">⋯</button></span>
+    </div>
+  </div>
+  <div class="callout"><b>Why this matters</b>A completed inspection whose question wording has silently changed is not evidence of anything.</div>
+</section>
+<!-- ==================================================== LIBRARY -->
+<section class="page" id="p-library" aria-labelledby="t-library">
+  <div class="head">
+    <div>
+      <div class="mono">Original evidence</div>
+      <h1 id="t-library" tabindex="-1">Files &amp; sources</h1>
+    </div>
+    <p>Files, links, photos and excerpts attach to facts without losing the original material or its downstream connections.</p>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn primary" data-say="Attach a file, a link, a photo or a quoted excerpt from a document you already have.">+ Attach source</button>
+    <button class="tool" data-say="Filter by the records that rely on a source — useful when a bulletin is superseded and you need to know what it touched.">⌕ Filter linked records</button>
+    <button class="tool" data-go="activity">Activity</button>
+  </div>
+
+  <div class="list">
+    <div class="row">
+      <span class="tag red c-state" data-glyph="▣">PDF</span>
+      <div class="c-main"><b>Organizer bulletin — Saturday Parc.pdf</b><small>Uploaded by Dan · Feb 7 08:07 · 2 quoted excerpts</small></div>
+      <span class="c-meta">5 records rely on this</span>
+      <span class="c-act"><button class="tool" data-go="movement">Open links</button><button class="dots" data-menu="Organizer bulletin PDF" aria-label="More actions" aria-expanded="false">⋯</button></span>
+    </div>
+    <div class="row">
+      <span class="tag blue c-state" data-glyph="◎">PHOTO</span>
+      <div class="c-main"><b>Service entrance west lot.jpg</b><small>Uploaded by Avery · Feb 6 17:30 · downloaded for offline</small></div>
+      <span class="c-meta">1 linked place</span>
+      <span class="c-act"><button class="tool" data-go="place">Open links</button><button class="dots" data-menu="Service entrance photo" aria-label="More actions" aria-expanded="false">⋯</button></span>
+    </div>
+    <div class="row">
+      <span class="tag yellow c-state" data-glyph="▲">QUEUED</span>
+      <div class="c-main"><b>Tire choice photo.jpg</b><small>Captured 13:52 · upload waiting for signal · kept locally</small></div>
+      <span class="c-meta">Will attach to: Document tire choices</span>
+      <span class="c-act"><button class="tool" data-go="offline">Sync status</button><button class="dots" data-menu="Tire choice photo" aria-label="More actions" aria-expanded="false">⋯</button></span>
+    </div>
+  </div>
+  <div class="callout"><b>Evidence is captured once</b>A photo taken in a service park cannot be recreated later, so a failed upload keeps the file locally with its target record and retries — it never discards it.</div>
+</section>
+
+<!-- ==================================================== ACTIVITY -->
+<section class="page" id="p-activity" aria-labelledby="t-activity">
+  <div class="head">
+    <div>
+      <div class="mono">Record memory</div>
+      <h1 id="t-activity" tabindex="-1">Activity &amp; comments</h1>
+    </div>
+    <p>Human-readable history, mentions, acknowledgements and linked changes. The filters below actually change what is listed.</p>
+  </div>
+
+  <div class="toolbar" role="tablist" aria-label="Activity filters" data-tabs="activity">
+    <button class="tool" role="tab" aria-selected="true" aria-controls="ac-all" id="actab-all">All activity</button>
+    <button class="tool" role="tab" aria-selected="false" aria-controls="ac-comments" id="actab-comments">Comments</button>
+    <button class="tool" role="tab" aria-selected="false" aria-controls="ac-acks" id="actab-acks">Acknowledgements</button>
+    <button class="tool" role="tab" aria-selected="false" aria-controls="ac-mine" id="actab-mine">My mentions</button>
+  </div>
+
+  <div class="detail">
+    <div class="tabpanel show" id="ac-all" role="tabpanel" aria-labelledby="actab-all">
+      <div class="activity">
+        <div><b>Dan changed a venue</b><small>Briley Park replaced Lewiston Parc on “Parc Exposé opens for load-in” · 08:07 · source attached</small></div>
+        <div><b>Acknowledgement requested from 2 people</b><small>Saturday location change · marked critical · 08:08</small></div>
+        <div><b>Avery commented</b><small>“West lot directions added to the travel note. @WideOpen check before you leave service.” · 08:11</small></div>
+        <div><b>Offline package refreshed</b><small>42 records, 6 files and 3 map areas are available locally · 08:13</small></div>
+        <div><b>Sam acknowledged the location change</b><small>08:19 · recorded against Sam’s name</small></div>
+        <div><b>Cam was not reached</b><small>Last online 07:40 · escalation to crew chief set for 09:40</small></div>
+      </div>
+    </div>
+    <div class="tabpanel" id="ac-comments" role="tabpanel" aria-labelledby="actab-comments">
+      <div class="activity">
+        <div><b>Avery commented</b><small>“West lot directions added to the travel note. @WideOpen check before you leave service.” · 08:11</small></div>
+        <div><b>Avery commented on Final torque check</b><small>“Wheel nuts marked with paint pen.” · 13:31</small></div>
+      </div>
+    </div>
+    <div class="tabpanel" id="ac-acks" role="tabpanel" aria-labelledby="actab-acks">
+      <div class="activity">
+        <div><b>Acknowledgement requested from 2 people</b><small>Saturday location change · marked critical · 08:08</small></div>
+        <div><b>Sam acknowledged the location change</b><small>08:19 · recorded against Sam’s name</small></div>
+        <div><b>Riley acknowledged by radio</b><small>Recorded on Riley’s behalf by Avery · 08:24 · both names are on the record</small></div>
+        <div><b>Cam was not reached</b><small>Escalation to crew chief set for 09:40</small></div>
+      </div>
+    </div>
+    <div class="tabpanel" id="ac-mine" role="tabpanel" aria-labelledby="actab-mine">
+      <div class="activity">
+        <div><b>Avery mentioned you</b><small>“@WideOpen check before you leave service.” · 08:11</small></div>
+      </div>
+      <div class="empty" style="padding-top:22px">
+        <b>That is everything addressed to you</b>
+        <p>Only 1 mention today. This filter is deliberately quiet — it is not a summary of the event.</p>
+      </div>
+    </div>
+    <div class="actions left"><button class="tool" data-say="Comment box opened with @mention and attachment controls. Mentions notify only the people named.">+ Comment</button></div>
+  </div>
+</section>
+
+<!-- ==================================================== VIEWS -->
+<section class="page" id="p-views" aria-labelledby="t-views">
+  <div class="head">
+    <div>
+      <div class="mono">Presentation, not data</div>
+      <h1 id="t-views" tabindex="-1">Views &amp; fields</h1>
+    </div>
+    <p>Configuring a layout is separate from changing records. Every view change is reversible and states exactly who will see it.</p>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="sectionhead">
+        <div><h2>Saturday operations</h2><p>Table · shared with crew · event default</p></div>
+        <button class="tool" data-say="Duplicated as “Saturday operations (my copy)” — private to you. Experiment freely; the shared view is untouched.">Duplicate</button>
+      </div>
+      <div class="field"><label>Visible fields</label><span>Time, Movement, Place, People, Status · show, hide, reorder, resize, freeze</span></div>
+      <div class="field"><label>Leads on small screens</label><span>Time, Movement, Status · status and the primary action are never dropped to fit</span></div>
+      <div class="field"><label>Rules</label><span>Filter: Saturday · Group: session · Sort: time · comfortable density</span></div>
+      <div class="field"><label>Sharing</label><span>Shared with crew · structure locked · data edits allowed</span></div>
+      <div class="actions">
+        <button class="tool" data-say="Only your local customisations were reset. Records and the shared view are unchanged.">Reset my changes</button>
+        <button class="btn primary" data-say="Saved. 8 crew members will see this layout the next time they open the plan.">Save shared view</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sectionhead"><div><h2>New field</h2><p>A property of the collection, not of one view</p></div></div>
+      <div class="form">
+        <div class="input full"><label for="vw-name">Name</label><input id="vw-name" placeholder="e.g. Fuel level at departure"></div>
+        <div class="input"><label for="vw-type">Type</label><select id="vw-type"><option>Text</option><option>Number</option><option>Date/time</option><option>Select</option><option>Person</option><option>Record link</option><option>Formula</option></select></div>
+        <div class="input"><label for="vw-def">Default</label><input id="vw-def" placeholder="Optional"></div>
+        <div class="input full"><label for="vw-help">Help, validation &amp; required state</label><textarea id="vw-help" placeholder="Optional instructions shown under the field"></textarea></div>
+      </div>
+      <div class="actions"><button class="btn primary" data-say="Field created on the movement collection. It is not shown in any view until someone adds it — including yours.">Create field</button></div>
+      <div class="callout"><b>Guardrail B</b>Creating a field does not silently reshape anyone’s screen. Adding it to a shared view does, and says so first.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================================================== PEOPLE -->
+<section class="page" id="p-people" aria-labelledby="t-people">
+  <div class="head">
+    <div>
+      <div class="mono">Access &amp; roles</div>
+      <h1 id="t-people" tabindex="-1">People &amp; permissions</h1>
+    </div>
+    <p>Product access and event role are separate, so a driver, organizer contact or temporary volunteer can each have the right scope without a second identity.</p>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn primary" data-say="Invite asks for the event role, product permissions and an expiry date — expiry is offered by default for volunteers.">+ Invite person</button>
+    <button class="tool" data-say="Permissions matrix: view, comment, create, edit, publish, manage structure, submit forms, see sensitive collections.">Edit roles</button>
+  </div>
+
+  <div class="list">
+    <div class="row">
+      <span class="tag green c-state" data-glyph="●">ADMIN</span>
+      <div class="c-main"><b>Dan</b><small>Event owner · organizer liaison</small></div>
+      <span class="c-meta">Publish · manage structure · permissions</span>
+      <span class="c-act"><button class="tool" data-say="Managing Dan: role, permissions, notification routes and severity preferences.">Manage</button><button class="dots" data-menu="Dan" aria-label="More actions" aria-expanded="false">⋯</button></span>
+    </div>
+    <div class="row">
+      <span class="tag blue c-state" data-glyph="◈">CREW</span>
+      <div class="c-main"><b>Avery</b><small>Service crew · fallback for escalations</small></div>
+      <span class="c-meta">Edit work and forms · comment · view plan</span>
+      <span class="c-act"><button class="tool" data-say="Managing Avery: role, permissions and escalation fallback settings.">Manage</button><button class="dots" data-menu="Avery" aria-label="More actions" aria-expanded="false">⋯</button></span>
+    </div>
+    <div class="row">
+      <span class="tag yellow c-state" data-glyph="▲">EXPIRING</span>
+      <div class="c-main"><b>Cam</b><small>Temporary volunteer · expires Sunday 20:00</small></div>
+      <span class="c-meta">View Today · submit handoff form</span>
+      <span class="c-act"><button class="tool" data-say="Extending access asks for a new expiry and tells Cam. Access never extends silently.">Extend</button><button class="tool"
+        data-confirm-title="Remove Cam’s access now?"
+        data-confirm-impact="Cam is signed out of this event on next connection and sees an explanation of who to ask. 1 draft handoff form Cam holds locally will be lost unless it is submitted first. Downloaded content already on Cam’s device is stated plainly."
+        data-confirm-cta="Remove access"
+        data-confirm-done="Access removed. Cam will see an explanation rather than a broken screen.">Remove</button></span>
+    </div>
+  </div>
+  <div class="callout"><b>Open question from the spec</b>Who owns event structure while the owner is driving? Permissions currently assume the owner is reachable — during a stage, they are not.</div>
+</section>
+
+<!-- ==================================================== OFFLINE -->
+<section class="page" id="p-offline" aria-labelledby="t-offline">
+  <div class="head">
+    <div>
+      <div class="mono">Field readiness</div>
+      <h1 id="t-offline" tabindex="-1">Offline manager</h1>
+    </div>
+    <p>Availability is deliberate. You choose what to download, and every local edit states whether it is queued, synced or waiting on a decision.</p>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Event package · 18 MB</h2>
+      <p>What you will and will not have when the signal goes.</p>
+      <div class="field"><label>Included</label><span>Full event · 42 records · 6 files · 3 map areas · Saturday operations view · route from Service Park</span></div>
+      <div class="field"><label>Not included</label><span>2 source videos (84 MB) · 1 unselected map area (north stages)<button class="tool" data-say="Added to the package. It will download over Wi-Fi and tell you when it is complete — not before.">Add to package</button></span></div>
+      <div class="field"><label>Storage</label><span>18 MB of 240 MB allowed on this device</span></div>
+      <div class="actions"><button class="btn primary" data-say="Package refreshed. “Offline ready” now covers everything listed as included — nothing partial is reported as ready.">Refresh package</button></div>
+    </div>
+
+    <div class="card">
+      <h2>Queued changes · 2</h2>
+      <p>Nothing here has been lost, and nothing has been overwritten.</p>
+      <div class="field"><label><span class="tag yellow" data-glyph="▲">QUEUED</span> Draft inspection</label><span>Saved locally at 18:04 · waiting for signal</span></div>
+      <div class="field"><label><span class="tag yellow" data-glyph="▲">QUEUED</span> Tire choice photo</label><span>Captured 13:52 · 2.1 MB · will attach to “Document tire choices”</span></div>
+      <div class="field"><label><span class="tag red" data-glyph="●">NEEDS YOUR DECISION</span> Service Park access note</label><span>You edited this offline; Avery edited it at 08:44. Both versions are kept.<button class="tool" data-modal="conflict">Compare and choose</button></span></div>
+      <div class="field"><label><span class="tag green" data-glyph="✓">SYNCED</span> 18 earlier changes</label><span>Last successful sync 2 minutes ago</span></div>
+    </div>
+  </div>
+  <div class="callout"><b>Never pretend a save travelled</b>A local edit says saved locally, queued, synced or needs resolution — and a conflict always opens a comparison with an explicit choice.</div>
+</section>
+
+<!-- ==================================================== ARCHIVE -->
+<section class="page" id="p-archive" aria-labelledby="t-archive">
+  <div class="head">
+    <div>
+      <div class="mono">Recovery path</div>
+      <h1 id="t-archive" tabindex="-1">Archive &amp; restore</h1>
+    </div>
+    <p>Archiving explains its impact and stays recoverable during the retention window. Permanent deletion is deliberately harder and requires an owner.</p>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Recently archived</h2>
+      <p>Restorable, with the time remaining stated rather than implied.</p>
+      <div class="field"><label>Winter recce kit v1</label><span>Archived today by Avery · restorable for 30 days<button class="tool" data-say="Restored to the template list. Its historical links were never broken.">Restore</button></span></div>
+      <div class="field"><label>Legacy tire support category</label><span>Archived Jul 23 · <strong>expires in 17 days</strong><button class="tool" data-say="Restored. The category is back in the map legend and its 3 places are reassigned to it.">Restore</button></span></div>
+      <div class="field"><label>2025 Sno*Drift event</label><span>Archived Feb 12, 2025 · kept indefinitely as event history</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Permanent deletion</h2>
+      <p>The one path that cannot be undone, and the only one that asks twice.</p>
+      <div class="field"><label>Selected</label><span>Legacy tire support category · 3 places · referenced by 2 saved views</span></div>
+      <div class="actions">
+        <button class="tool" data-go="templates">Cancel</button>
+        <button class="btn danger"
+          data-confirm-title="Permanently delete “Legacy tire support”?"
+          data-confirm-impact="This cannot be undone. 3 places lose their category and become uncategorised, 2 saved views that filter on it will show an explained empty result, and 41 days of activity history referencing it will read “deleted category”. Only the event owner can do this."
+          data-confirm-cta="Delete permanently"
+          data-confirm-danger="true"
+          data-confirm-done="Deleted permanently. 3 places are now uncategorised and 2 saved views were flagged.">Delete permanently</button>
+      </div>
+      <div class="callout"><b>Guardrail A</b>Reversible actions get an undo, not a dialog. Only the irreversible ones interrupt you — which is what keeps the interruption meaningful.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================================================== FIRST RUN -->
+<section class="page" id="p-firstrun" aria-labelledby="t-firstrun">
+  <div class="head">
+    <div>
+      <div class="mono">Designed state · spec §10</div>
+      <h1 id="t-firstrun" tabindex="-1">First run &amp; empty states</h1>
+    </div>
+    <p>The screen a new team actually meets. Emptiness is designed: it explains the model in one screen and produces something real in one action.</p>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Minimum event setup</h2>
+      <p>Two answers are required. Everything else is offered, skippable, and easy to add later.</p>
+      <div class="form" style="margin-top:12px">
+        <div class="input full"><label for="fr-name">Event name <span class="req" aria-hidden="true">*</span></label><input id="fr-name" placeholder="e.g. Lake Superior Performance Rally"></div>
+        <div class="input"><label for="fr-start">Dates <span class="req" aria-hidden="true">*</span></label><input id="fr-start" placeholder="Oct 16 – Oct 18"></div>
+        <div class="input"><label for="fr-tz">Timezone</label><select id="fr-tz"><option>America/Chicago (from your device)</option><option>America/New_York</option><option>Choose later</option></select></div>
+        <div class="input"><label for="fr-disc">Discipline <span class="hint">(optional)</span></label><select id="fr-disc"><option>Skip for now</option><option>Rally</option><option>Road racing</option><option>Endurance</option><option>Karting</option><option>Track day</option><option>Drag</option><option>Off-road</option></select></div>
+        <div class="input"><label for="fr-car">Vehicle <span class="hint">(optional)</span></label><input id="fr-car" placeholder="Add later"></div>
+      </div>
+      <div class="actions"><button class="btn primary" data-say="Event created with a name and dates. No wizard step blocked you on an answer you do not have yet.">Create event</button></div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="sectionhead"><div><h2>Empty movement plan</h2><p>Purpose, one action, one labelled example</p></div></div>
+        <div class="list" style="margin-top:4px">
+          <div class="empty">
+            <b>No movements yet</b>
+            <p>A movement is anywhere the team has to be at a certain time — a departure, a service window, scrutineering, a parc exposé. Add a time and a description; add people, places and a status only if they matter.</p>
+            <div class="actions">
+              <button class="btn primary" data-say="Row added: an empty time and description, ready to type into. Nothing else was required.">+ Add first movement</button>
+              <button class="tool" data-say="Rally starter template: recce, scrutineering, parc exposé, legs, services, regroups and load-out — all renameable.">Start from a template</button>
+            </div>
+            <div class="example">
+              <span class="flabel">Example — not saved</span>
+              <div class="row" style="padding:8px 0;border:0">
+                <span class="c-time">08:30</span>
+                <div class="c-main"><b>Team departs for service area</b><small>All team · Service Park</small></div>
+                <span class="tag green c-state" data-glyph="✓">READY</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h2>Runtime empty is different from first-run empty</h2>
+        <p>A view with no matches must name the filter that emptied it — otherwise the user cannot tell “no data” from “wrong question”.</p>
+        <div class="list" style="margin-top:11px">
+          <div class="empty" style="padding:26px 18px">
+            <b>No records match 2 active filters</b>
+            <p>Filters: <strong>status is unconfirmed</strong> and <strong>day is Sunday</strong>. This day has 3 movements, all confirmed.</p>
+            <div class="actions"><button class="tool" data-say="Filters cleared. All 3 Sunday movements are shown again.">Clear both filters</button><button class="tool" data-go="plan">Keep filter, change day</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout"><b>Progressive disclosure</b>Field types, automation, permissions, versioning and view sharing all exist from day one but stay out of the way until this team has a plan and a checklist in use. Nothing is hidden where it cannot be found.</div>
+</section>
+
+<!-- ==================================================== SYSTEM STATES -->
+<section class="page" id="p-states" aria-labelledby="t-states">
+  <div class="head">
+    <div>
+      <div class="mono">Designed state · spec §11b</div>
+      <h1 id="t-states" tabindex="-1">System &amp; failure states</h1>
+    </div>
+    <p>Every failure says what failed, whether the user’s data is safe, and what to do next. “Something went wrong” does not appear anywhere in this product.</p>
+  </div>
+
+  <div class="banner err">
+    <div class="bmain"><b>Could not load the plan · showing a cached copy from 08:13</b>You are seeing data from 59 minutes ago. Changes published since then are not in this copy.</div>
+    <div class="bact"><button class="tool" data-say="Retried. If it fails again the cached copy stays on screen, still labelled with its age.">Retry</button></div>
+  </div>
+
+  <div class="banner">
+    <div class="bmain"><b>Someone else changed this record</b>Avery changed the Service Park access note at 08:44 while you had it open. Nothing was overwritten — both versions are kept.</div>
+    <div class="bact"><button class="tool" data-modal="conflict">Compare</button></div>
+  </div>
+
+  <div class="banner info">
+    <div class="bmain"><b>This view is out of date</b>3 movements changed while you were reading. Nothing moved under your hands — refresh when you are ready.</div>
+    <div class="bact"><button class="tool" data-say="Refreshed. The rows updated only when you asked, so you did not tap the wrong one.">Refresh now</button></div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Permission denied</h2>
+      <p>Names what was refused and who can grant it, instead of hiding the control that led here.</p>
+      <div class="banner err" style="margin:11px 0 0">
+        <div class="bmain"><b>You cannot publish plan changes</b>Publishing is limited to the event owner (Dan) and the crew chief (Avery). Your draft is saved and nothing was lost.</div>
+        <div class="bact"><button class="tool" data-say="Request sent to Dan with the change you are trying to publish attached.">Ask Dan to publish</button></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Publish failed</h2>
+      <p>The change stays intact and unpublished. It is never discarded.</p>
+      <div class="banner err" style="margin:11px 0 0">
+        <div class="bmain"><b>Publish did not reach the server</b>Your change is saved locally and marked unpublished. It will retry automatically, and no one has been notified yet.</div>
+        <div class="bact"><button class="tool" data-say="Retrying now. If it fails, the change stays queued and clearly unpublished.">Retry</button></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Offline package incomplete</h2>
+      <p>“Offline ready” is never shown for a partial download.</p>
+      <div class="banner" style="margin:11px 0 0">
+        <div class="bmain"><b>Download stopped at 62% — this event is not offline ready</b>Saturday and Sunday are downloaded. The north stages map area and 2 attachments are missing.</div>
+        <div class="bact"><button class="tool" data-go="offline">Resume</button><button class="tool" data-say="Package reduced to Saturday and Sunday only — 11 MB, and it will complete.">Reduce package</button></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Access ended mid-session</h2>
+      <p>Temporary people lose access while still holding a device.</p>
+      <div class="banner err" style="margin:11px 0 0">
+        <div class="bmain"><b>Your access to Sno*Drift 2026 ended at 20:00</b>Ask Dan or Avery to restore it. The handoff form you already submitted is safe. One unsubmitted draft is still on this device for 7 days.</div>
+        <div class="bact"><button class="tool" data-say="Request sent to Dan and Avery. They see what you were doing when access ended.">Request access</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout"><b>Also required</b>Upload failure keeps the file and the rest of the form. Export failure keeps the configured output. A no-results search states what was searched and offers to create the record instead — try the search dialog with a word that matches nothing.</div>
+</section>
+
+<!-- ==================================================== NOTES -->
+<section class="page" id="p-notes" aria-labelledby="t-notes">
+  <div class="head">
+    <div>
+      <div class="mono">Prototype review · v1 → v2</div>
+      <h1 id="t-notes" tabindex="-1">What changed in v2</h1>
+    </div>
+    <p>The previous prototype demonstrated the feature surface but broke several of the rules the specification sets. These are the corrections, each visible somewhere in this file.</p>
+  </div>
+
+  <div class="fixlist">
+    <div class="fix"><i>Guardrail E · dead controls</i><b>42 of 168 controls did nothing at all</b><span>25 overflow menus and 17 toolbar buttons had no behaviour and gave no feedback, so a reviewer could not tell a defect from an unbuilt feature. Every ⋯ now opens a real menu, and every control acts or explains itself.</span></div>
+    <div class="fix"><i>Guardrail F · false claims</i><b>The interface stated things that were not true</b><span>The sidebar advertised 25 screens over 24. The Saturday tab claimed 6 movements and listed 3. Counts are now generated from the content, and every day tab lists what it promises.</span></div>
+    <div class="fix"><i>Principle 03 · state must be explicit</i><b>Mobile hid the status column and the primary action</b><span>The old layout removed the third and fourth cell of every row under 850px, which deleted the status tag on the plan and the Open button in the records list. Rows now wrap instead of truncating, so state and action survive every width.</span></div>
+    <div class="fix"><i>§12 · type and contrast</i><b>Type ran down to 8px at under 3:1 contrast</b><span>Tags, labels, metadata and the whole sidebar sat between 8 and 10px in light grey — unreadable in sun, in gloves, or with average eyesight. Body is now 15px with a 12px secondary floor and an 11px absolute floor for labels.</span></div>
+    <div class="fix"><i>§12 · targets and focus</i><b>16px tap targets and no focus styling anywhere</b><span>Tick boxes and overflow menus were 16px, well under a gloved fingertip, and no element had a focus ring, so keyboard users were invisible to themselves. Targets are now 36px minimum, 44px on touch, with a visible focus ring on everything.</span></div>
+    <div class="fix"><i>§07 · blocked submission</i><b>A blocked submit was announced in a 3.6s toast</b><span>The reason someone could not finish disappeared before they could read it, and no field was marked. Validation is now in place, per field, with focus moved to the first problem and the message persisting until resolved.</span></div>
+    <div class="fix"><i>§09 · delivery</i><b>Publishing reported success to the sender</b><span>The old flow said “Published. Only affected people were notified,” which the product could not know. Publishing now reports reach — 6 of 8 — names who is unreached, and offers escalation and radio acknowledgement.</span></div>
+    <div class="fix"><i>Guardrail A · undo</i><b>Everything was confirmed, nothing could be undone</b><span>Ticking a checklist item now applies immediately with an undo, while merge, permanent delete and access removal state their specific impact before committing. Confirmation is reserved for what cannot be reversed.</span></div>
+    <div class="fix"><i>§03 · views</i><b>Day tabs, checklist tabs and activity filters were decorative</b><span>All three now switch real content, follow tablist keyboard conventions, and the plan filter produces a genuine empty state naming the filter that caused it.</span></div>
+    <div class="fix"><i>§02 · attention and navigation</i><b>The attention indicator had nowhere to go</b><span>A badge with no destination sends people back to rebuild a filter. There is now an attention queue, Today’s counts open the list behind them, and a detail screen keeps its parent module selected.</span></div>
+    <div class="fix"><i>§12 · assistive technology</i><b>No labels, no dialog semantics, no announcements</b><span>Not one input was associated with its label, dialogs did not trap or return focus, and status messages were invisible to a screen reader. All of that is now wired, and the page title changes per screen so history is legible.</span></div>
+    <div class="fix"><i>§12 · night use</i><b>One bright palette for a sport that runs after dark</b><span>A white screen in a dark car damages the night vision of the person holding it and the driver beside them. Night mode is in the top bar and follows the device setting by default.</span></div>
+    <div class="fix"><i>§10 and §11b · missing states</i><b>Empty and failure states were never drawn</b><span>The old file styled an empty state and never used it, and covered only offline as a failure. First run, runtime empty, load failure, permission denial, stale views, failed publish, partial download and revoked access are now real screens.</span></div>
+  </div>
+
+  <div class="callout"><b>Still deliberately missing</b>Timeline, calendar, board and map are named but not drawn — they are build-next in the specification, and drawing them here would imply decisions nobody has made yet. The three open questions in §14 of the spec are also unanswered on purpose.</div>
+</section>
+
+</div><!-- /.main -->
+</main>
+</div><!-- /.app -->
+
+<!-- ==================================================== DIALOGS -->
+<div class="modal" id="add" role="dialog" aria-modal="true" aria-labelledby="addtitle">
+  <div class="modalcard">
+    <div class="modalhead">
+      <div><div class="mono">Global add</div><h2 id="addtitle">Capture without finding a module</h2></div>
+      <button class="close" data-close="add" aria-label="Close dialog">×</button>
+    </div>
+    <div class="grid three">
+      <button class="tool" data-go="movement" data-close="add">↗ Movement</button>
+      <button class="tool" data-go="task" data-close="add">□ Work item</button>
+      <button class="tool" data-go="records" data-close="add">⌖ Record</button>
+      <button class="tool" data-go="submission" data-close="add">▣ Form submission</button>
+      <button class="tool" data-go="library" data-close="add">◎ File / source</button>
+      <button class="tool" data-go="views" data-close="add">▤ Saved view</button>
+    </div>
+    <div class="callout"><b>Remembered choices</b>This menu puts your common actions first and keeps a keyboard shortcut, because capture usually happens while someone is still talking.</div>
+  </div>
+</div>
+
+<div class="modal" id="search" role="dialog" aria-modal="true" aria-labelledby="searchtitle">
+  <div class="modalcard">
+    <div class="modalhead">
+      <div><div class="mono">Command palette</div><h2 id="searchtitle">Find or do anything</h2></div>
+      <button class="close" data-close="search" aria-label="Close dialog">×</button>
+    </div>
+    <div class="input">
+      <label for="q">Search records, notes, file text — or type a command</label>
+      <input id="q" autocomplete="off" placeholder="Try “briley”, “offline”, or something that matches nothing" aria-describedby="qhint" role="combobox" aria-expanded="true" aria-controls="results">
+      <span class="hint" id="qhint">↑ ↓ to move, Enter to open, Esc to close.</span>
+    </div>
+    <div class="list" id="results" role="listbox" aria-label="Search results" style="margin-top:12px"></div>
+    <div class="empty" id="noresults" hidden>
+      <b>Nothing matches “<span id="qecho"></span>”</b>
+      <p>Searched names, notes, file text and commands in Sno*Drift 2026.</p>
+      <div class="actions">
+        <button class="tool" data-say="Search widened to all events, including archived ones.">Search all events</button>
+        <button class="btn primary" data-say="Creating a record with that name. Nothing else is required.">Create it as a record</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="verbal" role="dialog" aria-modal="true" aria-labelledby="verbtitle">
+  <div class="modalcard">
+    <div class="modalhead">
+      <div><div class="mono">Out-of-band acknowledgement · §09</div><h2 id="verbtitle">Record that someone was reached</h2></div>
+      <button class="close" data-close="verbal" aria-label="Close dialog">×</button>
+    </div>
+    <p>Most real acknowledgement happens by voice. If the product cannot record that, its delivery data becomes fiction — so both names go on the record.</p>
+    <div class="form" style="margin-top:14px">
+      <div class="input"><label for="vb-who">Person reached</label><select id="vb-who"><option>Cam</option><option>Jesse</option></select></div>
+      <div class="input"><label for="vb-how">How</label><select id="vb-how"><option>Radio</option><option>Phone</option><option>In person</option></select></div>
+      <div class="input full"><label for="vb-note">Note <span class="hint">(optional)</span></label><textarea id="vb-note" placeholder="e.g. confirmed west lot entrance on stage radio"></textarea></div>
+    </div>
+    <div class="actions">
+      <button class="tool" data-close="verbal">Cancel</button>
+      <button class="btn primary" data-close="verbal" data-say="Recorded: Cam acknowledged by radio at 09:12, entered by you. Both names are on the record and Cam drops off the unreached list.">Record acknowledgement</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="conflict" role="dialog" aria-modal="true" aria-labelledby="cftitle">
+  <div class="modalcard">
+    <div class="modalhead">
+      <div><div class="mono">Conflict · nothing has been overwritten</div><h2 id="cftitle">Two versions of one note</h2></div>
+      <button class="close" data-close="conflict" aria-label="Close dialog">×</button>
+    </div>
+    <div class="grid">
+      <div class="card"><h2>Your version</h2><p>Edited offline at 08:31</p><div class="field"><label>Service Park access notes</label><span>West lot entrance. Gate code 4412. Avoid spectator gate.</span></div></div>
+      <div class="card"><h2>Avery’s version</h2><p>Edited at 08:44 · already synced</p><div class="field"><label>Service Park access notes</label><span>Enter west lot only. Spectator gate closed all day Saturday.</span></div></div>
+    </div>
+    <div class="actions">
+      <button class="tool" data-close="conflict" data-say="Kept your version. Avery’s text stays in history, and Avery is told which version won and why.">Keep mine</button>
+      <button class="tool" data-close="conflict" data-say="Took Avery’s version. Yours stays in history and is not lost.">Take Avery’s</button>
+      <button class="btn primary" data-close="conflict" data-say="Opened both in one editor so you can combine them deliberately. Neither version is discarded until you save.">Combine both</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="confirm" role="dialog" aria-modal="true" aria-labelledby="cotitle">
+  <div class="modalcard">
+    <div class="modalhead">
+      <div><div class="mono" id="cokind">Irreversible action</div><h2 id="cotitle">Confirm</h2></div>
+      <button class="close" data-close="confirm" aria-label="Close dialog">×</button>
+    </div>
+    <div class="impact"><b>What this affects</b><span id="coimpact"></span></div>
+    <div class="actions">
+      <button class="tool" data-close="confirm">Cancel</button>
+      <button class="btn primary" id="cogo">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="menu" id="rowmenu" role="menu" aria-label="Record actions"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toastmsg"></span><span id="toastact"></span></div>
+<script>
+/* ============================================================
+   RACE PLANNER PROTOTYPE — behaviour
+   Rules this file holds itself to:
+   - no control is inert (Guardrail E)
+   - reversible actions offer undo; only irreversible ones confirm (A)
+   - blocking feedback is persistent and in place, never a toast (§12)
+   - everything is operable by keyboard, with focus visible and returned
+   ============================================================ */
+(function(){
+'use strict';
+
+var $  = function(s,r){ return (r||document).querySelector(s); };
+var $$ = function(s,r){ return Array.prototype.slice.call((r||document).querySelectorAll(s)); };
+
+/* ---------------------------------------------- page titles */
+var TITLES = {
+  today:'Today', attention:'Attention & acknowledgements', events:'Events',
+  plan:'Movement plan', movement:'Movement detail', publish:'Publish change', export:'Export & print',
+  work:'Work & checklists', task:'Work item detail', templates:'Templates', automation:'Automation setup',
+  records:'Records directory', place:'Venue detail', types:'Types & categories', travel:'Travel context',
+  forms:'Forms & inspections', builder:'Form builder', submission:'Form submission', versions:'Template versions',
+  library:'Files & sources', activity:'Activity & comments', views:'Views & fields', people:'People & permissions',
+  offline:'Offline manager', archive:'Archive & restore',
+  firstrun:'First run & empty states', states:'System & failure states', notes:'What changed in v2'
+};
+
+/* honest screen count, generated from the content */
+var pages = $$('.page');
+$('#treelabel').textContent = 'Page tree · ' + pages.length + ' screens';
+
+/* ---------------------------------------------- toast (reversible only) */
+var toastEl = $('#toast'), toastMsg = $('#toastmsg'), toastAct = $('#toastact'), toastTimer;
+function toast(msg, undoLabel, undoFn){
+  toastMsg.textContent = msg;
+  toastAct.innerHTML = '';
+  if (undoLabel){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = undoLabel;
+    b.addEventListener('click', function(){ hideToast(); if (undoFn) undoFn(); });
+    toastAct.appendChild(b);
+  }
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, undoLabel ? 9000 : 6000);
+}
+function hideToast(){ toastEl.classList.remove('show'); }
+toastEl.addEventListener('mouseenter', function(){ clearTimeout(toastTimer); });
+toastEl.addEventListener('mouseleave', function(){ toastTimer = setTimeout(hideToast, 3000); });
+
+/* ---------------------------------------------- routing */
+function go(id){ if (location.hash.slice(1) === id) render(); else location.hash = id; }
+
+function render(){
+  var id = location.hash.slice(1) || 'today';
+  if (!$('#p-' + id + '.page')) id = 'today';
+
+  pages.forEach(function(p){ p.classList.toggle('show', p.id === 'p-' + id); });
+
+  $$('#tree button[data-page]').forEach(function(b){
+    var on = b.dataset.page === id;
+    if (on) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');
+    b.classList.remove('parentactive');
+  });
+  /* a detail screen keeps its parent module visibly selected */
+  var active = $('#tree button[data-page="' + id + '"]');
+  if (active && active.dataset.parent){
+    var parent = $('#tree button[data-page="' + active.dataset.parent + '"]');
+    if (parent) parent.classList.add('parentactive');
+  }
+
+  var name = TITLES[id] || id;
+  $('#crumb').textContent = name.toUpperCase();
+  document.title = name + ' — Race Planner prototype';
+
+  closeNav();
+  var h1 = $('#p-' + id + ' h1');
+  if (h1 && document.readyState === 'complete') h1.focus({preventScroll:true});
+  window.scrollTo({top:0, behavior: reduced() ? 'auto' : 'smooth'});
+}
+function reduced(){ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+window.addEventListener('hashchange', render);
+$$('#tree button[data-page]').forEach(function(b){
+  b.addEventListener('click', function(){ go(b.dataset.page); });
+});
+
+/* ---------------------------------------------- mobile nav drawer */
+var app = $('#app'), navToggle = $('#navtoggle');
+function openNav(){ app.classList.add('navopen'); navToggle.setAttribute('aria-expanded','true'); }
+function closeNav(){ app.classList.remove('navopen'); navToggle.setAttribute('aria-expanded','false'); }
+navToggle.addEventListener('click', function(){
+  if (app.classList.contains('navopen')) { closeNav(); } else { openNav(); $('#tree button').focus(); }
+});
+$('#scrim').addEventListener('click', closeNav);
+
+/* ---------------------------------------------- dialogs: focus in, focus back */
+var lastFocus = null;
+function openModal(id){
+  var m = document.getElementById(id);
+  if (!m) return;
+  lastFocus = document.activeElement;
+  m.classList.add('show');
+  var first = m.querySelector('input,select,textarea,button.btn,button.tool') || m.querySelector('button');
+  if (first) first.focus();
+  if (id === 'search') runSearch();
+}
+function closeModal(id){
+  var m = document.getElementById(id);
+  if (!m) return;
+  m.classList.remove('show');
+  if (lastFocus && lastFocus.focus) lastFocus.focus();
+}
+function closeAllModals(){ $$('.modal.show').forEach(function(m){ m.classList.remove('show'); }); }
+$$('.modal').forEach(function(m){
+  m.addEventListener('mousedown', function(e){ if (e.target === m) closeModal(m.id); });
+  /* focus trap */
+  m.addEventListener('keydown', function(e){
+    if (e.key !== 'Tab') return;
+    var f = $$('a[href],button:not([disabled]),input,select,textarea', m)
+      .filter(function(el){ return el.offsetParent !== null; });
+    if (!f.length) return;
+    var first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+  });
+});
+
+/* ---------------------------------------------- confirm: irreversible only */
+var pendingConfirm = null;
+function askConfirm(btn){
+  pendingConfirm = btn;
+  $('#cotitle').textContent  = btn.dataset.confirmTitle || 'Confirm this action';
+  $('#coimpact').textContent = btn.dataset.confirmImpact || '';
+  var danger = btn.dataset.confirmDanger === 'true';
+  $('#cokind').textContent = danger ? 'Permanent — cannot be undone' : 'Cannot be undone';
+  var cta = $('#cogo');
+  cta.textContent = btn.dataset.confirmCta || 'Confirm';
+  cta.className = danger ? 'btn danger' : 'btn primary';
+  openModal('confirm');
+}
+$('#cogo').addEventListener('click', function(){
+  var b = pendingConfirm;
+  closeModal('confirm');
+  if (b) toast(b.dataset.confirmDone || 'Done.');
+  pendingConfirm = null;
+});
+
+/* ---------------------------------------------- row overflow menus */
+var menu = $('#rowmenu'), menuOwner = null;
+function openMenu(btn){
+  var label = btn.dataset.menu || 'this record';
+  menu.innerHTML = '';
+  var t = document.createElement('div');
+  t.className = 'mtitle';
+  t.textContent = label;
+  menu.appendChild(t);
+
+  [['Open detail','open'],['Duplicate','dup'],['Assign to…','assign'],
+   ['Add to offline package','offline'],['Copy link','link'],['-',''],['Archive','archive']]
+  .forEach(function(pair){
+    if (pair[0] === '-'){ menu.appendChild(document.createElement('hr')); return; }
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role','menuitem');
+    b.textContent = pair[0];
+    if (pair[1] === 'archive') b.className = 'danger';
+    b.addEventListener('click', function(){
+      closeMenu();
+      if (pair[1] === 'archive'){
+        askConfirm({dataset:{
+          confirmTitle:'Archive “' + label + '”?',
+          confirmImpact:'It leaves default lists and views but keeps all its data, links and history. Restore is available for 30 days from Archive & restore.',
+          confirmCta:'Archive',
+          confirmDone:'“' + label + '” archived. Restore is available for 30 days.'
+        }});
+      } else if (pair[1] === 'assign'){
+        toast('Assign opened for “' + label + '” — pick a person or leave it unassigned.');
+      } else if (pair[1] === 'offline'){
+        toast('“' + label + '” added to the offline package. It will report ready only when it is complete.');
+      } else if (pair[1] === 'link'){
+        toast('Link copied. It opens this record in the current event for anyone with access.');
+      } else if (pair[1] === 'dup'){
+        toast('“' + label + '” duplicated as an independent copy.', 'Undo', function(){
+          toast('Duplicate removed.');
+        });
+      } else {
+        toast('Opening “' + label + '”.');
+      }
+    });
+    menu.appendChild(b);
+  });
+
+  var r = btn.getBoundingClientRect();
+  menu.classList.add('show');
+  var w = menu.offsetWidth, h = menu.offsetHeight;
+  var left = Math.min(r.left, window.innerWidth - w - 10);
+  var top  = (r.bottom + h > window.innerHeight) ? r.top - h - 6 : r.bottom + 6;
+  menu.style.left = Math.max(8, left) + 'px';
+  menu.style.top  = (top + window.scrollY) + 'px';
+  menu.style.position = 'absolute';
+
+  menuOwner = btn;
+  btn.setAttribute('aria-expanded','true');
+  var first = menu.querySelector('button');
+  if (first) first.focus();
+}
+function closeMenu(){
+  menu.classList.remove('show');
+  if (menuOwner){ menuOwner.setAttribute('aria-expanded','false'); menuOwner.focus(); menuOwner = null; }
+}
+menu.addEventListener('keydown', function(e){
+  var items = $$('button', menu);
+  var i = items.indexOf(document.activeElement);
+  if (e.key === 'ArrowDown'){ e.preventDefault(); items[(i + 1) % items.length].focus(); }
+  if (e.key === 'ArrowUp'){ e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+});
+document.addEventListener('mousedown', function(e){
+  if (menu.classList.contains('show') && !menu.contains(e.target) && !e.target.closest('.dots')) closeMenu();
+});
+window.addEventListener('scroll', function(){ if (menu.classList.contains('show')) closeMenu(); }, {passive:true});
+
+/* ---------------------------------------------- tabs (real switching + keyboard) */
+$$('[data-tabs]').forEach(function(list){
+  var tabs = $$('[role=tab]', list);
+  function select(tab){
+    tabs.forEach(function(t){
+      var on = t === tab;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      var panel = document.getElementById(t.getAttribute('aria-controls'));
+      if (panel) panel.classList.toggle('show', on);
+    });
+    if (list.scrollWidth > list.clientWidth){
+      list.scrollLeft = Math.max(0, tab.offsetLeft - 14);
+    }
+    if (list.dataset.tabs === 'planday') applyFilter();
+  }
+  var initial = tabs.filter(function(t){ return t.getAttribute('aria-selected') === 'true'; })[0];
+  if (initial && list.scrollWidth > list.clientWidth) list.scrollLeft = Math.max(0, initial.offsetLeft - 14);
+  tabs.forEach(function(t, i){
+    t.tabIndex = t.getAttribute('aria-selected') === 'true' ? 0 : -1;
+    t.addEventListener('click', function(){ select(t); });
+    t.addEventListener('keydown', function(e){
+      var n = null;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') n = tabs[(i + 1) % tabs.length];
+      if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   n = tabs[(i - 1 + tabs.length) % tabs.length];
+      if (e.key === 'Home') n = tabs[0];
+      if (e.key === 'End')  n = tabs[tabs.length - 1];
+      if (n){ e.preventDefault(); n.focus(); select(n); }
+    });
+  });
+});
+
+/* ---------------------------------------------- plan filter + honest empty state */
+var filterBtn = $('#filterbtn'), filterOn = false;
+function applyFilter(){
+  var panel = $('#p-plan .tabpanel.show');
+  if (!panel) return;
+  var rows = $$('.row', panel).filter(function(r){ return !r.classList.contains('head'); });
+  var shown = 0;
+  rows.forEach(function(r){
+    var keep = !filterOn || r.dataset.unconfirmed === 'true';
+    r.hidden = !keep;
+    if (keep) shown++;
+  });
+  $('#filterbanner').hidden = !filterOn;
+  $('#filtercount').textContent = filterOn ? shown + ' of ' + rows.length + ' movements on this day match.' : '';
+  var none = filterOn && shown === 0;
+  $('#planempty').hidden = !none;
+  panel.hidden = none;
+}
+function setFilter(on){
+  filterOn = on;
+  filterBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  filterBtn.classList.toggle('on', on);
+  applyFilter();
+}
+filterBtn.addEventListener('click', function(){ setFilter(!filterOn); });
+$('#filterreset').addEventListener('click', function(){ setFilter(false); filterBtn.focus(); });
+$('#filterreset2').addEventListener('click', function(){ setFilter(false); filterBtn.focus(); });
+
+/* ---------------------------------------------- checkboxes: keyboard + undo */
+function setChecked(box, on){
+  var task = box.closest('.task');
+  box.setAttribute('aria-checked', on ? 'true' : 'false');
+  box.textContent = on ? '✓' : '';
+  if (task){
+    task.dataset.done = on ? 'true' : 'false';
+    var tag = $('.c-state', task);
+    if (tag){
+      tag.className = 'tag c-state ' + (on ? 'green' : 'yellow');
+      tag.setAttribute('data-glyph', on ? '✓' : '▲');
+      tag.textContent = on ? 'DONE' : 'OPEN';
+    }
+  }
+}
+function toggleCheck(box){
+  var on = box.getAttribute('aria-checked') !== 'true';
+  setChecked(box, on);
+  toast(on ? 'Marked complete, with your name and the time.' : 'Reopened.', 'Undo', function(){
+    setChecked(box, !on);
+    box.focus();
+  });
+}
+$$('.check').forEach(function(box){
+  box.addEventListener('click', function(){ toggleCheck(box); });
+  box.addEventListener('keydown', function(e){
+    if (e.key === ' ' || e.key === 'Enter'){ e.preventDefault(); toggleCheck(box); }
+  });
+});
+
+/* ---------------------------------------------- attention count stays truthful */
+var attnCount = 3;
+function setAttn(n){
+  attnCount = Math.max(0, n);
+  var el = $('#attncount');
+  el.textContent = attnCount;
+  el.hidden = attnCount === 0;
+  $('#attnbtn').setAttribute('aria-label',
+    attnCount === 0 ? 'Attention queue, nothing needs attention'
+                    : 'Attention queue, ' + attnCount + ' items need attention');
+}
+$$('[data-resolve]').forEach(function(b){
+  b.addEventListener('click', function(){
+    var row = b.closest('.row');
+    var prev = attnCount;
+    if (row) row.hidden = true;
+    setAttn(attnCount - 1);
+    toast(b.dataset.resolve, 'Undo', function(){
+      if (row) row.hidden = false;
+      setAttn(prev);
+    });
+  });
+});
+$('#ackbanner').addEventListener('click', function(){
+  var banner = $('#todaybanner');
+  banner.classList.remove('banner'); banner.classList.add('banner','ok');
+  banner.querySelector('.bmain').innerHTML =
+    '<b>Acknowledged at 09:12</b>You confirmed the Briley Park change. Dan can see that you were reached, and the previous instruction stays readable in history.';
+  banner.querySelector('.bact').innerHTML = '';
+  setAttn(attnCount - 1);
+  toast('Acknowledged. Recorded against your name at 09:12.');
+});
+
+/* ---------------------------------------------- draft state, visible */
+var drafts = 0;
+function setDrafts(n){
+  drafts = n;
+  var b = $('#draftbanner');
+  b.hidden = n === 0;
+  $('#draftmsg').textContent = 'You hold ' + n + ' unpublished draft edit' + (n === 1 ? '' : 's') +
+    ' on this plan. Nobody else can see ' + (n === 1 ? 'it' : 'them') + ' yet.';
+}
+$('#savedraft').addEventListener('click', function(){
+  setDrafts(drafts + 1);
+  toast('Saved as a draft. It is visible only to you, and the plan says you are holding it.', 'Undo', function(){
+    setDrafts(Math.max(0, drafts - 1));
+  });
+});
+$('#discarddraft').addEventListener('click', function(){
+  var n = drafts;
+  setDrafts(0);
+  toast('Draft edits discarded.', 'Undo', function(){ setDrafts(n); });
+});
+$('#dopublish').addEventListener('click', function(){
+  setDrafts(0);
+  $('#publishresult').hidden = false;
+  toast('Published. 6 of 8 people reached — 2 are still pending.');
+  $('#publishresult').scrollIntoView({block:'nearest', behavior: reduced() ? 'auto' : 'smooth'});
+});
+
+/* ---------------------------------------------- task completion */
+$('#taskcomplete').addEventListener('click', function(){
+  toast('Marked complete at 09:12, recorded against your name.', 'Undo', function(){
+    toast('Reopened. The completion was removed from the record.');
+  });
+});
+
+/* ---------------------------------------------- submission: real validation, in place */
+var subform = $('#subform');
+var damage = $('#sb-damage'), photoWrap = $('#w-photo'), photo = $('#sb-photo');
+damage.addEventListener('change', function(){
+  var yes = damage.value === 'yes';
+  photoWrap.hidden = !yes;
+  if (!yes) { photoWrap.classList.remove('bad'); photo.removeAttribute('aria-invalid'); }
+});
+function fieldFail(wrapId, label){
+  var w = $('#' + wrapId);
+  w.classList.add('bad');
+  var input = w.querySelector('input,select,textarea');
+  if (input) input.setAttribute('aria-invalid','true');
+  return {el: input, label: label};
+}
+subform.addEventListener('submit', function(e){
+  e.preventDefault();
+  $$('.input.bad', subform).forEach(function(w){
+    w.classList.remove('bad');
+    var i = w.querySelector('input,select,textarea');
+    if (i) i.removeAttribute('aria-invalid');
+  });
+  $('#subok').hidden = true;
+
+  var bad = [];
+  if (!$('#sb-vehicle').value) bad.push(fieldFail('w-vehicle','Vehicle'));
+  if (!damage.value) bad.push(fieldFail('w-damage','Damage observed?'));
+  if (damage.value === 'yes' && !photo.value.trim()) bad.push(fieldFail('w-photo','Damage photo'));
+  if (!$('#sb-sign').value.trim()) bad.push(fieldFail('w-sign','Inspector signature'));
+
+  var box = $('#suberr');
+  if (bad.length){
+    $('#suberrhead').textContent = bad.length + (bad.length === 1 ? ' answer is' : ' answers are') +
+      ' needed before you can submit';
+    $('#suberrlist').textContent = 'Missing: ' + bad.map(function(b){ return b.label; }).join(', ') + '.';
+    box.hidden = false;
+    box.scrollIntoView({block:'nearest', behavior: reduced() ? 'auto' : 'smooth'});
+    if (bad[0].el) bad[0].el.focus();
+  } else {
+    box.hidden = true;
+    $('#subok').hidden = false;
+    $('#subok').scrollIntoView({block:'nearest', behavior: reduced() ? 'auto' : 'smooth'});
+  }
+});
+$('#savedraftsub').addEventListener('click', function(){
+  toast('Draft saved locally. It will queue for sync — nothing you typed is at risk.');
+});
+
+/* ---------------------------------------------- search: real filtering + empty state */
+var INDEX = [
+  {t:'Briley Park', k:'VENUE', m:'Official Parc Exposé · 5 linked movements', p:'place', c:'blue'},
+  {t:'Service Park', k:'VENUE', m:'Fuel, tire support and recovery nearby', p:'place', c:'blue'},
+  {t:'Lewiston Parc', k:'VENUE', m:'Friday only · unconfirmed since Jan 12', p:'place', c:'yellow'},
+  {t:'Car 262', k:'VEHICLE', m:'WideOpen · 18 linked records', p:'records', c:'purple'},
+  {t:'Organizer bulletin — Saturday Parc.pdf', k:'SOURCE', m:'File text match: “Parc Exposé will operate from Briley Park”', p:'library', c:'red'},
+  {t:'Parc Exposé opens for load-in', k:'MOVEMENT', m:'Sat 09:30 · needs acknowledgement', p:'movement', c:'yellow'},
+  {t:'Driver / co-driver final gear check', k:'WORK', m:'Due before 14:20 · WideOpen', p:'task', c:'yellow'},
+  {t:'Post-event vehicle inspection', k:'FORM', m:'v4 · 1 draft saved locally', p:'submission', c:'green'},
+  {t:'Service-out v3', k:'TEMPLATE', m:'12 items · used by 4 events', p:'templates', c:'green'},
+  {t:'Open the offline manager', k:'COMMAND', m:'Action · check what is downloaded', p:'offline', c:'green'},
+  {t:'Download Saturday for offline use', k:'COMMAND', m:'Action · 11 MB', p:'offline', c:'green'},
+  {t:'Add a venue', k:'COMMAND', m:'Action · name first, details later', p:'records', c:'green'},
+  {t:'Publish a plan change', k:'COMMAND', m:'Action · reports who was reached', p:'publish', c:'green'},
+  {t:'Who has not acknowledged?', k:'COMMAND', m:'Action · opens the attention queue', p:'attention', c:'green'}
+];
+var q = $('#q'), results = $('#results'), noresults = $('#noresults');
+function runSearch(){
+  var term = (q.value || '').trim().toLowerCase();
+  var hits = term
+    ? INDEX.filter(function(r){ return (r.t + ' ' + r.k + ' ' + r.m).toLowerCase().indexOf(term) > -1; })
+    : INDEX.slice(0, 5);
+  results.innerHTML = '';
+  hits.slice(0, 7).forEach(function(r, i){
+    var row = document.createElement('div');
+    row.className = 'row';
+    row.setAttribute('role','option');
+    row.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+    row.innerHTML =
+      '<span class="tag ' + r.c + ' c-state" data-glyph="●">' + r.k + '</span>' +
+      '<div class="c-main"><b></b><small></small></div>' +
+      '<span class="c-meta">Sno*Drift 2026</span>' +
+      '<span class="c-act"><button class="tool" type="button">' + (r.k === 'COMMAND' ? 'Run' : 'Open') + '</button></span>';
+    row.querySelector('b').textContent = r.t;
+    row.querySelector('small').textContent = r.m;
+    row.querySelector('button').addEventListener('click', function(){ closeModal('search'); go(r.p); });
+    results.appendChild(row);
+  });
+  var none = hits.length === 0;
+  results.hidden = none;
+  noresults.hidden = !none;
+  $('#qecho').textContent = q.value;
+  q.setAttribute('aria-expanded', none ? 'false' : 'true');
+}
+q.addEventListener('input', runSearch);
+q.addEventListener('keydown', function(e){
+  var rows = $$('.row', results);
+  if (!rows.length) return;
+  var cur = rows.findIndex(function(r){ return r.getAttribute('aria-selected') === 'true'; });
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+    e.preventDefault();
+    var next = e.key === 'ArrowDown'
+      ? (cur + 1) % rows.length
+      : (cur - 1 + rows.length) % rows.length;
+    rows.forEach(function(r, i){ r.setAttribute('aria-selected', i === next ? 'true' : 'false');
+      r.style.background = i === next ? 'var(--soft)' : ''; });
+    rows[next].scrollIntoView({block:'nearest'});
+  }
+  if (e.key === 'Enter'){
+    e.preventDefault();
+    var pick = rows[cur > -1 ? cur : 0];
+    if (pick) pick.querySelector('button').click();
+  }
+});
+
+/* ---------------------------------------------- theme: day / night */
+var themeBtn = $('#themebtn');
+function setTheme(t, remember){
+  document.documentElement.dataset.theme = t;
+  var night = t === 'night';
+  themeBtn.firstChild.nodeValue = night ? '☀' : '☾';
+  $('#themelbl').textContent = night ? ' Day' : ' Night';
+  themeBtn.setAttribute('aria-pressed', night ? 'true' : 'false');
+  themeBtn.setAttribute('aria-label', night ? 'Switch to day mode' : 'Switch to night mode');
+  if (remember){ try { localStorage.setItem('rp-theme', t); } catch(err){} }
+}
+(function initTheme(){
+  var saved = null;
+  try { saved = localStorage.getItem('rp-theme'); } catch(err){}
+  if (saved) setTheme(saved, false);
+  else setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'day', false);
+})();
+themeBtn.addEventListener('click', function(){
+  setTheme(document.documentElement.dataset.theme === 'night' ? 'day' : 'night', true);
+});
+
+/* ---------------------------------------------- platform-correct shortcut hint */
+var mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+$('#kbdhint').textContent = mac ? '⌘K' : 'Ctrl+K';
+
+/* ---------------------------------------------- one delegated handler: nothing inert */
+document.addEventListener('click', function(e){
+  var t = e.target.closest('[data-go],[data-modal],[data-close],[data-say],[data-confirm-title],.dots');
+  if (!t) return;
+
+  if (t.classList.contains('dots')){
+    e.preventDefault();
+    if (menuOwner === t) closeMenu(); else openMenu(t);
+    return;
+  }
+  if (t.dataset.close)  closeModal(t.dataset.close);
+  if (t.dataset.modal){ e.preventDefault(); openModal(t.dataset.modal); return; }
+  if (t.dataset.confirmTitle){ e.preventDefault(); askConfirm(t); return; }
+  if (t.dataset.go){ e.preventDefault(); go(t.dataset.go); }
+  if (t.dataset.say) toast(t.dataset.say);
+}, false);
+
+/* safety net: a button that reaches here has no behaviour — say so rather than
+   fail silently. In the built product this state is a defect (Guardrail E). */
+document.addEventListener('click', function(e){
+  var b = e.target.closest('button');
+  if (!b || b.type === 'submit') return;
+  if (b.closest('.modal, .menu, .tabs, #tree')) return;
+  if (b.matches('[data-go],[data-modal],[data-close],[data-say],[data-confirm-title],[data-resolve],[role=tab],.dots,.check,.close')) return;
+  if (b.id) return;
+  toast('Not wired in this static prototype — in the product, no visible control is inert.');
+}, false);
+
+/* ---------------------------------------------- global keys */
+document.addEventListener('keydown', function(e){
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k'){ e.preventDefault(); openModal('search'); }
+  if (e.key === 'Escape'){
+    if (menu.classList.contains('show')) { closeMenu(); return; }
+    if ($$('.modal.show').length) { $$('.modal.show').forEach(function(m){ closeModal(m.id); }); return; }
+    if (app.classList.contains('navopen')) { closeNav(); navToggle.focus(); return; }
+    hideToast();
+  }
+});
+
+/* ---------------------------------------------- boot */
+setDrafts(0);
+setAttn(3);
+applyFilter();
+render();
+})();
+</script>
+</body>
+</html>

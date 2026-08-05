@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Project Scaffold Plan</title>
+  <style>
+    :root { --ink:#172033; --muted:#64748b; --line:#dbe3ee; --paper:#f8fafc; --panel:#fff; --accent:#6d28d9; --teal:#0f766e; --gold:#a16207; --danger:#be123c; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--paper); font:15px/1.55 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { width:min(1160px, calc(100% - 40px)); margin:0 auto; padding:54px 0 72px; }
+    .eyebrow, code, .tag { font:700 11px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing:.08em; text-transform:uppercase; }
+    .eyebrow { color:var(--accent); margin:0 0 10px; }
+    h1 { max-width:850px; margin:0; font-size:clamp(2.5rem, 6vw, 4.7rem); line-height:.98; letter-spacing:-.065em; }
+    h2 { margin:0 0 14px; font-size:1.45rem; letter-spacing:-.035em; }
+    h3 { margin:0 0 7px; font-size:1rem; }
+    p { margin:0 0 12px; } .lede { max-width:730px; margin:22px 0 0; color:var(--muted); font-size:1.12rem; }
+    section { margin-top:52px; } .section-intro { max-width:700px; color:var(--muted); }
+    .grid { display:grid; grid-template-columns:repeat(12,1fr); gap:16px; margin-top:18px; }
+    .card { min-width:0; padding:21px; border:1px solid var(--line); border-radius:14px; background:var(--panel); box-shadow:0 1px 2px rgb(15 23 42 / .025); }
+    .span-3 { grid-column:span 3; } .span-4 { grid-column:span 4; } .span-6 { grid-column:span 6; } .span-12 { grid-column:span 12; }
+    .num { display:block; margin-bottom:11px; color:var(--accent); font:700 12px ui-monospace,monospace; }
+    .tag { display:inline-block; padding:5px 7px; border-radius:5px; color:#4c1d95; background:#ede9fe; } .tag.teal { color:#115e59; background:#ccfbf1; } .tag.gold { color:#854d0e; background:#fef3c7; } .tag.red { color:#9f1239; background:#ffe4e6; }
+    ul { margin:10px 0 0; padding-left:19px; } li { margin:4px 0; } code { letter-spacing:0; text-transform:none; color:#334155; }
+    .flow { display:flex; align-items:stretch; gap:10px; margin-top:18px; } .flow .step { flex:1; padding:17px; border:1px solid var(--line); border-radius:12px; background:#fff; } .arrow { align-self:center; color:var(--accent); font-size:25px; }
+    .branch { border-left:3px solid var(--accent); padding-left:15px; } .branch + .branch { margin-top:17px; } .branch p { color:var(--muted); margin:4px 0 0; }
+    .tree { margin:0; padding:18px 20px; overflow:auto; border-radius:12px; color:#dbeafe; background:#172033; font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre; }
+    table { width:100%; border-collapse:collapse; margin-top:18px; background:#fff; border:1px solid var(--line); border-radius:12px; overflow:hidden; } th,td { padding:13px 14px; vertical-align:top; text-align:left; border-bottom:1px solid var(--line); } tr:last-child td { border-bottom:0; } th { color:#475569; background:#f8fafc; font-size:12px; text-transform:uppercase; letter-spacing:.06em; }
+    .callout { padding:18px 20px; border-left:4px solid var(--teal); border-radius:0 12px 12px 0; background:#ecfdf5; } .callout strong { color:#065f46; }
+    footer { margin-top:54px; padding-top:20px; border-top:1px solid var(--line); color:var(--muted); font-size:13px; }
+    @media (max-width:760px) { main { width:min(100% - 26px, 1160px); padding-top:34px; } .span-3,.span-4,.span-6 { grid-column:span 12; } .flow { flex-direction:column; } .arrow { align-self:center; transform:rotate(90deg); } table { display:block; overflow:auto; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">Implementation blueprint · standalone</p>
+      <h1>A T3-shaped foundation with deliberate delivery lanes.</h1>
+      <p class="lede">This plan defines the project shell only: engineering conventions, infrastructure, environments, observability, and change control. It intentionally contains no product flows, entities, or assumptions from a demo or specification.</p>
+    </header>
+
+    <section>
+      <h2>System at a glance</h2>
+      <p class="section-intro">One TypeScript application is deployed per environment. The web app and a self-hosted Convex service run together on Railway, while Clerk and PostHog remain managed integrations.</p>
+      <div class="flow" aria-label="Architecture flow">
+        <div class="step"><span class="tag">Browser</span><h3>Next.js app</h3><p>App Router UI, server rendering, Clerk session handling, and PostHog client events.</p></div><div class="arrow">→</div>
+        <div class="step"><span class="tag teal">Railway</span><h3>Web service</h3><p>Next.js container. Uses the Convex URL and deploy key supplied by its own environment.</p></div><div class="arrow">→</div>
+        <div class="step"><span class="tag teal">Railway</span><h3>Self-hosted Convex</h3><p>Convex backend/runtime, dashboard as needed, durable database, and object storage integration.</p></div><div class="arrow">→</div>
+        <div class="step"><span class="tag gold">Managed</span><h3>Clerk + PostHog</h3><p>Identity provider and product analytics. Neither is a source of application data.</p></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Application conventions</h2>
+      <div class="grid">
+        <article class="card span-3"><span class="num">01</span><h3>TypeScript first</h3><p>Strict TypeScript, path aliases, Zod at every trust boundary, and explicit environment parsing at startup.</p></article>
+        <article class="card span-3"><span class="num">02</span><h3>T3 sensibility</h3><p>Small composable modules, server-first defaults, predictable naming, linting/formatting, and pragmatic code over framework theater.</p></article>
+        <article class="card span-3"><span class="num">03</span><h3>shadcn/ui system</h3><p>Tailwind CSS tokens plus local shadcn/ui components. Components are owned by the repository, not hidden behind a package abstraction.</p></article>
+        <article class="card span-3"><span class="num">04</span><h3>Convex-native data</h3><p>Queries, mutations, actions, schemas, authorization checks, and generated types live beside the application code. Do not add a second API layer by default.</p></article>
+      </div>
+      <div class="grid">
+        <article class="card span-6"><h3>Authentication boundary</h3><p>Clerk owns sign-in and session lifecycle. The application accepts only Clerk-issued tokens, validates them in Convex using the configured JWT template, and maps identity claims to application roles/permissions. Authorization is enforced in Convex functions, never only in the UI.</p></article>
+        <article class="card span-6"><h3>Analytics boundary</h3><p>PostHog is initialized after consent/session readiness. Capture a concise, documented event vocabulary; identify users with a stable non-sensitive application identifier; capture server-side operational events only where client capture is unreliable. Never send secrets or protected user content.</p></article>
+      </div>
+    </section>
+
+    <section>
+      <h2>Repository scaffold</h2>
+      <pre class="tree">.
+├── apps/
+│   └── web/                       # Next.js App Router application
+│       ├── app/                   # routes, layouts, server components
+│       ├── components/             # shadcn/ui and feature components
+│       ├── lib/                    # env, auth, analytics, shared helpers
+│       └── public/
+├── packages/
+│   ├── config/                    # shared TypeScript / lint configuration
+│   └── ui/                        # optional shared local primitives
+├── convex/                        # schema, functions, auth configuration
+├── infra/
+│   └── railway/                   # service definitions and deployment notes
+├── docs/
+│   ├── architecture.md
+│   ├── runbooks/
+│   └── analytics-events.md
+├── .github/
+│   ├── workflows/                 # CI, checks, deployment promotion
+│   ├── CODEOWNERS
+│   └── pull_request_template.md
+├── AGENTS.md                      # mandatory agent contribution contract
+├── package.json                   # workspace scripts
+└── README.md</pre>
+      <p class="callout"><strong>Monorepo only when it earns its keep.</strong> Start with the single <code>apps/web</code> application and Convex directory. Keep package boundaries available for genuinely shared code; do not split a small codebase into services or packages prematurely.</p>
+    </section>
+
+    <section>
+      <h2>Railway topology</h2>
+      <p class="section-intro">Create one Railway project with isolated <code>development</code>, <code>preview</code>, and <code>production</code> environments. Each environment has its own services, data stores, variables, and domains.</p>
+      <table>
+        <thead><tr><th>Service</th><th>Responsibility</th><th>Environment rule</th></tr></thead>
+        <tbody>
+          <tr><td><strong>web</strong></td><td>Builds and runs the Next.js app.</td><td>One deployment per Railway environment; receives only that environment’s public URLs and keys.</td></tr>
+          <tr><td><strong>convex</strong></td><td>Runs the pinned, supported self-hosted Convex runtime topology.</td><td>Dedicated deployment and persistent volume/configuration per environment; never share its data plane across lanes.</td></tr>
+          <tr><td><strong>postgres</strong></td><td>Durable backing database required by the self-hosted Convex deployment.</td><td>Private service, separate database and credentials per environment; backups enabled for production.</td></tr>
+          <tr><td><strong>object storage</strong></td><td>Durable file/blob storage used by Convex when enabled.</td><td>Separate bucket/prefix and credentials per environment; lifecycle and recovery policy documented.</td></tr>
+        </tbody>
+      </table>
+      <p>Pin the exact Convex self-hosted release and deploy its official supported topology. Treat upgrades as planned infrastructure changes: rehearse in development, promote through preview, back up production, then release.</p>
+    </section>
+
+    <section>
+      <h2>Branch promotion and automatic delivery</h2>
+      <div class="grid">
+        <article class="card span-4"><span class="tag teal">development</span><div class="branch"><h3><code>dev</code> branch</h3><p>Approved feature PRs merge here. Railway development deploys automatically. It is the integration lane.</p></div></article>
+        <article class="card span-4"><span class="tag gold">preview</span><div class="branch"><h3><code>preview</code> branch</h3><p>Promotion PRs from <code>dev</code> merge here. Railway preview deploys automatically to the shared validation environment.</p></div></article>
+        <article class="card span-4"><span class="tag red">production</span><div class="branch"><h3><code>main</code> branch</h3><p>Release PRs from <code>preview</code> merge here. Railway production deploys automatically after required checks pass.</p></div></article>
+      </div>
+      <div class="flow" aria-label="Git promotion flow">
+        <div class="step"><strong>feature/*</strong><br><small>PR → dev</small></div><div class="arrow">→</div><div class="step"><strong>dev</strong><br><small>auto deploy: development</small></div><div class="arrow">→</div><div class="step"><strong>preview</strong><br><small>auto deploy: preview</small></div><div class="arrow">→</div><div class="step"><strong>main</strong><br><small>auto deploy: production</small></div>
+      </div>
+      <ul><li>Feature branches may never deploy directly to shared production infrastructure.</li><li>Promotion PRs contain no hand-edited drift; they merge the prior lane forward.</li><li>Every deployment reports its commit SHA, environment, health result, and rollback target.</li></ul>
+    </section>
+
+    <section>
+      <h2>CI, secrets, and quality gates</h2>
+      <div class="grid">
+        <article class="card span-4"><h3>Pull request checks</h3><ul><li>Install from lockfile</li><li>Typecheck and lint</li><li>Unit/integration tests</li><li>Production build</li><li>Convex schema/function validation</li><li>Dependency/security scan</li></ul></article>
+        <article class="card span-4"><h3>Environment configuration</h3><ul><li>Store secrets in Railway/GitHub secrets, never committed files.</li><li>Use <code>.env.example</code> with names only.</li><li>Separate Clerk instances/keys and PostHog projects or tagged environments.</li><li>Validate required variables before startup.</li></ul></article>
+        <article class="card span-4"><h3>Operational signals</h3><ul><li>Structured application logs with deployment SHA.</li><li>Railway health checks for web and Convex services.</li><li>PostHog release tagging and environment filtering.</li><li>Document alerts, backup ownership, and restore tests.</li></ul></article>
+      </div>
+    </section>
+
+    <section>
+      <h2>Agent and reviewer contract</h2>
+      <table>
+        <thead><tr><th>Rule</th><th>Required practice</th></tr></thead>
+        <tbody>
+          <tr><td>Agents do not land changes</td><td>Every agent creates a focused branch and opens a pull request. Direct pushes to <code>dev</code>, <code>preview</code>, and <code>main</code> are blocked.</td></tr>
+          <tr><td>PRs provide evidence</td><td>Use the PR template: objective, scope, tests run, deployment/environment impact, migration notes, analytics/auth impact, and rollback notes.</td></tr>
+          <tr><td>Independent review</td><td>A different authorized agent or human reviews the diff and checks before approving. The author cannot approve or merge their own PR.</td></tr>
+          <tr><td>Protected promotion</td><td>Require passing CI, one approval, resolved conversations, current branch state, and merge queue/rebase policy before merge.</td></tr>
+          <tr><td>Reviewer merges</td><td>The reviewer (or release owner) merges after approval. Promotion PRs follow the same rule, with production requiring the designated release reviewer.</td></tr>
+        </tbody>
+      </table>
+      <p><code>AGENTS.md</code> is the canonical in-repository instruction: it must restate these rules, name the validation commands, prohibit secret disclosure, and require a PR URL in every agent handoff.</p>
+    </section>
+
+    <section>
+      <h2>Build order</h2>
+      <div class="grid">
+        <article class="card span-3"><span class="num">1</span><h3>Foundation</h3><p>Create workspace, Next.js, Tailwind, shadcn/ui, TypeScript, lint/test/build scripts, and the contribution contract.</p></article>
+        <article class="card span-3"><span class="num">2</span><h3>Identity + data</h3><p>Configure Clerk JWT verification in self-hosted Convex and establish a minimal authorization pattern with tests.</p></article>
+        <article class="card span-3"><span class="num">3</span><h3>Infrastructure</h3><p>Provision Railway services and isolated environment variables; establish health checks, backups, and domains.</p></article>
+        <article class="card span-3"><span class="num">4</span><h3>Delivery loop</h3><p>Enforce branch protections, CI, auto-deploy mappings, release promotion, monitoring, and an exercised rollback.</p></article>
+      </div>
+    </section>
+
+    <footer>Project scaffold plan · product-independent · revise alongside infrastructure decisions</footer>
+  </main>
+</body>
+</html>
