@@ -5,7 +5,7 @@
 GitHub branch protection for `dev`, `preview`, and `main` must require:
 
 - passing CI (the bootstrap integrity check now; format, lint, typecheck, tests, build, and Convex validation once the web foundation lands);
-- one approval from a reviewer other than the author;
+- a pull request (human authorization to merge is an operating rule recorded in the PR, not a GitHub approval requirement);
 - resolved review conversations;
 - an up-to-date branch; and
 - no direct pushes or force pushes.
@@ -33,11 +33,8 @@ Every PR states:
 4. Authentication, data, analytics, or infrastructure effect.
 5. Risk, rollback, and required post-merge verification.
 
-## Reviewer checklist
+## Human authorization and merge checklist
 
-- Confirm the change is focused and understandable.
-- Re-run or inspect required checks.
-- Verify auth/authorization is server-side and secrets are absent.
-- Verify environment changes are isolated and have a rollback plan.
-- Confirm docs and analytics catalog changes where applicable.
-- Approve and merge only after all gates pass; the author cannot do either.
+Before authorizing an agent to merge, the human should confirm the change is focused, the reported checks are credible, and the stated risk is acceptable. The human can ask another agent to review, but a separate GitHub account is not required.
+
+After an explicit human message such as “merge PR #123,” the authoring agent must add a PR comment citing that authorization, verify all GitHub gates are green, then merge. Without that direct authorization, the PR remains open.

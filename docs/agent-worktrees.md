@@ -9,8 +9,8 @@ Parallel agents may work at the same time only through isolated worktrees and fo
 | Role | May do | May not do |
 | --- | --- | --- |
 | Coordinator | Divide work, assign branch names, monitor dependency order | Edit a contributor's worktree without taking ownership |
-| Implementer agent | Make one scoped change, test it, open a PR, provide handoff | Merge its own PR or modify shared integration branches |
-| Reviewer agent | Review a different author's PR, request changes, approve, merge when authorized | Review/merge its own authored PR |
+| Implementer agent | Make one scoped change, test it, open a PR, provide handoff, and merge after explicit human permission | Infer merge permission or modify shared integration branches directly |
+| Reviewer agent | Review a different author's PR, request changes, and report evidence to the human | Grant merge permission on the human's behalf |
 | Release reviewer | Review promotion PRs and production evidence | Bypass the promotion lane |
 
 ## Setup
@@ -34,15 +34,15 @@ An agent must report its assigned task, base branch, worktree path, and intended
 4. Run relevant checks; record exact commands and outcomes.
 5. Rebase onto the current base branch before opening the PR if required by policy.
 6. Open a PR into `dev` (or the explicitly assigned promotion target) using the template.
-7. Hand off the PR URL, verification evidence, known risks, and rollback notes to a different reviewer.
-8. Do not merge; remove the worktree only after merge and confirmation.
+7. Hand off the PR URL, verification evidence, known risks, and rollback notes to the human and request explicit merge authorization.
+8. After that authorization, add a PR comment recording it, verify all gates, and merge. Remove the worktree only after merge and confirmation.
 
 ## Reviewer loop
 
-1. Confirm author and reviewer are different identities/agents.
-2. Review the diff and required checks in GitHub, then inspect affected local code if useful.
-3. Request changes or approve with a short evidence-based summary.
-4. Merge only when branch protection is green and the PR target is correct.
+1. Review the diff and required checks in GitHub, then inspect affected local code if useful.
+2. Request changes or provide an evidence-based recommendation to the human.
+3. Do not treat another agent's recommendation as merge authorization.
+4. After human authorization, verify the PR target and all gates, then the authoring agent may merge.
 5. Report the merge SHA and deployed environment; for Railway, verify a terminal successful deployment before declaring success.
 
 ## Cleanup

@@ -24,4 +24,9 @@
 
 ## Reviewer handoff
 
-<!-- Author: reviewer must be a different agent or human. -->
+<!-- Link the handoff message and request explicit human merge authorization. -->
+
+## Human merge authorization
+
+<!-- Leave unchecked until a human explicitly authorizes merging in the shared conversation. Then add a PR comment recording that authorization. -->
+- [ ] Human authorization received and recorded in a PR comment
