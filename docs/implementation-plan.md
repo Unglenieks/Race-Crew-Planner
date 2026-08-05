@@ -40,4 +40,4 @@ infra/railway/         versioned Railway configuration and deployment notes
 - New authentication/data paths have authorization coverage.
 - Analytics events are added to `docs/analytics-events.md` in the same PR.
 - Infrastructure or environment changes update `docs/platform.md` and the relevant runbook.
-- A reviewer other than the author approves and merges the PR.
+- A human explicitly authorizes the merge after reviewing the PR handoff; the authoring agent may then merge it once GitHub checks are green.
