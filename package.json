@@ -8,7 +8,14 @@
     "build": "pnpm --filter @race-planner/web build",
     "lint": "pnpm --filter @race-planner/web lint",
     "typecheck": "pnpm --filter @race-planner/web typecheck",
-    "test": "pnpm --filter @race-planner/web test",
-    "format:check": "pnpm --filter @race-planner/web format:check"
+    "test": "pnpm --filter @race-planner/web test && vitest run tests/convex",
+    "format:check": "pnpm --filter @race-planner/web format:check",
+    "convex:codegen": "convex codegen --typecheck enable",
+    "convex:dev": "convex dev --typecheck enable"
+  },
+  "devDependencies": {
+    "convex": "1.43.0",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
   }
 }
