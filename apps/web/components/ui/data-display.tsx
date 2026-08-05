@@ -18,15 +18,8 @@ function StatCard({
   className,
   onClick,
 }: StatCardProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "rounded-xl border border-line bg-card p-3.5 text-left cursor-pointer min-h-[76px] transition-colors hover:border-green",
-        className,
-      )}
-    >
+  const content = (
+    <>
       <span className="block font-serif font-semibold text-3xl leading-none tracking-tight">
         {value}
       </span>
@@ -39,6 +32,23 @@ function StatCard({
       {subtext && (
         <span className="block text-xs text-muted mt-0.5">{subtext}</span>
       )}
+    </>
+  );
+
+  const classNames = cn(
+    "rounded-xl border border-line bg-card p-3.5 text-left min-h-[76px]",
+    onClick &&
+      "cursor-pointer transition-colors hover:border-green focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2",
+    className,
+  );
+
+  if (!onClick) {
+    return <div className={classNames}>{content}</div>;
+  }
+
+  return (
+    <button type="button" onClick={onClick} className={classNames}>
+      {content}
     </button>
   );
 }

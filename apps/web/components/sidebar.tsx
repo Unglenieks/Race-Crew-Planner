@@ -1,6 +1,3 @@
-"use client";
-
-import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   ClipboardList,
@@ -10,7 +7,6 @@ import {
   Archive,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 
 const navItems = [
   { label: "Today", href: "/", icon: LayoutDashboard },
@@ -22,8 +18,6 @@ const navItems = [
 ];
 
 export function Sidebar() {
-  const pathname = usePathname();
-
   return (
     <aside className="w-[274px] flex-none border-r border-line bg-side overflow-auto h-screen sticky top-0 flex flex-col">
       <div className="p-4 pb-2">
@@ -37,17 +31,14 @@ export function Sidebar() {
           race planner
         </Link>
 
-        <button
-          type="button"
-          className="w-full text-left border border-btnline bg-card rounded-lg px-3 py-2.5 text-sm cursor-pointer min-h-[44px] hover:bg-soft transition-colors"
-        >
+        <div className="w-full text-left border border-btnline bg-card rounded-lg px-3 py-2.5 text-sm min-h-11">
           <b className="block text-sm font-semibold">
             This Weekend at The Ridge
           </b>
           <small className="block text-xs text-muted mt-0.5">
             Aug 8–10 · Car #262
           </small>
-        </button>
+        </div>
       </div>
 
       <nav className="flex-1 px-3">
@@ -57,20 +48,34 @@ export function Sidebar() {
         <div className="grid gap-0.5">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.href;
+            const itemClassName =
+              "flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold min-h-11";
+
+            if (item.href === "/") {
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`${itemClassName} bg-green text-card focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2`}
+                >
+                  <Icon className="w-4 h-4 flex-none" />
+                  {item.label}
+                </Link>
+              );
+            }
 
             return (
-              <Link
+              <span
                 key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold transition-colors min-h-[38px]",
-                  active ? "bg-green text-card" : "text-ink2 hover:bg-soft",
-                )}
+                className={`${itemClassName} text-ink2`}
+                aria-label={`${item.label} is planned and unavailable in this preview`}
               >
                 <Icon className="w-4 h-4 flex-none" />
                 {item.label}
-              </Link>
+                <span className="ml-auto text-xs font-normal text-muted">
+                  Planned
+                </span>
+              </span>
             );
           })}
         </div>
