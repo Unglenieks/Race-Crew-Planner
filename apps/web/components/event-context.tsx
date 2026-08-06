@@ -167,8 +167,9 @@ function EventConnectionFailed({ onRetry }: { onRetry: () => void }) {
       <CardContent className="grid gap-4">
         <p className="text-sm leading-relaxed text-muted">
           The Convex environment for this deployment rejected the request, which
-          usually means its functions are older than this application. Nothing
-          was saved. Retry, and report the problem if it repeats.
+          usually means its functions are older than this application. If you
+          had just submitted something, check whether it went through before you
+          try again. Report the problem if it repeats.
         </p>
         <Button variant="secondary" className="w-fit" onClick={onRetry}>
           Retry

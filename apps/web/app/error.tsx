@@ -26,8 +26,9 @@ export default function RouteError({
         </CardHeader>
         <CardContent className="grid gap-4">
           <p className="text-sm leading-relaxed text-muted">
-            This page stopped loading before it finished. Nothing you entered
-            was saved. Try again, and report the problem if it repeats.
+            This page stopped loading before it finished. If you had just
+            submitted something, check whether it went through before you try
+            again, then reload. Report the problem if it repeats.
           </p>
           <Button variant="primary" className="w-fit" onClick={reset}>
             Try again

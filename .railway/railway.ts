@@ -66,12 +66,13 @@ export default defineRailway((ctx) => {
     },
   });
 
-  // The web build pushes `convex/` to this environment's backend before it
-  // compiles the application, so a released client can never call functions
-  // that are older than itself. A failed push fails the build by design.
+  // The web build publishes `convex/` to this environment's backend once the
+  // application artifact has compiled, so a released client can never call
+  // functions that are older than itself, and a failed build never mutates the
+  // backend. A failed push fails the build by design.
   const web = service("web", {
     source: github("Unglenieks/Race-Crew-Planner", { branch }),
-    build: "pnpm convex:deploy && pnpm build",
+    build: "pnpm build && pnpm convex:deploy",
     start: "pnpm --filter @race-planner/web start",
     healthcheck: "/health",
     healthcheckTimeout: 300,
