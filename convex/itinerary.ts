@@ -13,6 +13,7 @@ const itineraryArgs = {
   title: v.string(),
   scheduledFor: v.string(),
   location: v.optional(v.string()),
+  recordId: v.optional(v.id("eventRecords")),
   notes: v.optional(v.string()),
 };
 
@@ -86,6 +87,22 @@ async function requireEventMembership(
   return membership;
 }
 
+async function requireLocationRecord(
+  ctx: MutationCtx,
+  eventId: Id<"events">,
+  recordId: Id<"eventRecords"> | undefined,
+) {
+  if (recordId === undefined) return;
+  const record = await ctx.db.get(recordId);
+  if (
+    record === null ||
+    record.eventId !== eventId ||
+    !["venue", "place", "service"].includes(record.type)
+  ) {
+    throw new Error("Location record not found");
+  }
+}
+
 /** Lists active movements in chronological event-local order. */
 export const list = query({
   args: { eventId: v.id("events") },
@@ -144,11 +161,13 @@ export const create = mutation({
     const membership = await requireEventMembership(ctx, args.eventId);
     requireRole(membership.role, ["owner", "manager"]);
     const item = validatedItineraryInput(args);
+    await requireLocationRecord(ctx, args.eventId, args.recordId);
     const now = Date.now();
 
     return await ctx.db.insert("itineraryItems", {
       eventId: args.eventId,
       ...item,
+      recordId: args.recordId,
       createdAt: now,
       updatedAt: now,
     });
@@ -167,8 +186,11 @@ export const update = mutation({
       throw new Error("Movement not found");
     }
 
+    await requireLocationRecord(ctx, args.eventId, args.recordId);
+
     await ctx.db.patch(args.itemId, {
       ...validatedItineraryInput(args),
+      recordId: args.recordId,
       updatedAt: Date.now(),
     });
   },

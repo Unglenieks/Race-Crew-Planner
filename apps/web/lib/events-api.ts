@@ -12,6 +12,25 @@ export type ItineraryItem = {
   title: string;
   scheduledFor: string;
   location?: string;
+  recordId?: string;
+  notes?: string;
+};
+
+export const recordTypes = [
+  "venue",
+  "place",
+  "service",
+  "vehicle",
+  "equipment",
+  "organization",
+  "person",
+] as const;
+
+export type EventRecord = {
+  _id: string;
+  name: string;
+  type: (typeof recordTypes)[number];
+  address?: string;
   notes?: string;
 };
 
@@ -68,6 +87,7 @@ export const itineraryApi = {
       title: string;
       scheduledFor: string;
       location?: string;
+      recordId?: string;
       notes?: string;
     },
     string
@@ -80,6 +100,7 @@ export const itineraryApi = {
       title: string;
       scheduledFor: string;
       location?: string;
+      recordId?: string;
       notes?: string;
     },
     null
@@ -94,6 +115,35 @@ export const itineraryApi = {
     { eventId: string; itemId: string },
     null
   >("itinerary:restore"),
+};
+
+export const recordsApi = {
+  list: makeFunctionReference<"query", { eventId: string }, EventRecord[]>(
+    "records:list",
+  ),
+  create: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      name: string;
+      type: EventRecord["type"];
+      address?: string;
+      notes?: string;
+    },
+    string
+  >("records:create"),
+  update: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      recordId: string;
+      name: string;
+      type: EventRecord["type"];
+      address?: string;
+      notes?: string;
+    },
+    null
+  >("records:update"),
 };
 
 export const workApi = {
