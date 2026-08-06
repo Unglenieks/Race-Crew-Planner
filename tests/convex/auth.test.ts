@@ -13,6 +13,13 @@ import {
   update as updateItineraryItem,
   validatedItineraryInput,
 } from "../../convex/itinerary";
+import {
+  add as addMembership,
+  list as listMemberships,
+  remove as removeMembership,
+  updateRole as updateMembershipRole,
+  validatedUserId,
+} from "../../convex/memberships";
 
 const owner: ApplicationRole = "owner";
 
@@ -236,5 +243,143 @@ describe("Convex authorization helpers", () => {
         scheduledFor: "2026-10-16T08:30",
       }),
     ).rejects.toThrow("Movement not found");
+  });
+
+  it("normalizes member IDs and rejects empty values", () => {
+    expect(validatedUserId("  user_crew_123  ")).toBe("user_crew_123");
+    expect(() => validatedUserId(" ")).toThrow("member ID");
+  });
+
+  it("rejects unauthenticated and non-owner membership reads", async () => {
+    await expect(
+      listMemberships._handler(
+        { auth: { getUserIdentity: async () => null } } as never,
+        { eventId: "events:one" as never },
+      ),
+    ).rejects.toThrow("Unauthenticated");
+
+    const crewContext = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+        }),
+      },
+    };
+
+    await expect(
+      listMemberships._handler(crewContext as never, {
+        eventId: "events:one" as never,
+      }),
+    ).rejects.toThrow("Forbidden");
+  });
+
+  it("lets an owner add a new manager or crew membership", async () => {
+    const inserts: Array<{ table: string; value: Record<string, unknown> }> =
+      [];
+    let queryCount = 0;
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|owner_123",
+          subject: "owner_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            unique: async () => {
+              queryCount += 1;
+              return queryCount === 1 ? { role: "owner" } : null;
+            },
+          }),
+        }),
+        insert: async (table: string, value: Record<string, unknown>) => {
+          inserts.push({ table, value });
+          return "eventMemberships:new";
+        },
+      },
+    };
+
+    await addMembership._handler(context as never, {
+      eventId: "events:one" as never,
+      userId: "  crew_456 ",
+      role: "manager",
+    });
+
+    expect(inserts).toEqual([
+      {
+        table: "eventMemberships",
+        value: expect.objectContaining({
+          eventId: "events:one",
+          userId: "crew_456",
+          role: "manager",
+        }),
+      },
+    ]);
+  });
+
+  it("does not let an owner change or remove a membership from another event", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|owner_123",
+          subject: "owner_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "owner" }) }),
+        }),
+        get: async () => ({ eventId: "events:other", role: "crew" }),
+      },
+    };
+
+    await expect(
+      updateMembershipRole._handler(context as never, {
+        eventId: "events:one" as never,
+        membershipId: "eventMemberships:other" as never,
+        role: "manager",
+      }),
+    ).rejects.toThrow("Member not found");
+    await expect(
+      removeMembership._handler(context as never, {
+        eventId: "events:one" as never,
+        membershipId: "eventMemberships:other" as never,
+      }),
+    ).rejects.toThrow("Member not found");
+  });
+
+  it("does not let an owner remove the event owner", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|owner_123",
+          subject: "owner_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "owner" }) }),
+        }),
+        get: async () => ({ eventId: "events:one", role: "owner" }),
+      },
+    };
+
+    await expect(
+      removeMembership._handler(context as never, {
+        eventId: "events:one" as never,
+        membershipId: "eventMemberships:owner" as never,
+      }),
+    ).rejects.toThrow("owner cannot be removed");
   });
 });
