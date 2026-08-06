@@ -8,7 +8,7 @@ It defines one project with these resources in every environment:
 | Resource           | Purpose                                                 | Exposure                               |
 | ------------------ | ------------------------------------------------------- | -------------------------------------- |
 | `web`              | Next.js application from `Unglenieks/Race-Crew-Planner` | Public domain and `GET /health`        |
-| `convex-backend`   | Pinned self-hosted Convex runtime                       | Railway private network only           |
+| `convex-backend`   | Pinned self-hosted Convex runtime                       | Public API domain; private data plane  |
 | `convex-dashboard` | Operator dashboard for the matching Convex backend      | Restricted operator access only        |
 | `Postgres`         | Convex backing store                                    | Railway private network only           |
 | `rcp-files`        | Convex file storage                                     | Credentials are private variables only |
@@ -38,11 +38,9 @@ or re-create Postgres or its volume. Never use `--show-values` in shared logs,
 and do not use non-interactive destructive confirmation without explicit human
 approval of the exact plan.
 
-The IaC file intentionally does not configure a Convex image. Before a
-deployment, a focused Convex-runtime PR must pin a supported backend and
-dashboard image version, define their health checks and startup commands, and
-document the required private variables. This prevents an unreviewed `latest`
-image from becoming the production runtime.
+The IaC file pins matching Convex backend and dashboard image revisions. Update
+them only through the Convex upgrade runbook; never replace a pinned revision
+with `latest`.
 
 ## Environment variable contract
 
@@ -53,13 +51,35 @@ services.
 | Owner            | Required variables                                                                                                                                                                         |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Web              | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`, `NEXT_PUBLIC_APP_ENV`, `NEXT_PUBLIC_RELEASE_SHA` |
-| Convex backend   | `CLERK_JWT_ISSUER_DOMAIN`, Postgres connection settings, object-storage endpoint/credentials/prefix, Convex deployment and admin secrets                                                   |
-| Convex dashboard | Dashboard-to-backend URL and dashboard/operator authentication settings                                                                                                                    |
+| Convex backend   | `CONVEX_CLOUD_ORIGIN`, `CONVEX_SITE_ORIGIN`, `POSTGRES_URL`, `INSTANCE_SECRET`, `CLERK_JWT_ISSUER_DOMAIN`, object-storage endpoint/credentials/bucket names, Convex deployment/admin secrets |
+| Convex dashboard | `NEXT_PUBLIC_DEPLOYMENT_URL`, dashboard/operator authentication settings                                                                                                                   |
 
 Set `NEXT_PUBLIC_APP_ENV` to the Railway environment name and
 `NEXT_PUBLIC_RELEASE_SHA` to the deployed commit SHA at build time. Use distinct
 Clerk applications/keys and distinct PostHog projects (or an equivalent hard
 environment boundary) for development, preview, and production.
+
+### Convex runtime configuration
+
+For each environment, set the backend's `CONVEX_CLOUD_ORIGIN` to its public
+Convex API domain and `CONVEX_SITE_ORIGIN` to the matching HTTP-actions origin.
+Set the web service's `NEXT_PUBLIC_CONVEX_URL` to the API domain. The API must
+be public because the browser-side Convex client connects directly; the
+dashboard, Postgres, and bucket remain private. See
+[decision 0001](decisions/0001-convex-api-exposure.md).
+
+Generate a distinct `INSTANCE_SECRET` and dashboard admin key per environment
+in the secret store. Configure `POSTGRES_URL` with the private Railway Postgres
+connection string **without** the database name; Convex derives its database
+name from `INSTANCE_NAME` (or `convex_self_hosted` by default). Create that
+database before its first backend deployment. For S3-compatible Railway bucket
+storage, set the AWS-compatible endpoint, credentials, region, and all five
+Convex bucket variables: `S3_STORAGE_EXPORTS_BUCKET`,
+`S3_STORAGE_SNAPSHOT_IMPORTS_BUCKET`, `S3_STORAGE_MODULES_BUCKET`,
+`S3_STORAGE_FILES_BUCKET`, and `S3_STORAGE_SEARCH_BUCKET`.
+
+Set `NEXT_PUBLIC_DEPLOYMENT_URL` on the private dashboard to the matching
+backend API URL. Do not commit any of these values or expose the dashboard.
 
 ## Health, backups, and recovery
 
@@ -77,6 +97,9 @@ environment boundary) for development, preview, and production.
 - Roll back an application release by promoting the previously healthy commit
   through the normal `main` ← `preview` ← `dev` lanes. Do not copy environment
   variables or database data between environments as a rollback shortcut.
+
+See [Convex self-hosted upgrades](convex-upgrades.md) for the runtime-specific
+backup, upgrade, and recovery procedure.
 
 ## Post-apply verification
 
