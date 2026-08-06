@@ -16,6 +16,8 @@ export type ItineraryItem = {
   location?: string;
   recordId?: string;
   notes?: string;
+  timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
+  archivedAt?: number;
 };
 
 export const recordTypes = [
@@ -51,6 +53,30 @@ export type WorkAssignee = {
   userId: string;
   name?: string;
   role: "owner" | "manager" | "crew";
+};
+
+export type WorkTemplateItem = {
+  title: string;
+  notes?: string;
+  priority: "low" | "normal" | "high";
+  dueContext?: string;
+};
+
+export type WorkTemplate = {
+  _id: string;
+  name: string;
+  items: WorkTemplateItem[];
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type WorkAutomationRule = {
+  _id: string;
+  name: string;
+  trigger: "planChangePublished" | "workCompleted";
+  action: "createWorkItem" | "notifyAssignee";
+  itemTitle?: string;
+  enabled: boolean;
 };
 
 export type EventContact = {
@@ -90,8 +116,10 @@ export type PublishedPlanChange = {
 export type FormField = {
   id: string;
   label: string;
-  type: "text" | "boolean";
+  type: "text" | "number" | "date" | "select" | "multiSelect" | "boolean";
   required: boolean;
+  instructions?: string;
+  options?: string[];
 };
 export type FormTemplate = {
   _id: string;
@@ -105,7 +133,7 @@ export type FormSubmission = {
   templateName: string;
   templateVersion: number;
   fields: FormField[];
-  answers: Record<string, string | boolean | undefined>;
+  answers: Record<string, unknown>;
   status: "draft" | "submitted";
   submittedAt?: number;
 };
@@ -156,6 +184,11 @@ export const itineraryApi = {
   list: makeFunctionReference<"query", { eventId: string }, ItineraryItem[]>(
     "itinerary:list",
   ),
+  get: makeFunctionReference<
+    "query",
+    { eventId: string; itemId: string },
+    ItineraryItem
+  >("itinerary:get"),
   create: makeFunctionReference<
     "mutation",
     {
@@ -165,6 +198,7 @@ export const itineraryApi = {
       location?: string;
       recordId?: string;
       notes?: string;
+      timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
     },
     string
   >("itinerary:create"),
@@ -178,6 +212,7 @@ export const itineraryApi = {
       location?: string;
       recordId?: string;
       notes?: string;
+      timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
     },
     null
   >("itinerary:update"),
@@ -263,6 +298,51 @@ export const workApi = {
   >("work:listAssignees"),
 };
 
+export const workTemplatesApi = {
+  list: makeFunctionReference<"query", { eventId: string }, WorkTemplate[]>(
+    "workTemplates:list",
+  ),
+  create: makeFunctionReference<
+    "mutation",
+    { eventId: string; name: string; items: WorkTemplateItem[] },
+    string
+  >("workTemplates:create"),
+  apply: makeFunctionReference<
+    "mutation",
+    { eventId: string; templateId: string },
+    string[]
+  >("workTemplates:apply"),
+  archive: makeFunctionReference<
+    "mutation",
+    { eventId: string; templateId: string },
+    null
+  >("workTemplates:archive"),
+};
+
+export const workAutomationApi = {
+  list: makeFunctionReference<
+    "query",
+    { eventId: string },
+    WorkAutomationRule[]
+  >("workAutomation:list"),
+  create: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      name: string;
+      trigger: WorkAutomationRule["trigger"];
+      action: WorkAutomationRule["action"];
+      itemTitle?: string;
+    },
+    string
+  >("workAutomation:create"),
+  setEnabled: makeFunctionReference<
+    "mutation",
+    { eventId: string; ruleId: string; enabled: boolean },
+    null
+  >("workAutomation:setEnabled"),
+};
+
 export const invitationsApi = {
   syncProfile: makeFunctionReference<"mutation", Record<string, never>, null>(
     "invitations:syncProfile",
@@ -314,6 +394,11 @@ export const planChangesApi = {
     { eventId: string },
     PublishedPlanChange[]
   >("planChanges:listForPublisher"),
+  listForMovement: makeFunctionReference<
+    "query",
+    { eventId: string; itemId: string },
+    PublishedPlanChange[]
+  >("planChanges:listForMovement"),
   listForMe: makeFunctionReference<
     "query",
     { eventId: string },
@@ -345,6 +430,11 @@ export const formsApi = {
     { eventId: string; name: string; fields: FormField[] },
     string
   >("forms:createTemplate"),
+  createTemplateVersion: makeFunctionReference<
+    "mutation",
+    { eventId: string; templateId: string; name: string; fields: FormField[] },
+    string
+  >("forms:createTemplateVersion"),
   listMySubmissions: makeFunctionReference<
     "query",
     { eventId: string },
@@ -356,7 +446,7 @@ export const formsApi = {
       eventId: string;
       templateId: string;
       submissionId?: string;
-      answers: Record<string, string | boolean | undefined>;
+      answers: Record<string, unknown>;
     },
     string
   >("forms:saveDraft"),

@@ -9,6 +9,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import {
   itineraryApi,
@@ -371,7 +372,12 @@ export function ItineraryPlan({
                         {displayScheduledFor(item.scheduledFor)}
                       </time>
                       <div className="min-w-0">
-                        <p className="font-semibold text-ink">{item.title}</p>
+                        <Link
+                          href={`/events/${eventId}/plan/${item._id}`}
+                          className="font-semibold text-ink underline-offset-4 hover:underline focus-visible:outline-3 focus-visible:outline-focus"
+                        >
+                          {item.title}
+                        </Link>
                         {item.location === undefined ? null : (
                           <p className="mt-1 text-sm text-muted">
                             {item.location}
@@ -392,6 +398,12 @@ export function ItineraryPlan({
                       </div>
                       {canEdit ? (
                         <div className="flex flex-wrap gap-2 sm:justify-end">
+                          <Link
+                            href={`/events/${eventId}/plan/${item._id}`}
+                            className="inline-flex min-h-11 items-center rounded-lg border border-transparent px-2.5 py-1.5 text-xs font-semibold text-ink2 hover:bg-soft focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
+                          >
+                            Open
+                          </Link>
                           <Button
                             type="button"
                             variant="ghost"

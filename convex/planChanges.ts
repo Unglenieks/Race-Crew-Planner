@@ -195,6 +195,52 @@ export const listForPublisher = query({
   },
 });
 
+/**
+ * Returns a movement's publication history and concrete delivery state.
+ * Event membership is required because the history contains operational plan
+ * changes and the people responsible for receiving them.
+ */
+export const listForMovement = query({
+  args: { eventId: v.id("events"), itemId: v.id("itineraryItems") },
+  handler: async (ctx, { eventId, itemId }) => {
+    await requireMembership(ctx, eventId);
+    const item = await ctx.db.get(itemId);
+    if (item === null || item.eventId !== eventId) {
+      throw new Error("Movement not found");
+    }
+    const changes = await ctx.db
+      .query("planChanges")
+      .withIndex("by_itemId_publishedAt", (index) =>
+        index.eq("itineraryItemId", itemId),
+      )
+      .collect();
+
+    return await Promise.all(
+      changes.reverse().map(async (change) => {
+        const recipients = await ctx.db
+          .query("planChangeRecipients")
+          .withIndex("by_changeId", (index) => index.eq("changeId", change._id))
+          .collect();
+        const namedRecipients = await Promise.all(
+          recipients.map(async (recipient) => {
+            const profile = await ctx.db
+              .query("userProfiles")
+              .withIndex("by_userId", (index) =>
+                index.eq("userId", recipient.userId),
+              )
+              .unique();
+            return {
+              ...recipient,
+              name: profile?.displayName ?? profile?.email ?? recipient.userId,
+            };
+          }),
+        );
+        return { ...change, recipients: namedRecipients };
+      }),
+    );
+  },
+});
+
 /** Lists changes that need action from the verified recipient. */
 export const listForMe = query({
   args: { eventId: v.id("events") },

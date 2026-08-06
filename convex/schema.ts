@@ -94,6 +94,40 @@ export default defineSchema({
   })
     .index("by_eventId", ["eventId"])
     .index("by_eventId_createdAt", ["eventId", "createdAt"]),
+  workTemplates: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    items: v.array(
+      v.object({
+        title: v.string(),
+        notes: v.optional(v.string()),
+        priority: v.union(
+          v.literal("low"),
+          v.literal("normal"),
+          v.literal("high"),
+        ),
+        dueContext: v.optional(v.string()),
+      }),
+    ),
+    archivedAt: v.optional(v.number()),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_eventId", ["eventId"]),
+  workAutomationRules: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    trigger: v.union(
+      v.literal("planChangePublished"),
+      v.literal("workCompleted"),
+    ),
+    action: v.union(v.literal("createWorkItem"), v.literal("notifyAssignee")),
+    itemTitle: v.optional(v.string()),
+    enabled: v.boolean(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_eventId", ["eventId"]),
   planChanges: defineTable({
     eventId: v.id("events"),
     itineraryItemId: v.id("itineraryItems"),
@@ -135,12 +169,23 @@ export default defineSchema({
     eventId: v.id("events"),
     name: v.string(),
     version: v.number(),
+    rootTemplateId: v.optional(v.id("formTemplates")),
+    isCurrent: v.optional(v.boolean()),
     fields: v.array(
       v.object({
         id: v.string(),
         label: v.string(),
-        type: v.union(v.literal("text"), v.literal("boolean")),
+        type: v.union(
+          v.literal("text"),
+          v.literal("number"),
+          v.literal("date"),
+          v.literal("select"),
+          v.literal("multiSelect"),
+          v.literal("boolean"),
+        ),
         required: v.boolean(),
+        instructions: v.optional(v.string()),
+        options: v.optional(v.array(v.string())),
       }),
     ),
     createdBy: v.string(),
@@ -155,8 +200,17 @@ export default defineSchema({
       v.object({
         id: v.string(),
         label: v.string(),
-        type: v.union(v.literal("text"), v.literal("boolean")),
+        type: v.union(
+          v.literal("text"),
+          v.literal("number"),
+          v.literal("date"),
+          v.literal("select"),
+          v.literal("multiSelect"),
+          v.literal("boolean"),
+        ),
         required: v.boolean(),
+        instructions: v.optional(v.string()),
+        options: v.optional(v.array(v.string())),
       }),
     ),
     answers: v.any(),
