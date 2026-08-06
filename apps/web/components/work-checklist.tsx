@@ -3,7 +3,7 @@
 import { Check, Circle, LoaderCircle, Pencil, RotateCcw } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { workApi, type WorkItem } from "@/lib/events-api";
+import { workApi, type WorkAssignee, type WorkItem } from "@/lib/events-api";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -13,12 +13,31 @@ import { Input } from "@/components/ui/input";
 
 type EventRole = "owner" | "manager" | "crew";
 type WorkFilter = "open" | "completed" | "all";
-type Draft = { title: string; notes: string };
+type Priority = "low" | "normal" | "high";
+type Draft = {
+  title: string;
+  notes: string;
+  priority: Priority;
+  dueContext: string;
+  assigneeId: string;
+};
 
-const emptyDraft: Draft = { title: "", notes: "" };
+const emptyDraft: Draft = {
+  title: "",
+  notes: "",
+  priority: "normal",
+  dueContext: "",
+  assigneeId: "",
+};
 
 function itemToDraft(item: WorkItem): Draft {
-  return { title: item.title, notes: item.notes ?? "" };
+  return {
+    title: item.title,
+    notes: item.notes ?? "",
+    priority: item.priority ?? "normal",
+    dueContext: item.dueContext ?? "",
+    assigneeId: item.assigneeId ?? "",
+  };
 }
 
 function isSameDraft(left: Draft, right: Draft) {
@@ -33,6 +52,7 @@ export function WorkChecklist({
   role: EventRole;
 }) {
   const items = useQuery(workApi.list, { eventId });
+  const assignees = useQuery(workApi.listAssignees, { eventId });
   const createItem = useMutation(workApi.create);
   const updateItem = useMutation(workApi.update);
   const setCompletion = useMutation(workApi.setCompletion);
@@ -84,6 +104,9 @@ export function WorkChecklist({
       eventId,
       title: draft.title,
       notes: draft.notes || undefined,
+      priority: draft.priority,
+      dueContext: draft.dueContext || undefined,
+      assigneeId: draft.assigneeId || undefined,
     };
 
     try {
@@ -273,6 +296,7 @@ export function WorkChecklist({
                               {item.notes}
                             </p>
                           )}
+                          <WorkItemDetails item={item} assignees={assignees} />
                         </div>
                         {canManage ? (
                           <Button
@@ -333,6 +357,78 @@ export function WorkChecklist({
                   placeholder="e.g. Load spare wheel"
                 />
               </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-1.5">
+                  <label
+                    className="text-sm font-medium text-ink"
+                    htmlFor="work-priority"
+                  >
+                    Priority
+                  </label>
+                  <select
+                    id="work-priority"
+                    value={draft.priority}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        priority: event.target.value as Priority,
+                      }))
+                    }
+                    className="h-10 rounded-lg border border-line bg-card px-3 text-sm text-ink shadow-sm outline-none focus:border-ink focus:ring-2 focus:ring-ink"
+                  >
+                    <option value="low">Low</option>
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+                <div className="grid gap-1.5">
+                  <label
+                    className="text-sm font-medium text-ink"
+                    htmlFor="work-assignee"
+                  >
+                    Assigned to <span className="text-muted">(optional)</span>
+                  </label>
+                  <select
+                    id="work-assignee"
+                    value={draft.assigneeId}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        assigneeId: event.target.value,
+                      }))
+                    }
+                    disabled={assignees === undefined}
+                    className="h-10 rounded-lg border border-line bg-card px-3 text-sm text-ink shadow-sm outline-none focus:border-ink focus:ring-2 focus:ring-ink disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <option value="">Unassigned</option>
+                    {(assignees ?? []).map((assignee) => (
+                      <option key={assignee.userId} value={assignee.userId}>
+                        {assignee.name ?? assignee.userId} ({assignee.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid gap-1.5">
+                <label
+                  className="text-sm font-medium text-ink"
+                  htmlFor="work-due-context"
+                >
+                  Due context <span className="text-muted">(optional)</span>
+                </label>
+                <Input
+                  id="work-due-context"
+                  value={draft.dueContext}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      dueContext: event.target.value,
+                    }))
+                  }
+                  maxLength={160}
+                  placeholder="e.g. Before Friday service"
+                />
+              </div>
               <div className="grid gap-1.5">
                 <label
                   className="text-sm font-medium text-ink"
@@ -375,5 +471,30 @@ export function WorkChecklist({
         </Card>
       ) : null}
     </div>
+  );
+}
+
+function WorkItemDetails({
+  item,
+  assignees,
+}: {
+  item: WorkItem;
+  assignees: WorkAssignee[] | undefined;
+}) {
+  const assignee = assignees?.find(
+    (person) => person.userId === item.assigneeId,
+  );
+  const details = [
+    item.priority && item.priority !== "normal"
+      ? `${item.priority} priority`
+      : null,
+    item.dueContext ? `Due: ${item.dueContext}` : null,
+    item.assigneeId
+      ? `Assigned to: ${assignee?.name ?? item.assigneeId}`
+      : null,
+  ].filter((detail): detail is string => detail !== null);
+
+  return details.length === 0 ? null : (
+    <p className="mt-2 text-xs font-medium text-muted">{details.join(" · ")}</p>
   );
 }
