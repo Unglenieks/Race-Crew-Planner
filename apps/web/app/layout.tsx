@@ -19,6 +19,8 @@ export const metadata: Metadata = {
   description: "Plan race crews with confidence.",
 };
 
+const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -44,9 +46,13 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full">
-        <ClerkProvider>
-          <Providers>{children}</Providers>
-        </ClerkProvider>
+        {clerkPublishableKey === undefined ? (
+          children
+        ) : (
+          <ClerkProvider>
+            <Providers>{children}</Providers>
+          </ClerkProvider>
+        )}
       </body>
     </html>
   );
