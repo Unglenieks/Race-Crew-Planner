@@ -85,6 +85,8 @@ export default defineSchema({
     accessNotes: v.optional(v.string()),
     hours: v.optional(v.string()),
     contactDetail: v.optional(v.string()),
+    /** Values for event-configured directory fields, keyed by the stable field key. */
+    fieldValues: v.optional(v.record(v.string(), v.string())),
     confirmationStatus: v.optional(
       v.union(v.literal("unconfirmed"), v.literal("confirmed")),
     ),
@@ -96,6 +98,20 @@ export default defineSchema({
   })
     .index("by_eventId", ["eventId"])
     .index("by_eventId_name", ["eventId", "name"]),
+  eventRecordFields: defineTable({
+    eventId: v.id("events"),
+    /** Stable key means renaming a field never loses its existing values. */
+    key: v.string(),
+    label: v.string(),
+    type: v.union(v.literal("text"), v.literal("select")),
+    options: v.optional(v.array(v.string())),
+    order: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_eventId_order", ["eventId", "order"])
+    .index("by_eventId_key", ["eventId", "key"]),
   eventRecordTypes: defineTable({
     eventId: v.id("events"),
     name: v.string(),
