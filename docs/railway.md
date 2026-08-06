@@ -13,8 +13,10 @@ It defines one project with these resources in every environment:
 | `Postgres`         | Convex backing store                                    | Railway private network only           |
 | `rcp-files`        | Convex file storage                                     | Credentials are private variables only |
 
-Railway environments are intentionally isolated. Their source branches are
-`dev` → `development`, `preview` → `preview`, and `main` → `production`.
+Railway environments are intentionally isolated. The currently deployed dev
+lane is named `preview` in Railway and sources the `dev` branch; `production`
+sources `main`. Rename the Railway environment before introducing a separate
+`preview` branch deployment lane.
 Each environment has independent Clerk and PostHog configuration, Convex
 credentials, database data, object-store credentials/prefix, and public domain.
 No secret value belongs in this repository.

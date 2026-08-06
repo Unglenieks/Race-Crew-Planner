@@ -23,11 +23,9 @@ const convexImageRevision = "075bad9adce93eb2f63fffad76db5cb27e9e35bd";
  * of source control; see docs/railway.md for the reviewed apply procedure.
  */
 export default defineRailway((ctx) => {
-  const branch = ctx.isEnvironment("development")
-    ? "dev"
-    : ctx.isEnvironment("preview")
-      ? "preview"
-      : "main";
+  // The existing shared dev lane is named "preview" in Railway. Keep its
+  // source aligned with the dev branch until the environment is renamed.
+  const branch = ctx.isEnvironment("preview") ? "dev" : "main";
 
   const web = service("web", {
     source: github("Unglenieks/Race-Crew-Planner", { branch }),
