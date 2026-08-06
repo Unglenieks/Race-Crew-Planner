@@ -4,6 +4,7 @@ import {
   github,
   image,
   postgres,
+  preserve,
   project,
   service,
 } from "railway/iac";
@@ -34,6 +35,15 @@ export default defineRailway((ctx) => {
     start: "pnpm --filter @race-planner/web start",
     healthcheck: "/health",
     healthcheckTimeout: 300,
+    env: {
+      CLERK_SECRET_KEY: preserve(),
+      NEXT_PUBLIC_APP_ENV: preserve(),
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: preserve(),
+      NEXT_PUBLIC_CONVEX_URL: preserve(),
+      NEXT_PUBLIC_POSTHOG_HOST: preserve(),
+      NEXT_PUBLIC_POSTHOG_KEY: preserve(),
+      NEXT_PUBLIC_RELEASE_SHA: preserve(),
+    },
   });
 
   const convexBackend = service("convex-backend", {
@@ -42,11 +52,39 @@ export default defineRailway((ctx) => {
     ),
     healthcheck: "/version",
     healthcheckTimeout: 300,
+    env: {
+      AWS_ACCESS_KEY_ID: preserve(),
+      AWS_REGION: preserve(),
+      AWS_S3_FORCE_PATH_STYLE: preserve(),
+      AWS_SECRET_ACCESS_KEY: preserve(),
+      CLERK_JWT_ISSUER_DOMAIN: preserve(),
+      CONVEX_CLOUD_ORIGIN: preserve(),
+      CONVEX_SELF_HOSTED_ADMIN_KEY: preserve(),
+      CONVEX_SELF_HOSTED_URL: preserve(),
+      CONVEX_SITE_ORIGIN: preserve(),
+      DISABLE_BEACON: preserve(),
+      DO_NOT_REQUIRE_SSL: preserve(),
+      INSTANCE_SECRET: preserve(),
+      PORT: preserve(),
+      POSTGRES_URL: preserve(),
+      RCP_BUCKET_accessKeyId: preserve(),
+      RCP_BUCKET_bucketName: preserve(),
+      RCP_BUCKET_endpoint: preserve(),
+      RCP_BUCKET_region: preserve(),
+      RCP_BUCKET_secretAccessKey: preserve(),
+      S3_ENDPOINT_URL: preserve(),
+      S3_STORAGE_EXPORTS_BUCKET: preserve(),
+      S3_STORAGE_FILES_BUCKET: preserve(),
+      S3_STORAGE_MODULES_BUCKET: preserve(),
+      S3_STORAGE_SEARCH_BUCKET: preserve(),
+      S3_STORAGE_SNAPSHOT_IMPORTS_BUCKET: preserve(),
+    },
   });
   const convexDashboard = service("convex-dashboard", {
     source: image(
       `ghcr.io/get-convex/convex-dashboard:${convexImageRevision}`,
     ),
+    env: { NEXT_PUBLIC_DEPLOYMENT_URL: preserve() },
   });
   const database = postgres("Postgres");
   const files = bucket("rcp-files", { region: "iad" });

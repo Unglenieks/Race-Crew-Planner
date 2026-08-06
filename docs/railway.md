@@ -38,6 +38,11 @@ or re-create Postgres or its volume. Never use `--show-values` in shared logs,
 and do not use non-interactive destructive confirmation without explicit human
 approval of the exact plan.
 
+The topology declares every existing service variable with `preserve()`. This
+keeps secret and environment-owned values in Railway when the reviewed topology
+is applied; it never copies their values into source control. A plan that
+proposes deleting any existing variable is unsafe and must not be applied.
+
 The IaC file pins matching Convex backend and dashboard image revisions. Update
 them only through the Convex upgrade runbook; never replace a pinned revision
 with `latest`.
@@ -105,6 +110,34 @@ inside Railway and keeps the admin key out of local configuration.
 
 See [Convex self-hosted upgrades](convex-upgrades.md) for the runtime-specific
 backup, upgrade, and recovery procedure.
+
+## Repairing a missing GitHub auto-deploy trigger
+
+The `web` service in `development` must be connected to
+`Unglenieks/Race-Crew-Planner` branch `dev`. If a merge reaches `dev` but no
+Railway deployment is created for its commit, first inspect the source and
+recent deployment commits:
+
+```bash
+railway service list --environment development --json
+railway deployment list --environment development --service web --limit 10 --json
+```
+
+If the source/branch is correct but the new commit has no queued deployment,
+reconnect the source from a clean worktree only after reviewing a safe IaC plan
+and receiving explicit authorization for this live infrastructure change:
+
+```bash
+railway service source connect \
+  --repo Unglenieks/Race-Crew-Planner \
+  --branch dev \
+  --service web \
+  --environment development
+```
+
+The reconnect restores Railway's GitHub deployment trigger; it is not a
+substitute for a code deployment. Confirm a newly queued deployment references
+the expected commit, reaches `SUCCESS`, and returns `200` from `/health`.
 
 ## Post-apply verification
 
