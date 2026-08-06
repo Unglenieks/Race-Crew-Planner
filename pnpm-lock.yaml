@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
       convex:
         specifier: 1.43.0
         version: 1.43.0(@clerk/react@6.12.11(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)

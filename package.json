@@ -10,10 +10,12 @@
     "typecheck": "pnpm --filter @race-planner/web typecheck",
     "test": "pnpm --filter @race-planner/web test && vitest run tests/convex",
     "format:check": "pnpm --filter @race-planner/web format:check",
+    "convex:typecheck": "tsc --noEmit --project convex/tsconfig.json",
     "convex:codegen": "convex codegen --typecheck enable",
     "convex:dev": "convex dev --typecheck enable"
   },
   "devDependencies": {
+    "@types/node": "^20",
     "convex": "1.43.0",
     "railway": "3.8.1",
     "typescript": "5.9.3",
