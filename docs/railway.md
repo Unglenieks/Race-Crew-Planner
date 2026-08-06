@@ -52,14 +52,26 @@ with `latest`.
 ## Environment variable contract
 
 Set these values in the matching Railway environment, never in Git. The web
-service receives only the web values; Convex secrets remain on the Convex
-services.
+service receives the web values plus the two Convex deployment references it
+needs to publish functions during its build; all other Convex secrets remain on
+the Convex services.
 
 | Owner            | Required variables                                                                                                                                                                         |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Web              | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`, `NEXT_PUBLIC_APP_ENV`, `NEXT_PUBLIC_RELEASE_SHA` |
+| Web              | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`, `NEXT_PUBLIC_APP_ENV`, `NEXT_PUBLIC_RELEASE_SHA`, `CONVEX_SELF_HOSTED_URL` and `CONVEX_SELF_HOSTED_ADMIN_KEY` (both Railway references to `convex-backend`) |
 | Convex backend   | `CONVEX_CLOUD_ORIGIN`, `CONVEX_SITE_ORIGIN`, `CONVEX_SELF_HOSTED_URL` (a reference to `CONVEX_CLOUD_ORIGIN`), `CONVEX_SELF_HOSTED_ADMIN_KEY`, `POSTGRES_URL`, `INSTANCE_SECRET`, `CLERK_JWT_ISSUER_DOMAIN`, object-storage endpoint/credentials/bucket names, Convex deployment/admin secrets |
 | Convex dashboard | `NEXT_PUBLIC_DEPLOYMENT_URL`, dashboard/operator authentication settings                                                                                                                   |
+
+### Convex admin key on the web service
+
+`web` builds run `pnpm convex:deploy`, which requires `CONVEX_SELF_HOSTED_URL`
+and `CONVEX_SELF_HOSTED_ADMIN_KEY`. Both are Railway references to
+`convex-backend`, so no value is copied into Git, but this does widen the blast
+radius: the admin key grants full control of that environment's Convex
+deployment and is now readable by the web service at build and run time. This is
+the self-hosted equivalent of Convex's documented `CONVEX_DEPLOY_KEY` build
+step. Accept it only per environment, keep the keys distinct per environment,
+and rotate the key if a web deployment is ever compromised.
 
 Set `NEXT_PUBLIC_APP_ENV` to the Railway environment name and
 `NEXT_PUBLIC_RELEASE_SHA` to the deployed commit SHA at build time. Use distinct
