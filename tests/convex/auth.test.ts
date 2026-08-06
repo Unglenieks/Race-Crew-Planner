@@ -10,6 +10,7 @@ import { create, get, validatedEventInput } from "../../convex/events";
 import {
   create as createItineraryItem,
   archive as archiveItineraryItem,
+  get as getItineraryItem,
   list as listItineraryItems,
   restore as restoreItineraryItem,
   update as updateItineraryItem,
@@ -398,6 +399,44 @@ describe("Convex authorization helpers", () => {
     ).rejects.toThrow("Forbidden");
   });
 
+  it("returns a movement only when it belongs to the selected event", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+        }),
+        get: async () => ({ eventId: "events:one", title: "Arrive" }),
+      },
+    };
+
+    await expect(
+      getItineraryItem._handler(context as never, {
+        eventId: "events:one" as never,
+        itemId: "itineraryItems:one" as never,
+      }),
+    ).resolves.toMatchObject({ title: "Arrive" });
+
+    await expect(
+      getItineraryItem._handler(
+        {
+          ...context,
+          db: { ...context.db, get: async () => ({ eventId: "events:other" }) },
+        } as never,
+        {
+          eventId: "events:one" as never,
+          itemId: "itineraryItems:one" as never,
+        },
+      ),
+    ).rejects.toThrow("Movement not found");
+  });
+
   it("rejects a location record from another event before saving a movement", async () => {
     const context = {
       auth: {
@@ -595,7 +634,10 @@ describe("Convex authorization helpers", () => {
       assigneeId: "crew_456",
     });
 
-    expect(inserts[0]).toMatchObject({ assigneeId: "crew_456", priority: "normal" });
+    expect(inserts[0]).toMatchObject({
+      assigneeId: "crew_456",
+      priority: "normal",
+    });
   });
 
   it("rejects an assignee outside the event and restricts the assignee list", async () => {
