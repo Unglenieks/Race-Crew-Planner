@@ -40,11 +40,21 @@ export type WorkItem = {
   _id: string;
   title: string;
   notes?: string;
-  status: "open" | "completed";
+  status: "open" | "inProgress" | "blocked" | "completed";
   completedAt?: number;
   priority?: "low" | "normal" | "high";
   dueContext?: string;
   assigneeId?: string;
+  recordId?: string;
+  itineraryItemId?: string;
+};
+
+export type WorkItemComment = {
+  _id: string;
+  body: string;
+  authorId: string;
+  authorName?: string;
+  createdAt: number;
 };
 
 export type WorkAssignee = {
@@ -226,6 +236,11 @@ export const workApi = {
   list: makeFunctionReference<"query", { eventId: string }, WorkItem[]>(
     "work:list",
   ),
+  get: makeFunctionReference<
+    "query",
+    { eventId: string; itemId: string },
+    WorkItem
+  >("work:get"),
   create: makeFunctionReference<
     "mutation",
     {
@@ -235,6 +250,9 @@ export const workApi = {
       priority?: "low" | "normal" | "high";
       dueContext?: string;
       assigneeId?: string;
+      recordId?: string | null;
+      itineraryItemId?: string | null;
+      status?: WorkItem["status"];
     },
     string
   >("work:create"),
@@ -248,6 +266,9 @@ export const workApi = {
       priority?: "low" | "normal" | "high";
       dueContext?: string;
       assigneeId?: string;
+      recordId?: string | null;
+      itineraryItemId?: string | null;
+      status?: WorkItem["status"];
     },
     null
   >("work:update"),
@@ -261,6 +282,16 @@ export const workApi = {
     { eventId: string },
     WorkAssignee[]
   >("work:listAssignees"),
+  listComments: makeFunctionReference<
+    "query",
+    { eventId: string; itemId: string },
+    WorkItemComment[]
+  >("work:listComments"),
+  addComment: makeFunctionReference<
+    "mutation",
+    { eventId: string; itemId: string; body: string },
+    string
+  >("work:addComment"),
 };
 
 export const invitationsApi = {

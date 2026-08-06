@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, Circle, LoaderCircle, Pencil, RotateCcw } from "lucide-react";
+import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -73,14 +74,17 @@ export function WorkChecklist({
   const [error, setError] = useState<string | null>(null);
 
   const openCount = useMemo(
-    () => (items ?? []).filter((item) => item.status === "open").length,
+    () => (items ?? []).filter((item) => item.status !== "completed").length,
     [items],
   );
   const completedCount = (items?.length ?? 0) - openCount;
   const visibleItems = useMemo(
     () =>
       (items ?? []).filter(
-        (item) => filter === "all" || item.status === filter,
+        (item) =>
+          filter === "all" ||
+          (filter === "open" && item.status !== "completed") ||
+          item.status === filter,
       ),
     [filter, items],
   );
@@ -292,15 +296,16 @@ export function WorkChecklist({
                           </span>
                         </Button>
                         <div className="min-w-0 flex-1">
-                          <p
+                          <Link
+                            href={`/events/${eventId}/work/${item._id}`}
                             className={
                               isCompleted
-                                ? "font-semibold text-muted line-through"
-                                : "font-semibold text-ink"
+                                ? "font-semibold text-muted line-through hover:underline"
+                                : "font-semibold text-ink hover:underline"
                             }
                           >
                             {item.title}
-                          </p>
+                          </Link>
                           {item.notes === undefined ? null : (
                             <p className="mt-1 text-sm leading-relaxed text-muted">
                               {item.notes}
@@ -309,16 +314,24 @@ export function WorkChecklist({
                           <WorkItemDetails item={item} assignees={assignees} />
                         </div>
                         {canManage ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Edit ${item.title}`}
-                            onClick={() => beginEditing(item)}
-                          >
-                            <Pencil className="h-4 w-4" aria-hidden="true" />
-                            Edit
-                          </Button>
+                          <div className="flex shrink-0 flex-wrap gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              aria-label={`Edit ${item.title}`}
+                              onClick={() => beginEditing(item)}
+                            >
+                              <Pencil className="h-4 w-4" aria-hidden="true" />
+                              Edit
+                            </Button>
+                            <Link
+                              href={`/events/${eventId}/work/${item._id}`}
+                              className="inline-flex min-h-9 items-center rounded-lg px-3 text-sm font-medium text-muted hover:bg-soft hover:text-ink focus:outline-none focus:ring-2 focus:ring-ink"
+                            >
+                              Open
+                            </Link>
+                          </div>
                         ) : null}
                       </li>
                     );

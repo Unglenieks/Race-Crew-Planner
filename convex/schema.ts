@@ -34,7 +34,11 @@ export default defineSchema({
     eventId: v.id("events"),
     email: v.string(),
     role: v.union(v.literal("manager"), v.literal("crew")),
-    status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("revoked")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("revoked"),
+    ),
     invitedBy: v.string(),
     createdAt: v.number(),
     acceptedBy: v.optional(v.string()),
@@ -52,7 +56,15 @@ export default defineSchema({
     recordId: v.optional(v.id("eventRecords")),
     notes: v.optional(v.string()),
     sectionId: v.optional(v.id("planSections")),
-    timeKind: v.optional(v.union(v.literal("exact"), v.literal("approximate"), v.literal("range"), v.literal("allDay"), v.literal("unspecified"))),
+    timeKind: v.optional(
+      v.union(
+        v.literal("exact"),
+        v.literal("approximate"),
+        v.literal("range"),
+        v.literal("allDay"),
+        v.literal("unspecified"),
+      ),
+    ),
     /** Archive is reversible so a movement can be restored from its undo action. */
     archivedAt: v.optional(v.number()),
     createdAt: v.number(),
@@ -83,10 +95,19 @@ export default defineSchema({
     eventId: v.id("events"),
     title: v.string(),
     notes: v.optional(v.string()),
-    status: v.union(v.literal("open"), v.literal("completed")),
-    priority: v.optional(v.union(v.literal("low"), v.literal("normal"), v.literal("high"))),
+    status: v.union(
+      v.literal("open"),
+      v.literal("inProgress"),
+      v.literal("blocked"),
+      v.literal("completed"),
+    ),
+    priority: v.optional(
+      v.union(v.literal("low"), v.literal("normal"), v.literal("high")),
+    ),
     dueContext: v.optional(v.string()),
     assigneeId: v.optional(v.string()),
+    recordId: v.optional(v.id("eventRecords")),
+    itineraryItemId: v.optional(v.id("itineraryItems")),
     completedAt: v.optional(v.number()),
     completedBy: v.optional(v.string()),
     createdAt: v.number(),
@@ -94,6 +115,13 @@ export default defineSchema({
   })
     .index("by_eventId", ["eventId"])
     .index("by_eventId_createdAt", ["eventId", "createdAt"]),
+  workItemComments: defineTable({
+    eventId: v.id("events"),
+    workItemId: v.id("workItems"),
+    body: v.string(),
+    authorId: v.string(),
+    createdAt: v.number(),
+  }).index("by_workItemId_createdAt", ["workItemId", "createdAt"]),
   planChanges: defineTable({
     eventId: v.id("events"),
     itineraryItemId: v.id("itineraryItems"),
