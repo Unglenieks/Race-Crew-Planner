@@ -17,7 +17,7 @@ Railway must automatically deploy the matching branch after GitHub checks pass. 
 3. `postgres`: private persistent backing database for Convex; production backups and restore procedure required.
 4. Object storage: isolated bucket or prefix for Convex file storage, with environment-specific credentials and lifecycle policy.
 
-Each environment has separate data, domain, secrets, Clerk credentials, and PostHog environment tagging. The services must not point across environment boundaries.
+Each environment has separate data, domain, secrets, Clerk credentials, and PostHog environment tagging. The services must not point across environment boundaries. The source-controlled topology and operational procedure are in [Railway topology and operations](railway.md).
 
 ## Identity and analytics
 
