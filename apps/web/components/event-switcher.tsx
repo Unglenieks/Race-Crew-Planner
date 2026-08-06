@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { CalendarPlus, ChevronRight, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +13,12 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { Input } from "@/components/ui/input";
 import { eventsApi, invitationsApi, type EventSummary } from "@/lib/events-api";
 import { defaultScreenId, screenHref } from "@/lib/screens";
-import { eventTimeZones } from "@/lib/time-zones";
+import {
+  eventTimeZones,
+  localTimeZone,
+  timeZoneOptions,
+} from "@/lib/time-zones";
+import { useHydrated } from "@/lib/use-hydrated";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const hasConvexConnection =
@@ -53,9 +58,21 @@ function CreateEventForm() {
   const createEvent = useMutation(eventsApi.create);
   const router = useRouter();
   const [name, setName] = useState("");
-  const [timeZone, setTimeZone] = useState("UTC");
+  // Starts empty on purpose. A pre-filled zone is the kind of default nobody
+  // reads, and an event silently created in the wrong zone mis-times every
+  // movement in it. `required` forces one deliberate choice.
+  const [timeZone, setTimeZone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // The zone list comes from the runtime's own ICU data, which differs between
+  // the server and the browser, so rendering it during SSR risks a hydration
+  // mismatch. The server emits only the placeholder and the list appears once
+  // hydrated.
+  const hydrated = useHydrated();
+  const zoneOptions = useMemo(
+    () => (hydrated ? timeZoneOptions([localTimeZone()], eventTimeZones) : []),
+    [hydrated],
+  );
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -105,15 +122,18 @@ function CreateEventForm() {
           required
           className="flex h-11 w-full rounded-lg border border-btnline bg-card px-3 py-2.5 text-sm font-medium text-ink shadow-sm focus-visible:border-focus focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
         >
-          {eventTimeZones.map((zone) => (
-            <option key={zone} value={zone}>
-              {zone}
-            </option>
-          ))}
+          <option value="">Select a time zone</option>
+          {timeZoneOptions([timeZone].filter(Boolean), zoneOptions).map(
+            (zone) => (
+              <option key={zone} value={zone}>
+                {zone}
+              </option>
+            ),
+          )}
         </select>
         <p className="text-xs text-muted">
-          Choose the event&apos;s IANA time zone. Times will use this zone
-          throughout the event.
+          Use the zone the event runs in, which is usually the venue&apos;s
+          local time. Times will use this zone throughout the event.
         </p>
       </div>
       {error === null ? null : (

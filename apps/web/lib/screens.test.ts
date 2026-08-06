@@ -14,17 +14,22 @@ import {
 
 const workspaceRoot = join(__dirname, "..", "app", "events", "[eventId]");
 
+/**
+ * Routes that are deliberately reachable only from a parent screen rather than
+ * from the sidebar. Listing them explicitly keeps the guardrail meaningful: a
+ * new unregistered screen still fails the test, and removing a route from the
+ * registry still requires a conscious entry here.
+ */
+const nonNavigableSegments = new Set(["records/types", "records/travel"]);
+
 /** Every static `page.tsx` under the workspace route, as a path segment. */
 function routeSegments(dir: string, prefix = ""): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) {
-      // Detail and configuration routes are reached from Records, not sidebar
-      // destinations in their own right.
-      if (prefix === "records") continue;
-      // Object detail routes are opened from their parent list and do not
-      // belong in sidebar navigation.
+      // Object detail routes are opened from their parent list and cannot be
+      // sidebar destinations, because they need an object id to exist.
       if (entry.startsWith("[")) continue;
       found.push(
         ...routeSegments(full, prefix === "" ? entry : `${prefix}/${entry}`),
@@ -52,10 +57,21 @@ describe("screen registry", () => {
     // navigation is just as broken as a link with no screen.
     const registered = new Set(screens.map((screen) => screen.segment));
     const orphans = routeSegments(workspaceRoot).filter(
-      (segment) => !registered.has(segment),
+      (segment) =>
+        !registered.has(segment) && !nonNavigableSegments.has(segment),
     );
 
     expect(orphans).toEqual([]);
+  });
+
+  it("keeps the non-navigable allowlist honest", () => {
+    // An allowlisted segment must actually exist and must not also be a
+    // registered screen, so the list cannot rot into a blanket exemption.
+    const registered = new Set(screens.map((screen) => screen.segment));
+    for (const segment of nonNavigableSegments) {
+      expect(existsSync(join(workspaceRoot, segment, "page.tsx"))).toBe(true);
+      expect(registered.has(segment)).toBe(false);
+    }
   });
 
   it("places every screen in exactly one navigation group", () => {

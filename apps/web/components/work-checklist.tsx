@@ -19,6 +19,18 @@ import { Input } from "@/components/ui/input";
 
 type WorkFilter = "open" | "completed" | "all";
 type Priority = "low" | "normal" | "high";
+
+/**
+ * Labels the two statuses that are neither untouched nor finished. `open` needs
+ * no label because it is the resting state, and `completed` already reads from
+ * the checkbox and strikethrough.
+ */
+function inProgressOrBlockedLabel(status: WorkItem["status"]) {
+  if (status === "inProgress") return "In progress";
+  if (status === "blocked") return "Blocked";
+  return null;
+}
+
 type Draft = {
   title: string;
   notes: string;
@@ -230,7 +242,9 @@ export function WorkChecklist({
               >
                 {(
                   [
-                    ["open", `Open (${openCount})`],
+                    // "Unfinished" rather than "Open": this bucket also holds
+                    // in-progress and blocked items.
+                    ["open", `Unfinished (${openCount})`],
                     ["completed", `Completed (${completedCount})`],
                     ["all", `All (${items.length})`],
                   ] as const
@@ -508,6 +522,9 @@ function WorkItemDetails({
     (person) => person.userId === item.assigneeId,
   );
   const details = [
+    // Without this, `inProgress` and `blocked` items are indistinguishable from
+    // untouched ones anywhere except the detail screen.
+    inProgressOrBlockedLabel(item.status),
     item.priority && item.priority !== "normal"
       ? `${item.priority} priority`
       : null,

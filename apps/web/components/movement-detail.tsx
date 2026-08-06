@@ -16,6 +16,7 @@ import {
   type EventRole,
   type ItineraryItem,
 } from "@/lib/events-api";
+import { locationRecords } from "@/lib/record-locations";
 
 type Draft = {
   title: string;
@@ -65,6 +66,7 @@ export function MovementDetail({
   const router = useRouter();
   const item = useQuery(itineraryApi.get, { eventId, itemId });
   const records = useQuery(recordsApi.list, { eventId });
+  const recordTypes = useQuery(recordsApi.listTypes, { eventId });
   const changes = useQuery(planChangesApi.listForMovement, { eventId, itemId });
   const update = useMutation(itineraryApi.update);
   const archive = useMutation(itineraryApi.archive);
@@ -74,15 +76,19 @@ export function MovementDetail({
   const [isArchiving, setIsArchiving] = useState(false);
   const canEdit = role === "owner" || role === "manager";
   const currentDraft = draft ?? (item === undefined ? null : toDraft(item));
-  const locationRecords = useMemo(
-    () =>
-      (records ?? []).filter((record) =>
-        ["venue", "place", "service"].includes(record.type),
-      ),
-    [records],
+  // Uses the shared rule so a team's own location types appear here exactly as
+  // they do on the records screens and exactly as the server accepts them.
+  const locationRecordOptions = useMemo(
+    () => locationRecords(records ?? [], recordTypes ?? []),
+    [records, recordTypes],
   );
 
-  if (item === undefined || records === undefined || changes === undefined) {
+  if (
+    item === undefined ||
+    records === undefined ||
+    recordTypes === undefined ||
+    changes === undefined
+  ) {
     return (
       <p className="flex items-center text-sm text-muted" role="status">
         <LoaderCircle
@@ -159,7 +165,10 @@ export function MovementDetail({
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+    <section
+      aria-labelledby="movement-detail-heading"
+      className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]"
+    >
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -171,7 +180,12 @@ export function MovementDetail({
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Movement
                 plan
               </Link>
-              <CardTitle className="mt-3">{item.title}</CardTitle>
+              <h1
+                id="movement-detail-heading"
+                className="mt-3 font-serif text-[clamp(24px,3vw,32px)] font-semibold leading-tight tracking-tight text-ink"
+              >
+                {item.title}
+              </h1>
               <p className="mt-1 text-sm text-muted">
                 Changes are private until an authorized operator publishes them.
               </p>
@@ -245,7 +259,7 @@ export function MovementDetail({
                     className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm font-normal text-ink shadow-sm"
                   >
                     <option value="">No linked location</option>
-                    {locationRecords.map((record) => (
+                    {locationRecordOptions.map((record) => (
                       <option key={record._id} value={record._id}>
                         {record.name} · {record.type}
                       </option>
@@ -363,6 +377,6 @@ export function MovementDetail({
           </Link>
         </CardContent>
       </Card>
-    </div>
+    </section>
   );
 }

@@ -9,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/data-display";
 import { Input } from "@/components/ui/input";
 import { useEventWorkspace } from "@/components/workspace/event-workspace";
-import { recordsApi, type EventRecord } from "@/lib/events-api";
+import { isLocationRecord, locationRecords } from "@/lib/record-locations";
+import { recordsApi } from "@/lib/events-api";
 
 const canManage = (role: string) => role === "owner" || role === "manager";
 const field = "grid gap-1.5";
@@ -25,19 +26,16 @@ export function RecordDetail({ recordId }: { recordId: string }) {
   const assign = useMutation(recordsApi.assignCategory);
   const remove = useMutation(recordsApi.removeCategory);
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   if (record === undefined || categories === undefined || types === undefined)
     return <p className="text-sm text-muted">Loading record…</p>;
-  const location =
-    ["venue", "place", "service"].includes(record.type) ||
-    (record.recordTypeId !== undefined &&
-      types.some(
-        (type) => type._id === record.recordTypeId && type.isLocation,
-      ));
+  const location = isLocationRecord(record, types);
   async function submit(eventForm: FormEvent<HTMLFormElement>) {
     eventForm.preventDefault();
     setSaving(true);
     setMessage(null);
+    setError(null);
     const form = new FormData(eventForm.currentTarget);
     try {
       await saveDetails({
@@ -53,7 +51,7 @@ export function RecordDetail({ recordId }: { recordId: string }) {
       });
       setMessage("Venue details saved.");
     } catch {
-      setMessage("We could not save venue details.");
+      setError("We could not save venue details. Your changes were not saved.");
     } finally {
       setSaving(false);
     }
@@ -83,11 +81,13 @@ export function RecordDetail({ recordId }: { recordId: string }) {
           Add travel context
         </Link>
       </div>
+      {error === null ? null : (
+        <Banner variant="danger" label="Venue details" role="alert">
+          {error}
+        </Banner>
+      )}
       {message === null ? null : (
-        <Banner
-          variant={message.includes("could not") ? "danger" : "success"}
-          label="Venue details"
-        >
+        <Banner variant="success" label="Venue details" role="status">
           {message}
         </Banner>
       )}
@@ -105,17 +105,25 @@ export function RecordDetail({ recordId }: { recordId: string }) {
               record.categories.map((category) => (
                 <Button
                   key={category._id}
+                  type="button"
                   size="sm"
                   disabled={!canManage(role)}
-                  onClick={() =>
-                    void remove({
-                      eventId: event.id,
-                      recordId,
-                      categoryId: category._id,
-                    })
-                  }
+                  aria-label={`Remove category ${category.name}`}
+                  onClick={async () => {
+                    setError(null);
+                    try {
+                      await remove({
+                        eventId: event.id,
+                        recordId,
+                        categoryId: category._id,
+                      });
+                    } catch {
+                      setError("We could not remove that category.");
+                    }
+                  }}
                 >
-                  {category.name} ×
+                  {category.name}
+                  <span aria-hidden="true"> ×</span>
                 </Button>
               ))
             )}
@@ -124,14 +132,18 @@ export function RecordDetail({ recordId }: { recordId: string }) {
             <select
               className={control}
               defaultValue=""
-              onChange={(e) => {
-                if (e.target.value)
-                  void assign({
-                    eventId: event.id,
-                    recordId,
-                    categoryId: e.target.value,
-                  });
-                e.currentTarget.value = "";
+              aria-label="Assign a category"
+              onChange={async (e) => {
+                const select = e.currentTarget;
+                const categoryId = select.value;
+                if (!categoryId) return;
+                select.value = "";
+                setError(null);
+                try {
+                  await assign({ eventId: event.id, recordId, categoryId });
+                } catch {
+                  setError("We could not assign that category.");
+                }
               }}
             >
               <option value="">Assign a category…</option>
@@ -294,28 +306,35 @@ export function TypesCategoriesScreen() {
   const [error, setError] = useState<string | null>(null);
   async function addType(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = new FormData(e.currentTarget);
+    // React clears `currentTarget` as soon as the handler returns, and an async
+    // handler returns at its first await. The element must be captured up front
+    // or the reset throws and reports a failure for a write that succeeded.
+    const formElement = e.currentTarget;
+    const form = new FormData(formElement);
+    setError(null);
     try {
       await createType({
         eventId: event.id,
         name: String(form.get("name")),
         isLocation: form.get("location") === "on",
       });
-      e.currentTarget.reset();
+      formElement.reset();
     } catch {
       setError("We could not add that record type.");
     }
   }
   async function addCategory(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = new FormData(e.currentTarget);
+    const formElement = e.currentTarget;
+    const form = new FormData(formElement);
+    setError(null);
     try {
       await createCategory({
         eventId: event.id,
         name: String(form.get("name")),
         color: String(form.get("color")),
       });
-      e.currentTarget.reset();
+      formElement.reset();
     } catch {
       setError("We could not add that category.");
     }
@@ -460,20 +479,15 @@ export function TravelScreen() {
   const travel = useQuery(recordsApi.listTravel, { eventId: event.id });
   const save = useMutation(recordsApi.saveTravel);
   const [error, setError] = useState<string | null>(null);
-  const locations = useMemo(() => {
-    const locationTypeIds = new Set(
-      (types ?? []).filter((type) => type.isLocation).map((type) => type._id),
-    );
-    return (records ?? []).filter(
-      (record) =>
-        ["venue", "place", "service"].includes(record.type) ||
-        (record.recordTypeId !== undefined &&
-          locationTypeIds.has(record.recordTypeId)),
-    );
-  }, [records, types]);
+  const locations = useMemo(
+    () => locationRecords(records ?? [], types ?? []),
+    [records, types],
+  );
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = new FormData(e.currentTarget);
+    const formElement = e.currentTarget;
+    const form = new FormData(formElement);
+    setError(null);
     try {
       await save({
         eventId: event.id,
@@ -483,7 +497,7 @@ export function TravelScreen() {
         calculation: String(form.get("calculation") || "") || undefined,
         routeNote: String(form.get("routeNote") || "") || undefined,
       });
-      e.currentTarget.reset();
+      formElement.reset();
     } catch {
       setError("We could not save travel context. Choose two event locations.");
     }
@@ -552,7 +566,7 @@ export function TravelScreen() {
                 From
                 <select name="from" className={control} required>
                   <option value="">Choose a location…</option>
-                  {locations.map((record: EventRecord) => (
+                  {locations.map((record) => (
                     <option key={record._id} value={record._id}>
                       {record.name}
                     </option>
@@ -563,7 +577,7 @@ export function TravelScreen() {
                 To
                 <select name="to" className={control} required>
                   <option value="">Choose a location…</option>
-                  {locations.map((record: EventRecord) => (
+                  {locations.map((record) => (
                     <option key={record._id} value={record._id}>
                       {record.name}
                     </option>

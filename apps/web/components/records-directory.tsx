@@ -111,14 +111,21 @@ export function RecordsDirectory({
       eventId,
       name: draft.name,
       type: draft.type,
-      recordTypeId: draft.recordTypeId,
       address: draft.address || undefined,
       notes: draft.notes || undefined,
     };
 
     try {
-      if (editingRecord === null) await createRecord(input);
-      else await updateRecord({ ...input, recordId: editingRecord._id });
+      if (editingRecord === null)
+        await createRecord({ ...input, recordTypeId: draft.recordTypeId });
+      else
+        await updateRecord({
+          ...input,
+          recordId: editingRecord._id,
+          // The form always represents the operator's full intent, so an empty
+          // selection is an explicit clear rather than "leave unchanged".
+          recordTypeId: draft.recordTypeId ?? null,
+        });
       cancelEditing();
     } catch {
       setError("We could not save this record. Your changes were not saved.");

@@ -315,6 +315,7 @@ function SubmissionForm({
   );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const fields = useRef<Record<string, HTMLElement | null>>({});
   const setAnswer = (id: string, value: unknown) => {
@@ -341,6 +342,7 @@ function SubmissionForm({
   async function save() {
     setWorking(true);
     setMessage(null);
+    setError(null);
     try {
       const id = await saveDraft({
         eventId,
@@ -352,7 +354,7 @@ function SubmissionForm({
       setMessage("Draft saved. You can return before submitting.");
       return id;
     } catch {
-      setMessage(
+      setError(
         "Your draft was not saved. Correct any invalid values and try again.",
       );
       return null;
@@ -365,12 +367,16 @@ function SubmissionForm({
     const errors = validate();
     setFieldErrors(errors);
     setMessage(null);
+    setError(null);
     const first = Object.keys(errors)[0];
     if (first) {
       fields.current[first]?.focus();
       return;
     }
-    const id = submissionId ?? (await save());
+    // Always persist the current answers first. Submitting an existing draft
+    // without saving would submit whatever was stored at the last save and throw
+    // away every edit made since.
+    const id = await save();
     if (!id) return;
     setWorking(true);
     try {
@@ -379,7 +385,7 @@ function SubmissionForm({
         "Submitted. This completed inspection retains its exact template version and field schema.",
       );
     } catch {
-      setMessage(
+      setError(
         "The form could not be submitted. Your saved draft is still available.",
       );
     } finally {
@@ -565,9 +571,17 @@ function SubmissionForm({
               ) : null}
             </div>
           ))}
+          {error ? (
+            <p
+              className="rounded-md border border-danger-tx bg-danger-bg px-3 py-2 text-sm text-danger-tx"
+              role="alert"
+            >
+              {error}
+            </p>
+          ) : null}
           {message ? (
             <p
-              className="rounded-md border border-line bg-soft px-3 py-2 text-sm text-green-ink"
+              className="rounded-md border border-green bg-soft px-3 py-2 text-sm text-green-ink"
               role="status"
             >
               {message}
@@ -620,6 +634,11 @@ export function FormsInspections({
     <div className="grid gap-4">
       {builder ? (
         <TemplateBuilder
+          // Keying by template forces a remount when the operator switches which
+          // template they are editing. Without it the builder keeps the previous
+          // template's name and fields in state and would publish them as a new
+          // version of a different template.
+          key={builder === "new" ? "new" : builder._id}
           eventId={eventId}
           template={builder === "new" ? undefined : builder}
           onDone={() => setBuilder(null)}
@@ -649,15 +668,26 @@ export function FormsInspections({
             templates.map((template) => (
               <div key={template._id} className="grid gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm text-muted">
-                    Current version: v{template.version}. Submissions preserve
-                    this schema.
-                  </p>
-                  {canBuild ? (
+                  {template.isSuperseded ? (
+                    <p className="text-sm font-medium text-warning-tx">
+                      Superseded v{template.version}, shown because you have an
+                      unfinished draft on it. Finish or discard it; new
+                      inspections use the current version.
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted">
+                      Current version: v{template.version}. Submissions preserve
+                      this schema.
+                    </p>
+                  )}
+                  {canBuild && !template.isSuperseded ? (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
+                      // Editing another template while the builder is open would
+                      // discard unsaved field edits, so it must be closed first.
+                      disabled={builder !== null}
                       onClick={() => setBuilder(template)}
                     >
                       <Pencil className="h-4 w-4" />
