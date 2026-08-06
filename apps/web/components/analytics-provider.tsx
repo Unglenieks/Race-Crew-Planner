@@ -5,8 +5,12 @@ import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
 import posthog from "posthog-js";
 import { Button } from "@/components/ui/button";
 import { readAnalyticsConfig } from "@/lib/analytics";
+import {
+  readAnalyticsConsent,
+  writeAnalyticsConsent,
+  type AnalyticsConsent,
+} from "@/lib/analytics-consent";
 
-const consentStorageKey = "race-planner.analytics-consent";
 const analyticsConfig = readAnalyticsConfig({
   NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
   NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
@@ -14,14 +18,7 @@ const analyticsConfig = readAnalyticsConfig({
   NEXT_PUBLIC_RELEASE_SHA: process.env.NEXT_PUBLIC_RELEASE_SHA,
 });
 
-type AnalyticsConsent = "pending" | "granted" | "denied";
-
 let hasInitializedAnalytics = false;
-
-function readStoredConsent(): AnalyticsConsent {
-  const consent = window.localStorage.getItem(consentStorageKey);
-  return consent === "granted" || consent === "denied" ? consent : "pending";
-}
 
 function subscribeToConsent(onStoreChange: () => void) {
   window.addEventListener("storage", onStoreChange);
@@ -43,7 +40,7 @@ export function AnalyticsProvider({
   const { isLoaded, user } = useUser();
   const consent = useSyncExternalStore(
     subscribeToConsent,
-    readStoredConsent,
+    () => readAnalyticsConsent(window.localStorage),
     () => "pending",
   );
   const capturedAppView = useRef(false);
@@ -84,7 +81,7 @@ export function AnalyticsProvider({
   }, [consent, isLoaded, user]);
 
   function updateConsent(nextConsent: Exclude<AnalyticsConsent, "pending">) {
-    window.localStorage.setItem(consentStorageKey, nextConsent);
+    writeAnalyticsConsent(nextConsent, window.localStorage);
     window.dispatchEvent(new Event("race-planner:analytics-consent"));
 
     if (nextConsent === "denied" && hasInitializedAnalytics) {
