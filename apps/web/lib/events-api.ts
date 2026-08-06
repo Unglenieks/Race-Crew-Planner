@@ -25,6 +25,30 @@ export type EventContact = {
   phoneNumber?: string;
 };
 
+export type PlanChangeRecipient = {
+  _id: string;
+  userId: string;
+  state: "sent" | "opened" | "acknowledged" | "acknowledgedElsewhere";
+  sentAt: number;
+  acknowledgedAt?: number;
+  acknowledgedBy?: string;
+  acknowledgementNote?: string;
+  name?: string;
+};
+
+export type PublishedPlanChange = {
+  _id: string;
+  itineraryItemId: string;
+  title: string;
+  scheduledFor: string;
+  previousTitle?: string;
+  previousScheduledFor?: string;
+  reason: string;
+  severity: "routine" | "critical";
+  publishedAt: number;
+  recipients: PlanChangeRecipient[];
+};
+
 /**
  * Typed references for the event feature while the environment-owned Convex
  * codegen command is unavailable in an isolated worktree.
@@ -106,4 +130,46 @@ export const invitationsApi = {
     { eventId: string; membershipId: string },
     null
   >("invitations:removeMember"),
+};
+
+export const planChangesApi = {
+  recipients: makeFunctionReference<
+    "query",
+    { eventId: string },
+    Array<{ userId: string; role: "owner" | "manager" | "crew"; name: string }>
+  >("planChanges:recipients"),
+  publish: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      itemId: string;
+      reason: string;
+      severity: "routine" | "critical";
+      recipientUserIds: string[];
+    },
+    string
+  >("planChanges:publish"),
+  listForPublisher: makeFunctionReference<
+    "query",
+    { eventId: string },
+    PublishedPlanChange[]
+  >("planChanges:listForPublisher"),
+  listForMe: makeFunctionReference<
+    "query",
+    { eventId: string },
+    Array<{
+      recipient: PlanChangeRecipient;
+      change: PublishedPlanChange | null;
+    }>
+  >("planChanges:listForMe"),
+  acknowledge: makeFunctionReference<
+    "mutation",
+    { eventId: string; recipientId: string },
+    null
+  >("planChanges:acknowledge"),
+  acknowledgeElsewhere: makeFunctionReference<
+    "mutation",
+    { eventId: string; recipientId: string; note?: string },
+    null
+  >("planChanges:acknowledgeElsewhere"),
 };

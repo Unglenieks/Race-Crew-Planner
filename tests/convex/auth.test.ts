@@ -20,6 +20,11 @@ import {
   create as createInvitation,
   normalizedEmail,
 } from "../../convex/invitations";
+import {
+  acknowledge as acknowledgePlanChange,
+  normalizedReason,
+  publish as publishPlanChange,
+} from "../../convex/planChanges";
 
 const owner: ApplicationRole = "owner";
 
@@ -183,6 +188,70 @@ describe("Convex authorization helpers", () => {
     expect(() =>
       validatedItineraryInput({ title: "Depart", scheduledFor: "tomorrow" }),
     ).toThrow("planned date and time");
+  });
+
+  it("requires a meaningful, bounded reason before publishing a change", () => {
+    expect(normalizedReason("  Route control delayed the start. ")).toBe(
+      "Route control delayed the start.",
+    );
+    expect(() => normalizedReason(" ")).toThrow("publication reason");
+    expect(() => normalizedReason("x".repeat(501))).toThrow(
+      "publication reason",
+    );
+  });
+
+  it("does not let crew members publish operational changes", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+        }),
+      },
+    };
+    await expect(
+      publishPlanChange._handler(context as never, {
+        eventId: "events:one" as never,
+        itemId: "itineraryItems:one" as never,
+        reason: "Route control delayed the start.",
+        severity: "critical",
+        recipientUserIds: ["crew_456"],
+      }),
+    ).rejects.toThrow("Forbidden");
+  });
+
+  it("only lets the assigned person acknowledge a plan change", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+        }),
+        get: async () => ({
+          eventId: "events:one",
+          userId: "another_crew_member",
+          state: "sent",
+        }),
+      },
+    };
+    await expect(
+      acknowledgePlanChange._handler(context as never, {
+        eventId: "events:one" as never,
+        recipientId: "planChangeRecipients:one" as never,
+      }),
+    ).rejects.toThrow("Change acknowledgement not found");
   });
 
   it("allows members to read but not crew members to change an itinerary", async () => {
