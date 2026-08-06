@@ -71,6 +71,8 @@ export const claim = mutation({
           role: invitation.role,
           createdAt: Date.now(),
         });
+      } else if (membership.role === "crew" && invitation.role === "manager") {
+        await ctx.db.patch(membership._id, { role: "manager" });
       }
       await ctx.db.patch(invitation._id, { status: "accepted", acceptedBy: identity.subject, acceptedAt: Date.now() });
     }

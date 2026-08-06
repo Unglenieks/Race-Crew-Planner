@@ -74,6 +74,7 @@ export function EventContacts({ eventId }: { eventId: string }) {
   }
 
   async function updateRole(id: string, role: InvitationRole) {
+    setError(null);
     setBusyId(id);
     try {
       await updateMemberRole({ eventId, membershipId: id, role });
@@ -85,6 +86,7 @@ export function EventContacts({ eventId }: { eventId: string }) {
   }
 
   async function remove(id: string) {
+    setError(null);
     setBusyId(id);
     try {
       await removeMember({ eventId, membershipId: id });
@@ -121,7 +123,9 @@ export function EventContacts({ eventId }: { eventId: string }) {
             placeholder="Name, email, or phone"
             autoComplete="off"
           />
-          {matches.length === 0 ? null : (
+          {query.trim() !== "" && matches.length === 0 ? (
+            <p className="text-sm text-muted">No matching contacts.</p>
+          ) : matches.length === 0 ? null : (
             <ul className="rounded-lg border border-line">
               {matches.map((contact) => (
                 <li

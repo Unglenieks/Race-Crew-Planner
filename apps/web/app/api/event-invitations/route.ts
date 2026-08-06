@@ -44,11 +44,33 @@ export async function POST(request: Request) {
         emailAddress: email.trim().toLowerCase(),
         ignoreExisting: true,
         publicMetadata: { racePlannerInvitation: invitationId },
-        redirectUrl: "/",
+        redirectUrl: new URL("/", request.url).toString(),
       });
       return NextResponse.json({ invitationId }, { status: 201 });
-    } catch {
-      await convex.mutation(revokeInvitation, { eventId, invitationId });
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
+      if (
+        message.includes("already exists") ||
+        message.includes("already been invited")
+      ) {
+        return NextResponse.json(
+          {
+            invitationId,
+            error:
+              "This person already has a Clerk account; they can sign in to claim the event invitation.",
+          },
+          { status: 202 },
+        );
+      }
+      try {
+        await convex.mutation(revokeInvitation, { eventId, invitationId });
+      } catch (rollbackError) {
+        console.error("Event invitation rollback failed", {
+          eventId,
+          invitationId,
+          rollbackError,
+        });
+      }
       return NextResponse.json(
         { error: "Invitation delivery failed" },
         { status: 502 },
