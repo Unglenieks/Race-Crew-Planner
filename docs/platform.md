@@ -29,6 +29,13 @@ uses `ConvexProviderWithClerk` to request those tokens. Create application-level
 authorization helpers in Convex, and use distinct development and production
 Clerk instances/keys.
 
+For event sharing, enable Clerk application invitations in each matching Clerk
+instance. The web server creates the email invitation only after Convex confirms
+the caller owns the event. On sign-in, Convex activates a matching pending
+event invitation only when the Clerk JWT asserts the invitee's verified email.
+Phone numbers are retained only as verified owner-visible contact data; this
+application does not send SMS invitations.
+
 **PostHog** is analytics only. Initialize it after consent/session readiness, identify with non-sensitive stable IDs, and never send credentials or protected content. Maintain event names and properties in `docs/analytics-events.md`.
 
 The web service receives `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`, `NEXT_PUBLIC_APP_ENV`, and `NEXT_PUBLIC_RELEASE_SHA` at build time. Use a distinct PostHog project (or an equivalent environment boundary) for development, preview, and production; set `NEXT_PUBLIC_APP_ENV` to the Railway environment name and `NEXT_PUBLIC_RELEASE_SHA` to the deployed Git commit. The key is public by design, but it must be scoped to its matching PostHog project and is never a substitute for consent.
