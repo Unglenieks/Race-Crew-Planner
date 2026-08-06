@@ -41,11 +41,6 @@ import {
   validatedName as validatedTemplateName,
 } from "../../convex/workTemplates";
 import {
-  create as createWorkAutomationRule,
-  validatedItemTitle,
-  validatedName as validatedRuleName,
-} from "../../convex/workAutomation";
-import {
   create as createRecord,
   get as getRecord,
   mergeCategory,
@@ -976,38 +971,6 @@ describe("Convex authorization helpers", () => {
         templateId: "workTemplates:one" as never,
       }),
     ).rejects.toThrow("Template not found");
-  });
-
-  it("limits automation rules to managers and requires work-item titles", async () => {
-    const context = {
-      auth: {
-        getUserIdentity: async () => ({
-          tokenIdentifier: "issuer|crew_123",
-          subject: "crew_123",
-          issuer: "issuer",
-        }),
-      },
-      db: {
-        query: () => ({
-          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
-        }),
-      },
-    };
-
-    await expect(
-      createWorkAutomationRule._handler(context as never, {
-        eventId: "events:one" as never,
-        name: "Create recovery task",
-        trigger: "planChangePublished",
-        action: "createWorkItem",
-      }),
-    ).rejects.toThrow("Forbidden");
-    expect(() => validatedItemTitle(" ", "createWorkItem")).toThrow(
-      "needs a title",
-    );
-    expect(validatedRuleName("  Plan change follow-up ")).toBe(
-      "Plan change follow-up",
-    );
   });
 
   it("allows only managers to change records in their event", async () => {

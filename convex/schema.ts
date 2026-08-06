@@ -185,20 +185,6 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_eventId", ["eventId"]),
-  workAutomationRules: defineTable({
-    eventId: v.id("events"),
-    name: v.string(),
-    trigger: v.union(
-      v.literal("planChangePublished"),
-      v.literal("workCompleted"),
-    ),
-    action: v.union(v.literal("createWorkItem"), v.literal("notifyAssignee")),
-    itemTitle: v.optional(v.string()),
-    enabled: v.boolean(),
-    createdBy: v.string(),
-    createdAt: v.number(),
-    updatedAt: v.number(),
-  }).index("by_eventId", ["eventId"]),
   workItemComments: defineTable({
     eventId: v.id("events"),
     workItemId: v.id("workItems"),
