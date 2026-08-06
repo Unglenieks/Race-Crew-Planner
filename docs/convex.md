@@ -21,6 +21,19 @@ Use `pnpm convex:codegen` after changing a schema or function when a long-lived
 development process is not running. Generated files are committed because
 function modules import their typed builders from `convex/_generated/`.
 
+For the Railway self-hosted development deployment, run code generation through
+the backend service so the CLI receives the private deployment URL and admin
+key from Railway without copying either into a local environment file:
+
+```bash
+railway run --environment development --service convex-backend -- pnpm convex:codegen
+```
+
+Run this command from the relevant clean worktree. It may update generated
+files; commit those changes with the schema or function change that caused
+them. Do not run the command against preview or production for routine
+development code generation.
+
 ## Conventions
 
 - Add a table only with the product feature that owns it. Validate every field
@@ -50,3 +63,10 @@ secret store. Set `CLERK_JWT_ISSUER_DOMAIN` on the Convex service to its
 matching Clerk Frontend API URL. Set `NEXT_PUBLIC_CONVEX_URL`,
 `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, and `CLERK_SECRET_KEY` on the web service.
 Use separate Clerk applications and Convex URLs per environment.
+
+For Railway's development `convex-backend` service, define
+`CONVEX_SELF_HOSTED_URL` as a Railway variable reference to
+`CONVEX_CLOUD_ORIGIN`; keep `CONVEX_SELF_HOSTED_ADMIN_KEY` in the Railway
+secret store. This is the self-hosted equivalent of configuring
+`CONVEX_DEPLOYMENT` and enables the Railway-run codegen command above. Never
+copy the admin key into `.env.local`, source control, CI logs, or a PR.

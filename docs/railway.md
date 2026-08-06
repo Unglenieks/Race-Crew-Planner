@@ -51,7 +51,7 @@ services.
 | Owner            | Required variables                                                                                                                                                                         |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Web              | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`, `NEXT_PUBLIC_APP_ENV`, `NEXT_PUBLIC_RELEASE_SHA` |
-| Convex backend   | `CONVEX_CLOUD_ORIGIN`, `CONVEX_SITE_ORIGIN`, `POSTGRES_URL`, `INSTANCE_SECRET`, `CLERK_JWT_ISSUER_DOMAIN`, object-storage endpoint/credentials/bucket names, Convex deployment/admin secrets |
+| Convex backend   | `CONVEX_CLOUD_ORIGIN`, `CONVEX_SITE_ORIGIN`, `CONVEX_SELF_HOSTED_URL` (a reference to `CONVEX_CLOUD_ORIGIN`), `CONVEX_SELF_HOSTED_ADMIN_KEY`, `POSTGRES_URL`, `INSTANCE_SECRET`, `CLERK_JWT_ISSUER_DOMAIN`, object-storage endpoint/credentials/bucket names, Convex deployment/admin secrets |
 | Convex dashboard | `NEXT_PUBLIC_DEPLOYMENT_URL`, dashboard/operator authentication settings                                                                                                                   |
 
 Set `NEXT_PUBLIC_APP_ENV` to the Railway environment name and
@@ -80,6 +80,11 @@ Convex bucket variables: `S3_STORAGE_EXPORTS_BUCKET`,
 
 Set `NEXT_PUBLIC_DEPLOYMENT_URL` on the private dashboard to the matching
 backend API URL. Do not commit any of these values or expose the dashboard.
+
+For development code generation, run `railway run --environment development
+--service convex-backend -- pnpm convex:codegen` from the relevant clean
+worktree. The command consumes the backend's self-hosted CLI configuration
+inside Railway and keeps the admin key out of local configuration.
 
 ## Health, backups, and recovery
 
