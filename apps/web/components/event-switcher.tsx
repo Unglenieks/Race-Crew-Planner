@@ -2,7 +2,13 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
-import { CalendarPlus, ChevronRight, LoaderCircle } from "lucide-react";
+import {
+  CalendarPlus,
+  ChevronRight,
+  LoaderCircle,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -24,31 +30,59 @@ const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const hasConvexConnection =
   typeof convexUrl === "string" && convexUrl.length > 0;
 
-function EventList({ events }: { events: EventSummary[] }) {
+function EventList({
+  events,
+  onRemoveSample,
+  removingSampleId,
+}: {
+  events: EventSummary[];
+  onRemoveSample: (event: EventSummary) => void;
+  removingSampleId: string | null;
+}) {
   return (
     <div className="grid gap-2" aria-label="Your events">
       {events.map((event) => (
-        <Link
-          key={event.id}
-          href={screenHref(event.id, defaultScreenId)}
-          className="flex min-h-11 w-full items-center gap-3 rounded-lg border border-line bg-card p-4 text-left transition-colors hover:border-ink2 focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
-        >
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold text-ink">
-              {event.name}
+        <div key={event.id} className="flex items-stretch gap-2">
+          <Link
+            href={screenHref(event.id, defaultScreenId)}
+            className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-lg border border-line bg-card p-4 text-left transition-colors hover:border-ink2 focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-ink">
+                {event.name}
+              </span>
+              <span className="mt-1 block text-xs text-muted">
+                {event.timeZone}
+              </span>
             </span>
-            <span className="mt-1 block text-xs text-muted">
-              {event.timeZone}
-            </span>
-          </span>
-          <Badge variant={event.role === "owner" ? "success" : "neutral"}>
-            {event.role}
-          </Badge>
-          <ChevronRight
-            className="h-4 w-4 flex-none text-muted"
-            aria-hidden="true"
-          />
-        </Link>
+            <Badge variant={event.role === "owner" ? "success" : "neutral"}>
+              {event.role}
+            </Badge>
+            <ChevronRight
+              className="h-4 w-4 flex-none text-muted"
+              aria-hidden="true"
+            />
+          </Link>
+          {event.isSample && event.role === "owner" ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-auto shrink-0"
+              disabled={removingSampleId === event.id}
+              onClick={() => onRemoveSample(event)}
+            >
+              {removingSampleId === event.id ? (
+                <LoaderCircle
+                  className="h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              )}
+              Remove sample
+            </Button>
+          ) : null}
+        </div>
       ))}
     </div>
   );
@@ -161,6 +195,12 @@ function ConnectedEventSwitcher() {
   const events = useQuery(eventsApi.list, isSignedIn ? {} : "skip");
   const syncProfile = useMutation(invitationsApi.syncProfile);
   const claimInvitations = useMutation(invitationsApi.claim);
+  const createSample = useMutation(eventsApi.createSample);
+  const removeSample = useMutation(eventsApi.removeSample);
+  const router = useRouter();
+  const [sampleError, setSampleError] = useState<string | null>(null);
+  const [creatingSample, setCreatingSample] = useState(false);
+  const [removingSampleId, setRemovingSampleId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -207,6 +247,34 @@ function ConnectedEventSwitcher() {
 
   const signedInEvents = events ?? [];
 
+  async function createSampleEvent() {
+    setSampleError(null);
+    setCreatingSample(true);
+    try {
+      const eventId = await createSample({});
+      router.push(screenHref(eventId, defaultScreenId));
+    } catch {
+      setSampleError(
+        "We could not create the sample event. Nothing was saved.",
+      );
+      setCreatingSample(false);
+    }
+  }
+
+  async function removeSampleEvent(event: EventSummary) {
+    setSampleError(null);
+    setRemovingSampleId(event.id);
+    try {
+      await removeSample({ eventId: event.id });
+    } catch {
+      setSampleError(
+        "We could not remove the sample event. It is still available.",
+      );
+    } finally {
+      setRemovingSampleId(null);
+    }
+  }
+
   if (signedInEvents.length === 0) {
     return (
       <Card>
@@ -215,8 +283,40 @@ function ConnectedEventSwitcher() {
         </CardHeader>
         <CardContent className="grid max-w-xl gap-5">
           <p className="text-sm leading-relaxed text-muted">
-            Start with the event name and its local time zone. You will be its
-            owner and can add the plan and crew next.
+            Explore a populated event first, or create one with its own local
+            time zone. You will own either event.
+          </p>
+          <Button
+            type="button"
+            variant="primary"
+            className="w-fit"
+            disabled={creatingSample}
+            onClick={createSampleEvent}
+          >
+            {creatingSample ? (
+              <LoaderCircle
+                className="h-4 w-4 animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+            )}
+            Explore a sample event
+          </Button>
+          <p className="text-xs text-muted">
+            The sample includes records, a configurable readiness field, a plan
+            item, and a work item. Remove it at any time from this page.
+          </p>
+          {sampleError === null ? null : (
+            <p
+              className="rounded-md border border-danger-ln bg-danger-bg px-3 py-2 text-sm text-danger-tx"
+              role="alert"
+            >
+              {sampleError}
+            </p>
+          )}
+          <p className="text-sm font-medium text-ink">
+            Or create your own event
           </p>
           <CreateEventForm />
         </CardContent>
@@ -231,7 +331,19 @@ function ConnectedEventSwitcher() {
           <CardTitle>Your events</CardTitle>
         </CardHeader>
         <CardContent>
-          <EventList events={signedInEvents} />
+          <EventList
+            events={signedInEvents}
+            onRemoveSample={removeSampleEvent}
+            removingSampleId={removingSampleId}
+          />
+          {sampleError === null ? null : (
+            <p
+              className="mt-3 rounded-md border border-danger-ln bg-danger-bg px-3 py-2 text-sm text-danger-tx"
+              role="alert"
+            >
+              {sampleError}
+            </p>
+          )}
         </CardContent>
       </Card>
       <Card>

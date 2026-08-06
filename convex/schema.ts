@@ -12,6 +12,8 @@ export default defineSchema({
   events: defineTable({
     name: v.string(),
     timeZone: v.string(),
+    /** Sample events are owned by their creator and can be removed in one action. */
+    isSample: v.optional(v.boolean()),
     createdAt: v.number(),
     createdBy: v.string(),
   }).index("by_createdBy", ["createdBy"]),
