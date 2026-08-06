@@ -23,4 +23,16 @@ export default defineSchema({
   })
     .index("by_userId", ["userId"])
     .index("by_eventId_userId", ["eventId", "userId"]),
+  itineraryItems: defineTable({
+    eventId: v.id("events"),
+    title: v.string(),
+    /** A local date/time in the event's declared IANA time zone. */
+    scheduledFor: v.string(),
+    location: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_eventId_scheduledFor", ["eventId", "scheduledFor"]),
 });

@@ -7,6 +7,12 @@ import {
 } from "../../convex/auth";
 import { getCurrentUser } from "../../convex/currentUser";
 import { create, get, validatedEventInput } from "../../convex/events";
+import {
+  create as createItineraryItem,
+  list as listItineraryItems,
+  update as updateItineraryItem,
+  validatedItineraryInput,
+} from "../../convex/itinerary";
 
 const owner: ApplicationRole = "owner";
 
@@ -75,9 +81,9 @@ describe("Convex authorization helpers", () => {
     expect(() => validatedEventInput({ name: "", timeZone: "UTC" })).toThrow(
       "Event name",
     );
-    expect(() => validatedEventInput({ name: "Spring Rally", timeZone: "" })).toThrow(
-      "time zone",
-    );
+    expect(() =>
+      validatedEventInput({ name: "Spring Rally", timeZone: "" }),
+    ).toThrow("time zone");
     expect(() =>
       validatedEventInput({ name: "Spring Rally", timeZone: "not-a-zone" }),
     ).toThrow("IANA");
@@ -85,10 +91,9 @@ describe("Convex authorization helpers", () => {
 
   it("rejects an unauthenticated event read before accessing data", async () => {
     await expect(
-      get._handler(
-        { auth: { getUserIdentity: async () => null } } as never,
-        { eventId: "events:one" as never },
-      ),
+      get._handler({ auth: { getUserIdentity: async () => null } } as never, {
+        eventId: "events:one" as never,
+      }),
     ).rejects.toThrow("Unauthenticated");
   });
 
@@ -114,7 +119,8 @@ describe("Convex authorization helpers", () => {
   });
 
   it("creates the event owner membership from the verified identity", async () => {
-    const inserts: Array<{ table: string; value: Record<string, unknown> }> = [];
+    const inserts: Array<{ table: string; value: Record<string, unknown> }> =
+      [];
     const context = {
       auth: {
         getUserIdentity: async () => ({
@@ -145,5 +151,90 @@ describe("Convex authorization helpers", () => {
       table: "eventMemberships",
       value: { eventId: "events:one", userId: "user_123", role: "owner" },
     });
+  });
+
+  it("normalizes movement input while preserving the event-local time", () => {
+    expect(
+      validatedItineraryInput({
+        title: "  Depart for service area ",
+        scheduledFor: "2026-10-16T08:30",
+        location: " Service Park ",
+        notes: "  Load spares first. ",
+      }),
+    ).toEqual({
+      title: "Depart for service area",
+      scheduledFor: "2026-10-16T08:30",
+      location: "Service Park",
+      notes: "Load spares first.",
+    });
+  });
+
+  it("rejects an incomplete or invalid movement", () => {
+    expect(() =>
+      validatedItineraryInput({ title: "", scheduledFor: "2026-10-16T08:30" }),
+    ).toThrow("Movement description");
+    expect(() =>
+      validatedItineraryInput({ title: "Depart", scheduledFor: "tomorrow" }),
+    ).toThrow("planned date and time");
+  });
+
+  it("allows members to read but not crew members to change an itinerary", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: (table: string) => ({
+          withIndex: () =>
+            table === "eventMemberships"
+              ? { unique: async () => ({ role: "crew" }) }
+              : { collect: async () => [] },
+        }),
+      },
+    };
+
+    await expect(
+      listItineraryItems._handler(context as never, {
+        eventId: "events:one" as never,
+      }),
+    ).resolves.toEqual([]);
+    await expect(
+      createItineraryItem._handler(context as never, {
+        eventId: "events:one" as never,
+        title: "Depart",
+        scheduledFor: "2026-10-16T08:30",
+      }),
+    ).rejects.toThrow("Forbidden");
+  });
+
+  it("updates only a movement that belongs to the selected event", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|owner_123",
+          subject: "owner_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "owner" }) }),
+        }),
+        get: async () => ({ eventId: "events:other" }),
+      },
+    };
+
+    await expect(
+      updateItineraryItem._handler(context as never, {
+        itemId: "itineraryItems:one" as never,
+        eventId: "events:one" as never,
+        title: "Depart",
+        scheduledFor: "2026-10-16T08:30",
+      }),
+    ).rejects.toThrow("Movement not found");
   });
 });
