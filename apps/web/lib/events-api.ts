@@ -24,6 +24,7 @@ export type EventContact = {
   email?: string;
   phoneNumber?: string;
 };
+export type PlanSection = { _id: string; name: string; kind: "day" | "session" | "leg"; order: number };
 
 /**
  * Typed references for the event feature while the environment-owned Convex
@@ -106,4 +107,8 @@ export const invitationsApi = {
     { eventId: string; membershipId: string },
     null
   >("invitations:removeMember"),
+};
+export const planSectionsApi = {
+  list: makeFunctionReference<"query", { eventId: string }, PlanSection[]>("planSections:list"),
+  create: makeFunctionReference<"mutation", { eventId: string; name: string; kind: "day" | "session" | "leg" }, string>("planSections:create"),
 };
