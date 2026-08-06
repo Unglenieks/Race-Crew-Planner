@@ -24,6 +24,27 @@ export type EventContact = {
   email?: string;
   phoneNumber?: string;
 };
+export type EventActivity = {
+  _id: string;
+  actorId: string;
+  kind: "comment" | "source";
+  message: string;
+  createdAt: number;
+};
+export type EventComment = {
+  _id: string;
+  body: string;
+  authorId: string;
+  createdAt: number;
+};
+export type EventSource = {
+  _id: string;
+  title: string;
+  url?: string;
+  excerpt?: string;
+  authorId: string;
+  createdAt: number;
+};
 
 /**
  * Typed references for the event feature while the environment-owned Convex
@@ -106,4 +127,25 @@ export const invitationsApi = {
     { eventId: string; membershipId: string },
     null
   >("invitations:removeMember"),
+};
+export const activityApi = {
+  list: makeFunctionReference<
+    "query",
+    { eventId: string },
+    {
+      activity: EventActivity[];
+      comments: EventComment[];
+      sources: EventSource[];
+    }
+  >("activity:list"),
+  addComment: makeFunctionReference<
+    "mutation",
+    { eventId: string; body: string },
+    string
+  >("activity:addComment"),
+  addSource: makeFunctionReference<
+    "mutation",
+    { eventId: string; title: string; url?: string; excerpt?: string },
+    string
+  >("activity:addSource"),
 };

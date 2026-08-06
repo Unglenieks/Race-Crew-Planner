@@ -13,6 +13,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { Input } from "@/components/ui/input";
 import { ItineraryPlan } from "@/components/itinerary-plan";
 import { EventContacts } from "@/components/event-contacts";
+import { ActivitySources } from "@/components/activity-sources";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const hasConvexConnection =
@@ -274,6 +275,7 @@ function ConnectedEventContext() {
         timeZone={selectedEvent.timeZone}
         role={selectedEvent.role}
       />
+      <ActivitySources eventId={selectedEvent.id} />
       {selectedEvent.role === "owner" ? (
         <EventContacts eventId={selectedEvent.id} />
       ) : null}
