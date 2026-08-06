@@ -51,6 +51,8 @@ export default defineSchema({
     location: v.optional(v.string()),
     recordId: v.optional(v.id("eventRecords")),
     notes: v.optional(v.string()),
+    sectionId: v.optional(v.id("planSections")),
+    timeKind: v.optional(v.union(v.literal("exact"), v.literal("approximate"), v.literal("range"), v.literal("allDay"), v.literal("unspecified"))),
     /** Archive is reversible so a movement can be restored from its undo action. */
     archivedAt: v.optional(v.number()),
     createdAt: v.number(),
@@ -188,4 +190,11 @@ export default defineSchema({
     authorId: v.string(),
     createdAt: v.number(),
   }).index("by_eventId_createdAt", ["eventId", "createdAt"]),
+  planSections: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    kind: v.union(v.literal("day"), v.literal("session"), v.literal("leg")),
+    order: v.number(),
+    createdAt: v.number(),
+  }).index("by_eventId_order", ["eventId", "order"]),
 });

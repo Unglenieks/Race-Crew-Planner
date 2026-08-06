@@ -15,6 +15,8 @@ const itineraryArgs = {
   location: v.optional(v.string()),
   recordId: v.optional(v.id("eventRecords")),
   notes: v.optional(v.string()),
+  sectionId: v.optional(v.id("planSections")),
+  timeKind: v.optional(v.union(v.literal("exact"), v.literal("approximate"), v.literal("range"), v.literal("allDay"), v.literal("unspecified"))),
 };
 
 type ItineraryInput = {
@@ -22,6 +24,8 @@ type ItineraryInput = {
   scheduledFor: string;
   location?: string;
   notes?: string;
+  sectionId?: any;
+  timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
 };
 
 function optionalText(value: string | undefined, maximum: number) {
@@ -44,6 +48,8 @@ export function validatedItineraryInput({
   scheduledFor,
   location,
   notes,
+  sectionId,
+  timeKind,
 }: ItineraryInput) {
   const normalizedTitle = title.trim();
 
@@ -53,10 +59,10 @@ export function validatedItineraryInput({
     );
   }
 
-  if (
+  if ((timeKind ?? "exact") !== "unspecified" && (
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(scheduledFor) ||
     Number.isNaN(Date.parse(`${scheduledFor}:00Z`))
-  ) {
+  )) {
     throw new Error("A valid planned date and time is required");
   }
 
@@ -65,6 +71,8 @@ export function validatedItineraryInput({
     scheduledFor,
     location: optionalText(location, 160),
     notes: optionalText(notes, 1000),
+    ...(sectionId === undefined ? {} : { sectionId }),
+    ...(timeKind === undefined ? {} : { timeKind }),
   };
 }
 
