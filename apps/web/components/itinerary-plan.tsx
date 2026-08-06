@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/data-display";
 import { Input } from "@/components/ui/input";
 import { PlanChangeDelivery } from "@/components/plan-change-delivery";
+import { PlanExport } from "@/components/plan-export";
 
 type EventRole = "owner" | "manager" | "crew";
 
@@ -557,6 +558,10 @@ export function ItineraryPlan({
 
       {items === undefined ? null : (
         <PlanChangeDelivery eventId={eventId} role={role} items={items} />
+      )}
+
+      {items === undefined ? null : (
+        <PlanExport items={items} timeZone={timeZone} />
       )}
     </div>
   );
