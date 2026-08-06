@@ -83,10 +83,18 @@ describe("screen registry", () => {
 
     expect(crewIds).not.toContain("people");
     expect(crewIds).not.toContain("plan-publish");
+    expect(crewIds).not.toContain("work-templates");
+    expect(crewIds).not.toContain("work-automation");
     expect(ownerIds).toContain("people");
     expect(ownerIds).toContain("plan-publish");
     expect(visibleScreens("manager").map((s) => s.id)).toContain(
       "plan-publish",
+    );
+    expect(visibleScreens("manager").map((s) => s.id)).toContain(
+      "work-templates",
+    );
+    expect(visibleScreens("manager").map((s) => s.id)).toContain(
+      "work-automation",
     );
   });
 
