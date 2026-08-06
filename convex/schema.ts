@@ -167,4 +167,25 @@ export default defineSchema({
   })
     .index("by_eventId", ["eventId"])
     .index("by_eventId_createdBy", ["eventId", "createdBy"]),
+  eventActivity: defineTable({
+    eventId: v.id("events"),
+    actorId: v.string(),
+    kind: v.union(v.literal("comment"), v.literal("source")),
+    message: v.string(),
+    createdAt: v.number(),
+  }).index("by_eventId_createdAt", ["eventId", "createdAt"]),
+  eventComments: defineTable({
+    eventId: v.id("events"),
+    body: v.string(),
+    authorId: v.string(),
+    createdAt: v.number(),
+  }).index("by_eventId_createdAt", ["eventId", "createdAt"]),
+  eventSources: defineTable({
+    eventId: v.id("events"),
+    title: v.string(),
+    url: v.optional(v.string()),
+    excerpt: v.optional(v.string()),
+    authorId: v.string(),
+    createdAt: v.number(),
+  }).index("by_eventId_createdAt", ["eventId", "createdAt"]),
 });

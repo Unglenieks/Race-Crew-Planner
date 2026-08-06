@@ -16,6 +16,7 @@ import { WorkChecklist } from "@/components/work-checklist";
 import { RecordsDirectory } from "@/components/records-directory";
 import { EventContacts } from "@/components/event-contacts";
 import { FormsInspections } from "@/components/forms-inspections";
+import { ActivitySources } from "@/components/activity-sources";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const hasConvexConnection =
@@ -288,6 +289,7 @@ function ConnectedEventContext() {
         role={selectedEvent.role}
       />
       <FormsInspections eventId={selectedEvent.id} role={selectedEvent.role} />
+      <ActivitySources eventId={selectedEvent.id} />
       {selectedEvent.role === "owner" ? (
         <EventContacts eventId={selectedEvent.id} />
       ) : null}

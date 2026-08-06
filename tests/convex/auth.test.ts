@@ -41,6 +41,7 @@ import {
   missingRequiredFields,
   validateFields,
 } from "../../convex/forms";
+import { safeUrl, text } from "../../convex/activity";
 
 const owner: ApplicationRole = "owner";
 
@@ -204,6 +205,15 @@ describe("Convex authorization helpers", () => {
     expect(() =>
       validatedItineraryInput({ title: "Depart", scheduledFor: "tomorrow" }),
     ).toThrow("planned date and time");
+  });
+
+  it("validates bounded activity text and safe source links", () => {
+    expect(text("  Route update ", "Comment", 20)).toBe("Route update");
+    expect(() => text("", "Comment", 20)).toThrow("Comment");
+    expect(safeUrl("https://example.com/brief")).toBe(
+      "https://example.com/brief",
+    );
+    expect(() => safeUrl("javascript:alert(1)")).toThrow("http or https");
   });
 
   it("validates unique, named inspection fields and reports missing required answers", () => {
