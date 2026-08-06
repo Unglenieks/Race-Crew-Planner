@@ -20,6 +20,9 @@ function routeSegments(dir: string, prefix = ""): string[] {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) {
+      // Detail and configuration routes are reached from Records, not sidebar
+      // destinations in their own right.
+      if (prefix === "records") continue;
       // Parameterised routes are object details owned by their parent screen;
       // they intentionally do not appear as sidebar destinations.
       if (entry.startsWith("[")) continue;

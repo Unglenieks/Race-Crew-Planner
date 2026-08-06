@@ -1,6 +1,7 @@
 "use client";
 
 import { LoaderCircle, Pencil, Search } from "lucide-react";
+import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -18,7 +19,8 @@ import { Input } from "@/components/ui/input";
 
 type Draft = {
   name: string;
-  type: EventRecord["type"];
+  type: (typeof recordTypes)[number];
+  recordTypeId?: string;
   address: string;
   notes: string;
 };
@@ -26,6 +28,7 @@ type Draft = {
 const emptyDraft: Draft = {
   name: "",
   type: "venue",
+  recordTypeId: undefined,
   address: "",
   notes: "",
 };
@@ -33,7 +36,10 @@ const emptyDraft: Draft = {
 function recordToDraft(record: EventRecord): Draft {
   return {
     name: record.name,
-    type: record.type,
+    type: recordTypes.includes(record.type as (typeof recordTypes)[number])
+      ? (record.type as (typeof recordTypes)[number])
+      : "venue",
+    recordTypeId: record.recordTypeId,
     address: record.address ?? "",
     notes: record.notes ?? "",
   };
@@ -43,6 +49,7 @@ function isSameDraft(left: Draft, right: Draft) {
   return (
     left.name === right.name &&
     left.type === right.type &&
+    left.recordTypeId === right.recordTypeId &&
     left.address === right.address &&
     left.notes === right.notes
   );
@@ -60,6 +67,7 @@ export function RecordsDirectory({
   role: EventRole;
 }) {
   const records = useQuery(recordsApi.list, { eventId });
+  const configuredTypes = useQuery(recordsApi.listTypes, { eventId });
   const createRecord = useMutation(recordsApi.create);
   const updateRecord = useMutation(recordsApi.update);
   const canManage = role === "owner" || role === "manager";
@@ -103,6 +111,7 @@ export function RecordsDirectory({
       eventId,
       name: draft.name,
       type: draft.type,
+      recordTypeId: draft.recordTypeId,
       address: draft.address || undefined,
       notes: draft.notes || undefined,
     };
@@ -129,9 +138,23 @@ export function RecordsDirectory({
                 Shared operational places, services, equipment, and people.
               </p>
             </div>
-            <Badge variant={canManage ? "success" : "neutral"}>
-              {canManage ? "Can manage" : "View only"}
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                className="text-sm font-semibold text-green-ink underline underline-offset-4"
+                href={`/events/${eventId}/records/types`}
+              >
+                Types & categories
+              </Link>
+              <Link
+                className="text-sm font-semibold text-green-ink underline underline-offset-4"
+                href={`/events/${eventId}/records/travel`}
+              >
+                Travel context
+              </Link>
+              <Badge variant={canManage ? "success" : "neutral"}>
+                {canManage ? "Can manage" : "View only"}
+              </Badge>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -201,9 +224,12 @@ export function RecordsDirectory({
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold text-ink">
+                          <Link
+                            className="font-semibold text-ink underline-offset-4 hover:underline"
+                            href={`/events/${eventId}/records/${record._id}`}
+                          >
                             {record.name}
-                          </p>
+                          </Link>
                           <Badge variant="neutral">
                             {labelForType(record.type)}
                           </Badge>
@@ -290,7 +316,7 @@ export function RecordsDirectory({
                   onChange={(event) =>
                     setDraft((current) => ({
                       ...current,
-                      type: event.target.value as EventRecord["type"],
+                      type: event.target.value as (typeof recordTypes)[number],
                     }))
                   }
                   className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink shadow-sm outline-none focus:border-ink focus:ring-2 focus:ring-ink"
@@ -302,6 +328,37 @@ export function RecordsDirectory({
                   ))}
                 </select>
               </div>
+              {configuredTypes === undefined ? null : (
+                <div className="grid gap-1.5">
+                  <label
+                    className="text-sm font-medium text-ink"
+                    htmlFor="record-configured-type"
+                  >
+                    Team type <span className="text-muted">(optional)</span>
+                  </label>
+                  <select
+                    id="record-configured-type"
+                    value={draft.recordTypeId ?? ""}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        recordTypeId: event.target.value || undefined,
+                      }))
+                    }
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink shadow-sm outline-none focus:border-ink focus:ring-2 focus:ring-ink"
+                  >
+                    <option value="">Use the built-in type</option>
+                    {configuredTypes
+                      .filter((type) => type.archivedAt === undefined)
+                      .map((type) => (
+                        <option key={type._id} value={type._id}>
+                          {type.name}
+                          {type.isLocation ? " · location" : ""}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
               <div className="grid gap-1.5">
                 <label
                   className="text-sm font-medium text-ink"

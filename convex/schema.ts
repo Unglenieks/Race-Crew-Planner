@@ -34,7 +34,11 @@ export default defineSchema({
     eventId: v.id("events"),
     email: v.string(),
     role: v.union(v.literal("manager"), v.literal("crew")),
-    status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("revoked")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("revoked"),
+    ),
     invitedBy: v.string(),
     createdAt: v.number(),
     acceptedBy: v.optional(v.string()),
@@ -52,7 +56,15 @@ export default defineSchema({
     recordId: v.optional(v.id("eventRecords")),
     notes: v.optional(v.string()),
     sectionId: v.optional(v.id("planSections")),
-    timeKind: v.optional(v.union(v.literal("exact"), v.literal("approximate"), v.literal("range"), v.literal("allDay"), v.literal("unspecified"))),
+    timeKind: v.optional(
+      v.union(
+        v.literal("exact"),
+        v.literal("approximate"),
+        v.literal("range"),
+        v.literal("allDay"),
+        v.literal("unspecified"),
+      ),
+    ),
     /** Archive is reversible so a movement can be restored from its undo action. */
     archivedAt: v.optional(v.number()),
     createdAt: v.number(),
@@ -63,28 +75,80 @@ export default defineSchema({
   eventRecords: defineTable({
     eventId: v.id("events"),
     name: v.string(),
-    type: v.union(
-      v.literal("venue"),
-      v.literal("place"),
-      v.literal("service"),
-      v.literal("vehicle"),
-      v.literal("equipment"),
-      v.literal("organization"),
-      v.literal("person"),
-    ),
+    /** Legacy display type. New configured types are identified by recordTypeId. */
+    type: v.string(),
+    recordTypeId: v.optional(v.id("eventRecordTypes")),
     address: v.optional(v.string()),
     notes: v.optional(v.string()),
+    latitude: v.optional(v.number()),
+    longitude: v.optional(v.number()),
+    accessNotes: v.optional(v.string()),
+    hours: v.optional(v.string()),
+    contactDetail: v.optional(v.string()),
+    confirmationStatus: v.optional(
+      v.union(v.literal("unconfirmed"), v.literal("confirmed")),
+    ),
+    confirmationSource: v.optional(v.string()),
+    verifiedAt: v.optional(v.number()),
+    verifiedBy: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_eventId", ["eventId"])
     .index("by_eventId_name", ["eventId", "name"]),
+  eventRecordTypes: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    /** Lets a custom vocabulary participate safely in venue and travel flows. */
+    isLocation: v.boolean(),
+    archivedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_eventId_name", ["eventId", "name"]),
+  eventRecordCategories: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    color: v.string(),
+    order: v.number(),
+    archivedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_eventId_order", ["eventId", "order"]),
+  eventRecordCategoryAssignments: defineTable({
+    eventId: v.id("events"),
+    recordId: v.id("eventRecords"),
+    categoryId: v.id("eventRecordCategories"),
+    createdAt: v.number(),
+  })
+    .index("by_recordId", ["recordId"])
+    .index("by_categoryId", ["categoryId"])
+    .index("by_eventId_recordId", ["eventId", "recordId"]),
+  travelContexts: defineTable({
+    eventId: v.id("events"),
+    fromRecordId: v.id("eventRecords"),
+    toRecordId: v.id("eventRecords"),
+    estimate: v.string(),
+    calculation: v.optional(v.string()),
+    routeNote: v.optional(v.string()),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_fromRecordId", ["fromRecordId"])
+    .index("by_toRecordId", ["toRecordId"]),
   workItems: defineTable({
     eventId: v.id("events"),
     title: v.string(),
     notes: v.optional(v.string()),
     status: v.union(v.literal("open"), v.literal("completed")),
-    priority: v.optional(v.union(v.literal("low"), v.literal("normal"), v.literal("high"))),
+    priority: v.optional(
+      v.union(v.literal("low"), v.literal("normal"), v.literal("high")),
+    ),
     dueContext: v.optional(v.string()),
     assigneeId: v.optional(v.string()),
     completedAt: v.optional(v.number()),

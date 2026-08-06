@@ -7,6 +7,7 @@ import {
 } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { requireIdentity, requireRole } from "./auth";
+import { isLocationRecord } from "./records";
 
 const itineraryArgs = {
   eventId: v.id("events"),
@@ -114,7 +115,7 @@ async function requireLocationRecord(
   if (
     record === null ||
     record.eventId !== eventId ||
-    !["venue", "place", "service"].includes(record.type)
+    !(await isLocationRecord(ctx, record))
   ) {
     throw new Error("Location record not found");
   }
