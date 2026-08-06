@@ -15,6 +15,14 @@ export type ItineraryItem = {
   notes?: string;
 };
 
+export type WorkItem = {
+  _id: string;
+  title: string;
+  notes?: string;
+  status: "open" | "completed";
+  completedAt?: number;
+};
+
 export type EventContact = {
   id: string;
   type: "member" | "invitation";
@@ -77,6 +85,27 @@ export const itineraryApi = {
     { eventId: string; itemId: string },
     null
   >("itinerary:restore"),
+};
+
+export const workApi = {
+  list: makeFunctionReference<"query", { eventId: string }, WorkItem[]>(
+    "work:list",
+  ),
+  create: makeFunctionReference<
+    "mutation",
+    { eventId: string; title: string; notes?: string },
+    string
+  >("work:create"),
+  update: makeFunctionReference<
+    "mutation",
+    { eventId: string; itemId: string; title: string; notes?: string },
+    null
+  >("work:update"),
+  setCompletion: makeFunctionReference<
+    "mutation",
+    { eventId: string; itemId: string; completed: boolean },
+    null
+  >("work:setCompletion"),
 };
 
 export const invitationsApi = {

@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Input } from "@/components/ui/input";
 import { ItineraryPlan } from "@/components/itinerary-plan";
+import { WorkChecklist } from "@/components/work-checklist";
 import { EventContacts } from "@/components/event-contacts";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -272,6 +273,11 @@ function ConnectedEventContext() {
         eventId={selectedEvent.id}
         eventName={selectedEvent.name}
         timeZone={selectedEvent.timeZone}
+        role={selectedEvent.role}
+      />
+      <WorkChecklist
+        key={`work-${selectedEvent.id}`}
+        eventId={selectedEvent.id}
         role={selectedEvent.role}
       />
       {selectedEvent.role === "owner" ? (
