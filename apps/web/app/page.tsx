@@ -1,5 +1,6 @@
 import { UserButton } from "@clerk/nextjs";
 import { ConnectionStatus } from "@/components/connection-status";
+import { DisplayModeControl } from "@/components/display-mode-control";
 import { Sidebar } from "@/components/sidebar";
 import { EventContext } from "@/components/event-context";
 
@@ -27,6 +28,7 @@ export default function Home() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-10 flex min-h-16 items-center gap-2 border-b border-line bg-topbg px-6 py-2.5">
           <p className="mr-auto text-xs text-muted">Event workspace</p>
+          <DisplayModeControl />
           <ConnectionStatus />
           <UserButton />
         </header>

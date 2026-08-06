@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  BellRing,
   ClipboardList,
   Route,
   Users,
@@ -10,6 +11,7 @@ import Link from "next/link";
 
 const navItems = [
   { label: "Today", href: "#today", icon: LayoutDashboard, available: true },
+  { label: "Attention", href: "#attention", icon: BellRing, available: true },
   { label: "Plan", href: "#plan", icon: Route, available: true },
   { label: "Event", href: "#event-context", icon: Users, available: true },
   { label: "Work", href: "#work", icon: ClipboardList, available: false },
