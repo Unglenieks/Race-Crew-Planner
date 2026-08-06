@@ -9,12 +9,12 @@ import {
 import Link from "next/link";
 
 const navItems = [
-  { label: "Today", href: "/", icon: LayoutDashboard },
-  { label: "Plan", href: "/plan", icon: Route },
-  { label: "Work", href: "/work", icon: ClipboardList },
-  { label: "Records", href: "/records", icon: Users },
-  { label: "Forms", href: "/forms", icon: FileText },
-  { label: "Files", href: "/files", icon: Archive },
+  { label: "Today", href: "#today", icon: LayoutDashboard, available: true },
+  { label: "Plan", href: "#plan", icon: Route, available: true },
+  { label: "Event", href: "#event-context", icon: Users, available: true },
+  { label: "Work", href: "#work", icon: ClipboardList, available: false },
+  { label: "Records", href: "#records", icon: FileText, available: false },
+  { label: "Files", href: "#files", icon: Archive, available: false },
 ];
 
 export function Sidebar() {
@@ -51,12 +51,12 @@ export function Sidebar() {
             const itemClassName =
               "flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold min-h-11";
 
-            if (item.href === "/") {
+            if (item.available) {
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`${itemClassName} bg-green text-card focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2`}
+                  className={`${itemClassName} text-ink2 hover:bg-soft focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2`}
                 >
                   <Icon className="w-4 h-4 flex-none" />
                   {item.label}
@@ -68,12 +68,12 @@ export function Sidebar() {
               <span
                 key={item.href}
                 className={`${itemClassName} text-ink2`}
-                aria-label={`${item.label} is planned and unavailable in this preview`}
+                aria-label={`${item.label} is not available in this release`}
               >
                 <Icon className="w-4 h-4 flex-none" />
                 {item.label}
                 <span className="ml-auto text-xs font-normal text-muted">
-                  Planned
+                  Not released
                 </span>
               </span>
             );
