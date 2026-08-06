@@ -13,6 +13,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { Input } from "@/components/ui/input";
 import { eventsApi, invitationsApi, type EventSummary } from "@/lib/events-api";
 import { defaultScreenId, screenHref } from "@/lib/screens";
+import { eventTimeZones } from "@/lib/time-zones";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const hasConvexConnection =
@@ -96,16 +97,23 @@ function CreateEventForm() {
         >
           Event time zone
         </label>
-        <Input
+        <select
           id="event-time-zone"
           name="timeZone"
           value={timeZone}
           onChange={(event) => setTimeZone(event.target.value)}
-          maxLength={100}
           required
-        />
+          className="flex h-11 w-full rounded-lg border border-btnline bg-card px-3 py-2.5 text-sm font-medium text-ink shadow-sm focus-visible:border-focus focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
+        >
+          {eventTimeZones.map((zone) => (
+            <option key={zone} value={zone}>
+              {zone}
+            </option>
+          ))}
+        </select>
         <p className="text-xs text-muted">
-          Times will use this zone throughout the event.
+          Choose the event&apos;s IANA time zone. Times will use this zone
+          throughout the event.
         </p>
       </div>
       {error === null ? null : (

@@ -116,6 +116,9 @@ describe("Convex authorization helpers", () => {
     expect(() =>
       validatedEventInput({ name: "Spring Rally", timeZone: "not-a-zone" }),
     ).toThrow("IANA");
+    expect(() =>
+      validatedEventInput({ name: "Spring Rally", timeZone: "CST" }),
+    ).toThrow("IANA");
   });
 
   it("rejects an unauthenticated event read before accessing data", async () => {

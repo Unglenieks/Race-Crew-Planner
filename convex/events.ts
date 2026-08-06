@@ -7,6 +7,13 @@ const eventArgs = {
   timeZone: v.string(),
 };
 
+function isSupportedEventTimeZone(timeZone: string) {
+  return (
+    timeZone === "UTC" ||
+    Intl.supportedValuesOf("timeZone").includes(timeZone)
+  );
+}
+
 function validatedEventInput({
   name,
   timeZone,
@@ -25,9 +32,7 @@ function validatedEventInput({
     throw new Error("A valid event time zone is required");
   }
 
-  try {
-    Intl.DateTimeFormat(undefined, { timeZone: normalizedTimeZone });
-  } catch {
+  if (!isSupportedEventTimeZone(normalizedTimeZone)) {
     throw new Error("A valid IANA event time zone is required");
   }
 
