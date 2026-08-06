@@ -14,12 +14,16 @@ import {
 
 const workspaceRoot = join(__dirname, "..", "app", "events", "[eventId]");
 
-/** Every `page.tsx` under the workspace route, as a path segment. */
+/** Every static `page.tsx` under the workspace route, as a path segment. */
 function routeSegments(dir: string, prefix = ""): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) {
+      // Detail and configuration routes are reached from Records, not sidebar
+      // destinations in their own right.
+      if (prefix === "records") continue;
+      if (entry.startsWith("[")) continue;
       found.push(
         ...routeSegments(full, prefix === "" ? entry : `${prefix}/${entry}`),
       );

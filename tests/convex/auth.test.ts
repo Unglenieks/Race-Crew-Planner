@@ -28,6 +28,9 @@ import {
 } from "../../convex/work";
 import {
   create as createRecord,
+  get as getRecord,
+  saveTravel,
+  saveVenueDetails,
   update as updateRecord,
   validatedRecordInput,
 } from "../../convex/records";
@@ -362,6 +365,62 @@ describe("Convex authorization helpers", () => {
     );
   });
 
+  it("does not reveal a record from another event", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+        }),
+        get: async () => ({ eventId: "events:other" }),
+      },
+    };
+    await expect(
+      getRecord._handler(context as never, {
+        eventId: "events:one" as never,
+        recordId: "eventRecords:other" as never,
+      }),
+    ).rejects.toThrow("Record not found");
+  });
+
+  it("does not let crew update venue or travel context", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+        }),
+      },
+    };
+    await expect(
+      saveVenueDetails._handler(context as never, {
+        eventId: "events:one" as never,
+        recordId: "eventRecords:one" as never,
+        confirmationStatus: "confirmed",
+      }),
+    ).rejects.toThrow("Forbidden");
+    await expect(
+      saveTravel._handler(context as never, {
+        eventId: "events:one" as never,
+        fromRecordId: "eventRecords:one" as never,
+        toRecordId: "eventRecords:two" as never,
+        estimate: "15 minutes",
+      }),
+    ).rejects.toThrow("Forbidden");
+  });
+
   it("allows members to read but not crew members to change an itinerary", async () => {
     const context = {
       auth: {
@@ -592,7 +651,10 @@ describe("Convex authorization helpers", () => {
       assigneeId: "crew_456",
     });
 
-    expect(inserts[0]).toMatchObject({ assigneeId: "crew_456", priority: "normal" });
+    expect(inserts[0]).toMatchObject({
+      assigneeId: "crew_456",
+      priority: "normal",
+    });
   });
 
   it("rejects an assignee outside the event and restricts the assignee list", async () => {

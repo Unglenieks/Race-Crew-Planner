@@ -31,9 +31,43 @@ export const recordTypes = [
 export type EventRecord = {
   _id: string;
   name: string;
-  type: (typeof recordTypes)[number];
+  type: string;
+  recordTypeId?: string;
   address?: string;
   notes?: string;
+  latitude?: number;
+  longitude?: number;
+  accessNotes?: string;
+  hours?: string;
+  contactDetail?: string;
+  confirmationStatus?: "unconfirmed" | "confirmed";
+  confirmationSource?: string;
+  verifiedAt?: number;
+  verifiedBy?: string;
+};
+export type RecordType = {
+  _id: string;
+  name: string;
+  isLocation: boolean;
+  archivedAt?: number;
+};
+export type RecordCategory = {
+  _id: string;
+  name: string;
+  color: string;
+  order: number;
+  archivedAt?: number;
+};
+export type TravelContext = {
+  _id: string;
+  fromRecordId: string;
+  toRecordId: string;
+  estimate: string;
+  calculation?: string;
+  routeNote?: string;
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
 };
 
 export type WorkItem = {
@@ -202,7 +236,8 @@ export const recordsApi = {
     {
       eventId: string;
       name: string;
-      type: EventRecord["type"];
+      type: (typeof recordTypes)[number];
+      recordTypeId?: string;
       address?: string;
       notes?: string;
     },
@@ -214,12 +249,93 @@ export const recordsApi = {
       eventId: string;
       recordId: string;
       name: string;
-      type: EventRecord["type"];
+      type: (typeof recordTypes)[number];
+      recordTypeId?: string;
       address?: string;
       notes?: string;
     },
     null
   >("records:update"),
+  get: makeFunctionReference<
+    "query",
+    { eventId: string; recordId: string },
+    EventRecord & {
+      categories: RecordCategory[];
+      travelContexts: TravelContext[];
+    }
+  >("records:get"),
+  saveVenueDetails: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      recordId: string;
+      address?: string;
+      latitude?: number;
+      longitude?: number;
+      accessNotes?: string;
+      hours?: string;
+      contactDetail?: string;
+      confirmationStatus: "unconfirmed" | "confirmed";
+      confirmationSource?: string;
+    },
+    null
+  >("records:saveVenueDetails"),
+  listTypes: makeFunctionReference<"query", { eventId: string }, RecordType[]>(
+    "records:listTypes",
+  ),
+  createType: makeFunctionReference<
+    "mutation",
+    { eventId: string; name: string; isLocation: boolean },
+    string
+  >("records:createType"),
+  archiveType: makeFunctionReference<
+    "mutation",
+    { eventId: string; typeId: string },
+    null
+  >("records:archiveType"),
+  listCategories: makeFunctionReference<
+    "query",
+    { eventId: string },
+    RecordCategory[]
+  >("records:listCategories"),
+  createCategory: makeFunctionReference<
+    "mutation",
+    { eventId: string; name: string; color: string },
+    string
+  >("records:createCategory"),
+  assignCategory: makeFunctionReference<
+    "mutation",
+    { eventId: string; recordId: string; categoryId: string },
+    null
+  >("records:assignCategory"),
+  removeCategory: makeFunctionReference<
+    "mutation",
+    { eventId: string; recordId: string; categoryId: string },
+    null
+  >("records:removeCategory"),
+  mergeCategory: makeFunctionReference<
+    "mutation",
+    { eventId: string; sourceCategoryId: string; targetCategoryId: string },
+    null
+  >("records:mergeCategory"),
+  listTravel: makeFunctionReference<
+    "query",
+    { eventId: string },
+    TravelContext[]
+  >("records:listTravel"),
+  saveTravel: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      travelId?: string;
+      fromRecordId: string;
+      toRecordId: string;
+      estimate: string;
+      calculation?: string;
+      routeNote?: string;
+    },
+    string | null
+  >("records:saveTravel"),
 };
 
 export const workApi = {
