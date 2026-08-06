@@ -46,6 +46,51 @@
   --foreground: var(--color-ink);
 }
 
+@media (prefers-color-scheme: dark) {
+  :root[data-display-mode="system"] {
+    --background: #102019;
+    --foreground: #f4f8f1;
+    --color-paper: #102019;
+    --color-card: #172b21;
+    --color-side: #13251c;
+    --color-topbg: #12251b;
+    --color-ink: #f4f8f1;
+    --color-ink2: #dbe8de;
+    --color-muted: #b3c5b8;
+    --color-line: #3a5544;
+    --color-line2: #2c4535;
+  }
+}
+
+:root[data-display-mode="night"] {
+  --background: #102019;
+  --foreground: #f4f8f1;
+  --color-paper: #102019;
+  --color-card: #172b21;
+  --color-side: #13251c;
+  --color-topbg: #12251b;
+  --color-ink: #f4f8f1;
+  --color-ink2: #dbe8de;
+  --color-muted: #b3c5b8;
+  --color-line: #3a5544;
+  --color-line2: #2c4535;
+}
+
+:root[data-display-mode="contrast"] {
+  --background: #ffffff;
+  --foreground: #000000;
+  --color-paper: #ffffff;
+  --color-card: #ffffff;
+  --color-side: #f4f4f4;
+  --color-topbg: #ffffff;
+  --color-ink: #000000;
+  --color-ink2: #000000;
+  --color-muted: #242424;
+  --color-line: #000000;
+  --color-line2: #333333;
+  --color-focus: #0000c7;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

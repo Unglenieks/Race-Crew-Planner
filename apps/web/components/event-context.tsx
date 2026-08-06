@@ -17,6 +17,7 @@ import { RecordsDirectory } from "@/components/records-directory";
 import { EventContacts } from "@/components/event-contacts";
 import { FormsInspections } from "@/components/forms-inspections";
 import { ActivitySources } from "@/components/activity-sources";
+import { AttentionQueue } from "@/components/attention-queue";
 import { TodayOverview } from "@/components/today-overview";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -289,6 +290,10 @@ function ConnectedEventContext() {
       />
       <FormsInspections eventId={selectedEvent.id} role={selectedEvent.role} />
       <ActivitySources eventId={selectedEvent.id} />
+      <AttentionQueue
+        key={`${selectedEvent.id}-attention`}
+        eventId={selectedEvent.id}
+      />
       <section id="plan" aria-label="Movement plan" className="scroll-mt-24">
         <ItineraryPlan
           key={selectedEvent.id}
