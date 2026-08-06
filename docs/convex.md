@@ -17,7 +17,12 @@ resource-level checks remain in Convex.
    template created by hand with empty claims omits `aud`, and
    `convex/auth.config.ts` rejects the token, which surfaces as
    `Unauthenticated` on every protected function.
-4. Run `pnpm convex:dev`. The CLI checks the functions, regenerates
+4. Configure the Clerk `convex` JWT template to include the verified standard
+   claims `email`, `email_verified`, `name`, `phone_number`, and
+   `phone_number_verified`. Event invitations match only a verified email;
+   profile names and verified phone numbers are shown only to an event owner.
+   Do not add private Clerk metadata to this token.
+5. Run `pnpm convex:dev`. The CLI checks the functions, regenerates
    `convex/_generated/`, and syncs them to the selected development deployment.
 
 Use `pnpm convex:codegen` after changing a schema or function when a long-lived

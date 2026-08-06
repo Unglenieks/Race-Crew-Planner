@@ -13,6 +13,11 @@ import {
   update as updateItineraryItem,
   validatedItineraryInput,
 } from "../../convex/itinerary";
+import {
+  claim as claimInvitations,
+  create as createInvitation,
+  normalizedEmail,
+} from "../../convex/invitations";
 
 const owner: ApplicationRole = "owner";
 
@@ -236,5 +241,75 @@ describe("Convex authorization helpers", () => {
         scheduledFor: "2026-10-16T08:30",
       }),
     ).rejects.toThrow("Movement not found");
+  });
+
+  it("normalizes invitation email addresses", () => {
+    expect(normalizedEmail("  Crew@Example.com ")).toBe("crew@example.com");
+    expect(() => normalizedEmail("not-an-email")).toThrow("email address");
+  });
+
+  it("requires an event owner before creating an invitation", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+        }),
+      },
+    };
+    await expect(
+      createInvitation._handler(context as never, {
+        eventId: "events:one" as never,
+        email: "crew@example.com",
+        role: "crew",
+      }),
+    ).rejects.toThrow("Forbidden");
+  });
+
+  it("claims invitations only with a verified matching Clerk email", async () => {
+    const patches: Array<Record<string, unknown>> = [];
+    let queryCount = 0;
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+          email: "crew@example.com",
+          emailVerified: true,
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            collect: async () => [
+              {
+                _id: "eventInvitations:one",
+                eventId: "events:one",
+                role: "crew",
+              },
+            ],
+            unique: async () => {
+              queryCount += 1;
+              return queryCount === 1 ? null : null;
+            },
+          }),
+        }),
+        insert: async () => "eventMemberships:one",
+        patch: async (_id: string, value: Record<string, unknown>) => {
+          patches.push(value);
+        },
+      },
+    };
+    await claimInvitations._handler(context as never, {});
+    expect(patches).toContainEqual(
+      expect.objectContaining({ status: "accepted", acceptedBy: "crew_123" }),
+    );
   });
 });

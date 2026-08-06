@@ -23,6 +23,26 @@ export default defineSchema({
   })
     .index("by_userId", ["userId"])
     .index("by_eventId_userId", ["eventId", "userId"]),
+  userProfiles: defineTable({
+    userId: v.string(),
+    displayName: v.optional(v.string()),
+    email: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+    updatedAt: v.number(),
+  }).index("by_userId", ["userId"]),
+  eventInvitations: defineTable({
+    eventId: v.id("events"),
+    email: v.string(),
+    role: v.union(v.literal("manager"), v.literal("crew")),
+    status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("revoked")),
+    invitedBy: v.string(),
+    createdAt: v.number(),
+    acceptedBy: v.optional(v.string()),
+    acceptedAt: v.optional(v.number()),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_eventId_email", ["eventId", "email"])
+    .index("by_email_status", ["email", "status"]),
   itineraryItems: defineTable({
     eventId: v.id("events"),
     title: v.string(),

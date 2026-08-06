@@ -4,14 +4,15 @@ import { useAuth } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { CalendarPlus, ChevronRight, LoaderCircle } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useState } from "react";
-import { eventsApi, type EventSummary } from "@/lib/events-api";
+import { FormEvent, useEffect, useState } from "react";
+import { eventsApi, invitationsApi, type EventSummary } from "@/lib/events-api";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Input } from "@/components/ui/input";
 import { ItineraryPlan } from "@/components/itinerary-plan";
+import { EventContacts } from "@/components/event-contacts";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const hasConvexConnection =
@@ -182,7 +183,16 @@ function EventConnectionFailed({ onRetry }: { onRetry: () => void }) {
 function ConnectedEventContext() {
   const { isLoaded, isSignedIn } = useAuth();
   const events = useQuery(eventsApi.list, isSignedIn ? {} : "skip");
+  const syncProfile = useMutation(invitationsApi.syncProfile);
+  const claimInvitations = useMutation(invitationsApi.claim);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isSignedIn) return;
+    void syncProfile()
+      .then(() => claimInvitations())
+      .catch(() => undefined);
+  }, [claimInvitations, isSignedIn, syncProfile]);
 
   if (!isLoaded || (isSignedIn && events === undefined)) {
     return (
@@ -264,6 +274,9 @@ function ConnectedEventContext() {
         timeZone={selectedEvent.timeZone}
         role={selectedEvent.role}
       />
+      {selectedEvent.role === "owner" ? (
+        <EventContacts eventId={selectedEvent.id} />
+      ) : null}
     </div>
   );
 }

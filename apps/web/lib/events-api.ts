@@ -15,6 +15,16 @@ export type ItineraryItem = {
   notes?: string;
 };
 
+export type EventContact = {
+  id: string;
+  type: "member" | "invitation";
+  role: "owner" | "manager" | "crew";
+  userId?: string;
+  name?: string;
+  email?: string;
+  phoneNumber?: string;
+};
+
 /**
  * Typed references for the event feature while the environment-owned Convex
  * codegen command is unavailable in an isolated worktree.
@@ -57,4 +67,33 @@ export const itineraryApi = {
     },
     null
   >("itinerary:update"),
+};
+
+export const invitationsApi = {
+  syncProfile: makeFunctionReference<"mutation", Record<string, never>, null>(
+    "invitations:syncProfile",
+  ),
+  claim: makeFunctionReference<"mutation", Record<string, never>, null>(
+    "invitations:claim",
+  ),
+  listContacts: makeFunctionReference<
+    "query",
+    { eventId: string },
+    EventContact[]
+  >("invitations:listContacts"),
+  revoke: makeFunctionReference<
+    "mutation",
+    { eventId: string; invitationId: string },
+    null
+  >("invitations:revoke"),
+  updateMemberRole: makeFunctionReference<
+    "mutation",
+    { eventId: string; membershipId: string; role: "manager" | "crew" },
+    null
+  >("invitations:updateMemberRole"),
+  removeMember: makeFunctionReference<
+    "mutation",
+    { eventId: string; membershipId: string },
+    null
+  >("invitations:removeMember"),
 };
