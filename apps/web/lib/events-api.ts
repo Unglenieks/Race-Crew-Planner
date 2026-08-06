@@ -21,6 +21,15 @@ export type WorkItem = {
   notes?: string;
   status: "open" | "completed";
   completedAt?: number;
+  priority?: "low" | "normal" | "high";
+  dueContext?: string;
+  assigneeId?: string;
+};
+
+export type WorkAssignee = {
+  userId: string;
+  name?: string;
+  role: "owner" | "manager" | "crew";
 };
 
 export type EventContact = {
@@ -93,12 +102,27 @@ export const workApi = {
   ),
   create: makeFunctionReference<
     "mutation",
-    { eventId: string; title: string; notes?: string },
+    {
+      eventId: string;
+      title: string;
+      notes?: string;
+      priority?: "low" | "normal" | "high";
+      dueContext?: string;
+      assigneeId?: string;
+    },
     string
   >("work:create"),
   update: makeFunctionReference<
     "mutation",
-    { eventId: string; itemId: string; title: string; notes?: string },
+    {
+      eventId: string;
+      itemId: string;
+      title: string;
+      notes?: string;
+      priority?: "low" | "normal" | "high";
+      dueContext?: string;
+      assigneeId?: string;
+    },
     null
   >("work:update"),
   setCompletion: makeFunctionReference<
@@ -106,6 +130,11 @@ export const workApi = {
     { eventId: string; itemId: string; completed: boolean },
     null
   >("work:setCompletion"),
+  listAssignees: makeFunctionReference<
+    "query",
+    { eventId: string },
+    WorkAssignee[]
+  >("work:listAssignees"),
 };
 
 export const invitationsApi = {

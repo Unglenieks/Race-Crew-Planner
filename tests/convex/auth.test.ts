@@ -22,6 +22,7 @@ import {
 } from "../../convex/invitations";
 import {
   create as createWorkItem,
+  listAssignees as listWorkAssignees,
   setCompletion as setWorkItemCompletion,
   validatedWorkItemInput,
 } from "../../convex/work";
@@ -196,7 +197,13 @@ describe("Convex authorization helpers", () => {
         title: "  Load spare wheel ",
         notes: "  Check the tie-down. ",
       }),
-    ).toEqual({ title: "Load spare wheel", notes: "Check the tie-down." });
+    ).toEqual({
+      title: "Load spare wheel",
+      notes: "Check the tie-down.",
+      priority: "normal",
+      dueContext: undefined,
+      assigneeId: undefined,
+    });
     expect(() =>
       validatedWorkItemInput({ title: "", notes: undefined }),
     ).toThrow("Work item description");
@@ -357,6 +364,94 @@ describe("Convex authorization helpers", () => {
         title: "Load spare wheel",
       }),
     ).rejects.toThrow("Forbidden");
+  });
+
+  it("accepts only an event member as a work assignee", async () => {
+    const inserts: Array<Record<string, unknown>> = [];
+    const memberships = new Map([
+      ["manager_123", { role: "manager" }],
+      ["crew_456", { role: "crew" }],
+    ]);
+    let requestedUserId = "";
+    const indexBuilder = {
+      eq: (_field: string, value: string) => {
+        requestedUserId = value;
+        return indexBuilder;
+      },
+    };
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|manager_123",
+          subject: "manager_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: (
+            _index: string,
+            build: (index: typeof indexBuilder) => unknown,
+          ) => ({
+            unique: async () => {
+              build(indexBuilder);
+              return memberships.get(requestedUserId) ?? null;
+            },
+          }),
+        }),
+        insert: async (_table: string, value: Record<string, unknown>) => {
+          inserts.push(value);
+          return "workItems:one";
+        },
+      },
+    };
+
+    await createWorkItem._handler(context as never, {
+      eventId: "events:one" as never,
+      title: "Load spare wheel",
+      assigneeId: "crew_456",
+    });
+
+    expect(inserts[0]).toMatchObject({ assigneeId: "crew_456", priority: "normal" });
+  });
+
+  it("rejects an assignee outside the event and restricts the assignee list", async () => {
+    let membershipQuery = 0;
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|manager_123",
+          subject: "manager_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            unique: async () => {
+              membershipQuery += 1;
+              return membershipQuery === 1 ? { role: "manager" } : null;
+            },
+          }),
+        }),
+        insert: async () => "workItems:one",
+      },
+    };
+
+    await expect(
+      createWorkItem._handler(context as never, {
+        eventId: "events:one" as never,
+        title: "Load spare wheel",
+        assigneeId: "outsider_789",
+      }),
+    ).rejects.toThrow("Assignee must belong to the event");
+
+    await expect(
+      listWorkAssignees._handler(
+        { auth: { getUserIdentity: async () => null } } as never,
+        { eventId: "events:one" as never },
+      ),
+    ).rejects.toThrow("Unauthenticated");
   });
 
   it("normalizes invitation email addresses", () => {

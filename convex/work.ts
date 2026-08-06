@@ -12,11 +12,17 @@ const workItemArgs = {
   eventId: v.id("events"),
   title: v.string(),
   notes: v.optional(v.string()),
+  priority: v.optional(v.union(v.literal("low"), v.literal("normal"), v.literal("high"))),
+  dueContext: v.optional(v.string()),
+  assigneeId: v.optional(v.string()),
 };
 
 type WorkItemInput = {
   title: string;
   notes?: string;
+  priority?: "low" | "normal" | "high";
+  dueContext?: string;
+  assigneeId?: string;
 };
 
 function optionalText(value: string | undefined, maximum: number) {
@@ -30,7 +36,13 @@ function optionalText(value: string | undefined, maximum: number) {
 }
 
 /** Validates the deliberately small work-item shape used by the first checklist. */
-export function validatedWorkItemInput({ title, notes }: WorkItemInput) {
+export function validatedWorkItemInput({
+  title,
+  notes,
+  priority,
+  dueContext,
+  assigneeId,
+}: WorkItemInput) {
   const normalizedTitle = title.trim();
   if (normalizedTitle.length === 0 || normalizedTitle.length > 160) {
     throw new Error(
@@ -38,7 +50,13 @@ export function validatedWorkItemInput({ title, notes }: WorkItemInput) {
     );
   }
 
-  return { title: normalizedTitle, notes: optionalText(notes, 1000) };
+  return {
+    title: normalizedTitle,
+    notes: optionalText(notes, 1000),
+    priority: priority ?? "normal",
+    dueContext: optionalText(dueContext, 160),
+    assigneeId: optionalText(assigneeId, 200),
+  };
 }
 
 async function requireEventMembership(
@@ -57,6 +75,23 @@ async function requireEventMembership(
   return { identity, membership };
 }
 
+async function requireAssigneeMembership(
+  ctx: QueryCtx | MutationCtx,
+  eventId: Id<"events">,
+  assigneeId: string | undefined,
+) {
+  if (assigneeId === undefined) return;
+
+  const membership = await ctx.db
+    .query("eventMemberships")
+    .withIndex("by_eventId_userId", (q) =>
+      q.eq("eventId", eventId).eq("userId", assigneeId),
+    )
+    .unique();
+
+  if (membership === null) throw new Error("Assignee must belong to the event");
+}
+
 /** Lists the event checklist after verifying the caller belongs to the event. */
 export const list = query({
   args: { eventId: v.id("events") },
@@ -69,6 +104,32 @@ export const list = query({
   },
 });
 
+/** Lists eligible assignees without exposing people outside the selected event. */
+export const listAssignees = query({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    await requireEventMembership(ctx, eventId);
+    const memberships = await ctx.db
+      .query("eventMemberships")
+      .withIndex("by_eventId_userId", (q) => q.eq("eventId", eventId))
+      .collect();
+
+    return await Promise.all(
+      memberships.map(async (membership) => {
+        const profile = await ctx.db
+          .query("userProfiles")
+          .withIndex("by_userId", (q) => q.eq("userId", membership.userId))
+          .unique();
+        return {
+          userId: membership.userId,
+          name: profile?.displayName,
+          role: membership.role,
+        };
+      }),
+    );
+  },
+});
+
 /** Owners and managers create items for the shared event checklist. */
 export const create = mutation({
   args: workItemArgs,
@@ -76,6 +137,7 @@ export const create = mutation({
     const { membership } = await requireEventMembership(ctx, args.eventId);
     requireRole(membership.role, ["owner", "manager"]);
     const item = validatedWorkItemInput(args);
+    await requireAssigneeMembership(ctx, args.eventId, item.assigneeId);
     const now = Date.now();
 
     return await ctx.db.insert("workItems", {
@@ -98,9 +160,11 @@ export const update = mutation({
     if (existing === null || existing.eventId !== args.eventId) {
       throw new Error("Work item not found");
     }
+    const item = validatedWorkItemInput(args);
+    await requireAssigneeMembership(ctx, args.eventId, item.assigneeId);
 
     await ctx.db.patch(args.itemId, {
-      ...validatedWorkItemInput(args),
+      ...item,
       updatedAt: Date.now(),
     });
   },
