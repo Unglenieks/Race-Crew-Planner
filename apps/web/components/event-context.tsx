@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ItineraryPlan } from "@/components/itinerary-plan";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const hasConvexConnection =
@@ -234,17 +235,13 @@ function ConnectedEventContext() {
           />
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>{selectedEvent.name}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm leading-relaxed text-muted">
-            You are an {selectedEvent.role}. Movement planning is the next
-            workflow to be added for this event.
-          </p>
-        </CardContent>
-      </Card>
+      <ItineraryPlan
+        key={selectedEvent.id}
+        eventId={selectedEvent.id}
+        eventName={selectedEvent.name}
+        timeZone={selectedEvent.timeZone}
+        role={selectedEvent.role}
+      />
     </div>
   );
 }
