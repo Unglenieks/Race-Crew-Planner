@@ -42,6 +42,7 @@ import {
 } from "../../convex/workTemplates";
 import {
   create as createRecord,
+  createField as createRecordField,
   get as getRecord,
   mergeCategory,
   resolvedCoordinates,
@@ -70,6 +71,19 @@ import { safeUrl, text } from "../../convex/activity";
 const owner: ApplicationRole = "owner";
 
 describe("Convex authorization helpers", () => {
+  it("requires a manager membership before changing directory fields", async () => {
+    await expect(
+      createRecordField._handler(
+        { auth: { getUserIdentity: async () => null } } as never,
+        {
+          eventId: "events:one" as never,
+          label: "Status",
+          type: "text",
+        },
+      ),
+    ).rejects.toThrow("Unauthenticated");
+  });
+
   it("returns a verified identity", async () => {
     const identity = await requireIdentity({
       auth: {

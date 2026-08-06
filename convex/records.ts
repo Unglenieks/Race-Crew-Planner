@@ -27,6 +27,8 @@ const legacyRecordType = v.union(
   v.literal("organization"),
   v.literal("person"),
 );
+export const recordFieldTypes = ["text", "select"] as const;
+const recordFieldType = v.union(v.literal("text"), v.literal("select"));
 
 function optionalText(
   value: string | undefined,
@@ -59,6 +61,28 @@ export function validatedRecordInput(input: {
     address: optionalText(input.address, 300),
     notes: optionalText(input.notes, 1000),
   };
+}
+
+function fieldKey(label: string) {
+  const key = label
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (key.length === 0 || key.length > 48)
+    throw new Error("Field label must contain letters or numbers");
+  return key;
+}
+
+function validatedFieldOptions(type: (typeof recordFieldTypes)[number], options?: string[]) {
+  if (type === "text") return undefined;
+  const normalized = [...new Set((options ?? []).map((option) => option.trim()))]
+    .filter(Boolean);
+  if (normalized.length === 0 || normalized.length > 20)
+    throw new Error("A select field needs between 1 and 20 options");
+  if (normalized.some((option) => option.length > 80))
+    throw new Error("Field options must be at most 80 characters");
+  return normalized;
 }
 
 async function membership(ctx: QueryCtx | MutationCtx, eventId: Id<"events">) {
@@ -197,6 +221,115 @@ export const list = query({
   },
 });
 
+export const listFields = query({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, args) => {
+    await membership(ctx, args.eventId);
+    return await ctx.db
+      .query("eventRecordFields")
+      .withIndex("by_eventId_order", (q) => q.eq("eventId", args.eventId))
+      .collect();
+  },
+});
+
+async function validatedFieldValues(
+  ctx: MutationCtx,
+  eventId: Id<"events">,
+  values: Record<string, string> | undefined,
+) {
+  const fields = await ctx.db
+    .query("eventRecordFields")
+    .withIndex("by_eventId_order", (q) => q.eq("eventId", eventId))
+    .collect();
+  const normalized: Record<string, string> = {};
+  for (const field of fields) {
+    const value = values?.[field.key]?.trim();
+    if (value === undefined || value.length === 0) continue;
+    if (value.length > 500) throw new Error(`${field.label} is too long`);
+    if (field.type === "select" && !field.options?.includes(value))
+      throw new Error(`${field.label} must use one of its configured options`);
+    normalized[field.key] = value;
+  }
+  return Object.keys(normalized).length === 0 ? undefined : normalized;
+}
+
+export const createField = mutation({
+  args: {
+    eventId: v.id("events"),
+    label: v.string(),
+    type: recordFieldType,
+    options: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => {
+    await manager(ctx, args.eventId);
+    const label = requiredText(args.label, 80, "Field label");
+    const key = fieldKey(label);
+    const existing = await ctx.db
+      .query("eventRecordFields")
+      .withIndex("by_eventId_key", (q) =>
+        q.eq("eventId", args.eventId).eq("key", key),
+      )
+      .unique();
+    if (existing !== null) throw new Error("A field with this name already exists");
+    const fields = await ctx.db
+      .query("eventRecordFields")
+      .withIndex("by_eventId", (q) => q.eq("eventId", args.eventId))
+      .collect();
+    const now = Date.now();
+    return await ctx.db.insert("eventRecordFields", {
+      eventId: args.eventId,
+      key,
+      label,
+      type: args.type,
+      options: validatedFieldOptions(args.type, args.options),
+      order: fields.length,
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+export const updateField = mutation({
+  args: {
+    eventId: v.id("events"),
+    fieldId: v.id("eventRecordFields"),
+    label: v.string(),
+    options: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => {
+    await manager(ctx, args.eventId);
+    const field = await ctx.db.get(args.fieldId);
+    if (field === null || field.eventId !== args.eventId) throw new Error("Field not found");
+    await ctx.db.patch(args.fieldId, {
+      label: requiredText(args.label, 80, "Field label"),
+      options: validatedFieldOptions(field.type, args.options),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const reorderFields = mutation({
+  args: { eventId: v.id("events"), fieldIds: v.array(v.id("eventRecordFields")) },
+  handler: async (ctx, args) => {
+    await manager(ctx, args.eventId);
+    const fields = await ctx.db
+      .query("eventRecordFields")
+      .withIndex("by_eventId", (q) => q.eq("eventId", args.eventId))
+      .collect();
+    if (
+      args.fieldIds.length !== fields.length ||
+      new Set(args.fieldIds).size !== fields.length ||
+      args.fieldIds.some((id) => !fields.some((field) => field._id === id))
+    )
+      throw new Error("Field order must include every field exactly once");
+    await Promise.all(
+      args.fieldIds.map((fieldId, order) =>
+        ctx.db.patch(fieldId, { order, updatedAt: Date.now() }),
+      ),
+    );
+  },
+});
+
 export const get = query({
   args: { eventId: v.id("events"), recordId: v.id("eventRecords") },
   handler: async (ctx, args) => {
@@ -247,10 +380,15 @@ export const create = mutation({
     recordTypeId: v.optional(v.id("eventRecordTypes")),
     address: v.optional(v.string()),
     notes: v.optional(v.string()),
+    fieldValues: v.optional(v.record(v.string(), v.string())),
   },
   handler: async (ctx, args) => {
     await manager(ctx, args.eventId);
     const input = validatedRecordInput(args);
+    const fieldValues =
+      args.fieldValues === undefined
+        ? undefined
+        : await validatedFieldValues(ctx, args.eventId, args.fieldValues);
     const configuredType =
       args.recordTypeId === undefined
         ? undefined
@@ -262,6 +400,7 @@ export const create = mutation({
       ...(configuredType === undefined
         ? {}
         : { recordTypeId: configuredType._id, type: configuredType.name }),
+      ...(fieldValues === undefined ? {} : { fieldValues }),
       createdAt: now,
       updatedAt: now,
     });
@@ -282,11 +421,16 @@ export const update = mutation({
     recordTypeId: v.optional(v.union(v.id("eventRecordTypes"), v.null())),
     address: v.optional(v.string()),
     notes: v.optional(v.string()),
+    fieldValues: v.optional(v.record(v.string(), v.string())),
   },
   handler: async (ctx, args) => {
     await manager(ctx, args.eventId);
     const existing = await recordInEvent(ctx, args.eventId, args.recordId);
     const input = validatedRecordInput(args);
+    const fieldValues =
+      args.fieldValues === undefined
+        ? undefined
+        : await validatedFieldValues(ctx, args.eventId, args.fieldValues);
     const requestedTypeId =
       args.recordTypeId === undefined
         ? existing.recordTypeId
@@ -305,6 +449,7 @@ export const update = mutation({
       ...(configuredType === undefined
         ? { recordTypeId: undefined }
         : { recordTypeId: configuredType._id, type: configuredType.name }),
+      ...(args.fieldValues === undefined ? {} : { fieldValues }),
       updatedAt: Date.now(),
     });
   },

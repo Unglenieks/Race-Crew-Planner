@@ -46,6 +46,15 @@ export type EventRecord = {
   confirmationSource?: string;
   verifiedAt?: number;
   verifiedBy?: string;
+  fieldValues?: Record<string, string>;
+};
+export type RecordField = {
+  _id: string;
+  key: string;
+  label: string;
+  type: "text" | "select";
+  options?: string[];
+  order: number;
 };
 export type RecordType = {
   _id: string;
@@ -281,6 +290,7 @@ export const recordsApi = {
       recordTypeId?: string;
       address?: string;
       notes?: string;
+      fieldValues?: Record<string, string>;
     },
     string
   >("records:create"),
@@ -295,6 +305,7 @@ export const recordsApi = {
       recordTypeId?: string | null;
       address?: string;
       notes?: string;
+      fieldValues?: Record<string, string>;
     },
     null
   >("records:update"),
@@ -326,6 +337,31 @@ export const recordsApi = {
   listTypes: makeFunctionReference<"query", { eventId: string }, RecordType[]>(
     "records:listTypes",
   ),
+  listFields: makeFunctionReference<
+    "query",
+    { eventId: string },
+    RecordField[]
+  >("records:listFields"),
+  createField: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      label: string;
+      type: "text" | "select";
+      options?: string[];
+    },
+    string
+  >("records:createField"),
+  updateField: makeFunctionReference<
+    "mutation",
+    { eventId: string; fieldId: string; label: string; options?: string[] },
+    null
+  >("records:updateField"),
+  reorderFields: makeFunctionReference<
+    "mutation",
+    { eventId: string; fieldIds: string[] },
+    null
+  >("records:reorderFields"),
   createType: makeFunctionReference<
     "mutation",
     { eventId: string; name: string; isLocation: boolean },
