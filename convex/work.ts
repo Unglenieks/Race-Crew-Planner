@@ -104,6 +104,19 @@ export const list = query({
   },
 });
 
+/** Reads one work item without exposing items outside the selected event. */
+export const get = query({
+  args: { eventId: v.id("events"), itemId: v.id("workItems") },
+  handler: async (ctx, { eventId, itemId }) => {
+    await requireEventMembership(ctx, eventId);
+    const item = await ctx.db.get(itemId);
+    if (item === null || item.eventId !== eventId) {
+      throw new Error("Work item not found");
+    }
+    return item;
+  },
+});
+
 /** Lists eligible assignees without exposing people outside the selected event. */
 export const listAssignees = query({
   args: { eventId: v.id("events") },
