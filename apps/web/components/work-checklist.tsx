@@ -105,10 +105,12 @@ export function WorkChecklist({
     try {
       await setCompletion({ eventId, itemId: item._id, completed });
       setUndoCompletion({ item, completed });
+      return true;
     } catch {
       setError(
         "We could not update this work item. Its status was not changed.",
       );
+      return false;
     } finally {
       setPendingItemId(null);
     }
@@ -116,8 +118,11 @@ export function WorkChecklist({
 
   async function undoLastCompletion() {
     if (undoCompletion === null) return;
-    await changeCompletion(undoCompletion.item, !undoCompletion.completed);
-    setUndoCompletion(null);
+    const wasUndone = await changeCompletion(
+      undoCompletion.item,
+      !undoCompletion.completed,
+    );
+    if (wasUndone) setUndoCompletion(null);
   }
 
   return (
