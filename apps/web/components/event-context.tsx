@@ -13,6 +13,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { Input } from "@/components/ui/input";
 import { ItineraryPlan } from "@/components/itinerary-plan";
 import { EventContacts } from "@/components/event-contacts";
+import { TodayOverview } from "@/components/today-overview";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const hasConvexConnection =
@@ -255,7 +256,7 @@ function ConnectedEventContext() {
 
   return (
     <div className="grid gap-4">
-      <Card>
+      <Card id="event-context" className="scroll-mt-24">
         <CardHeader>
           <CardTitle>Your events</CardTitle>
         </CardHeader>
@@ -267,15 +268,24 @@ function ConnectedEventContext() {
           />
         </CardContent>
       </Card>
-      <ItineraryPlan
-        key={selectedEvent.id}
+      <TodayOverview
+        key={`${selectedEvent.id}-today`}
         eventId={selectedEvent.id}
-        eventName={selectedEvent.name}
         timeZone={selectedEvent.timeZone}
-        role={selectedEvent.role}
       />
+      <section id="plan" aria-label="Movement plan" className="scroll-mt-24">
+        <ItineraryPlan
+          key={selectedEvent.id}
+          eventId={selectedEvent.id}
+          eventName={selectedEvent.name}
+          timeZone={selectedEvent.timeZone}
+          role={selectedEvent.role}
+        />
+      </section>
       {selectedEvent.role === "owner" ? (
-        <EventContacts eventId={selectedEvent.id} />
+        <section id="people" aria-label="Event crew" className="scroll-mt-24">
+          <EventContacts eventId={selectedEvent.id} />
+        </section>
       ) : null}
     </div>
   );
