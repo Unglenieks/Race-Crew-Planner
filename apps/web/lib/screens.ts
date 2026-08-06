@@ -1,7 +1,6 @@
 import {
   BellRing,
   ClipboardList,
-  Cpu,
   FileText,
   LayoutDashboard,
   ListTree,
@@ -35,7 +34,6 @@ export type ScreenId =
   | "plan-export"
   | "work"
   | "work-templates"
-  | "work-automation"
   | "records"
   | "forms"
   | "activity"
@@ -140,15 +138,6 @@ export const screens: ScreenDefinition[] = [
     minRole: "manager",
   },
   {
-    id: "work-automation",
-    segment: "work/automation",
-    label: "Automation setup",
-    shortLabel: "Automation",
-    description: "Configure future work rules for this event.",
-    icon: Cpu,
-    minRole: "manager",
-  },
-  {
     id: "records",
     segment: "records",
     label: "Records & venues",
@@ -200,7 +189,7 @@ export const screenGroups: ScreenGroup[] = [
   },
   {
     label: "Work",
-    screenIds: ["work", "work-templates", "work-automation"],
+    screenIds: ["work", "work-templates"],
   },
   { label: "Records", screenIds: ["records"] },
   { label: "Forms", screenIds: ["forms"] },

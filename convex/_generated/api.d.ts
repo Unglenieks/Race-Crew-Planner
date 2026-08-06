@@ -19,7 +19,6 @@ import type * as planChanges from "../planChanges.js";
 import type * as planSections from "../planSections.js";
 import type * as records from "../records.js";
 import type * as work from "../work.js";
-import type * as workAutomation from "../workAutomation.js";
 import type * as workTemplates from "../workTemplates.js";
 
 import type {
@@ -40,7 +39,6 @@ declare const fullApi: ApiFromModules<{
   planSections: typeof planSections;
   records: typeof records;
   work: typeof work;
-  workAutomation: typeof workAutomation;
   workTemplates: typeof workTemplates;
 }>;
 

@@ -31,6 +31,7 @@ domains, accounts, data, and operational responsibility.
 ## Start here
 
 - [Implementation plan](docs/implementation-plan.md) — ordered technical work.
+- [Product plan](docs/product-plan.md) — remaining product work in dependency order.
 - [Platform and environment plan](docs/platform.md) — Railway, Convex, Clerk, and PostHog boundaries.
 - [Parallel agent worktree playbook](docs/agent-worktrees.md) — required workflow for every agent change.
 - [Delivery and PR policy](docs/delivery.md) — branch promotion, checks, review, and merging.
