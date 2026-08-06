@@ -57,4 +57,16 @@ export default defineSchema({
   })
     .index("by_eventId", ["eventId"])
     .index("by_eventId_scheduledFor", ["eventId", "scheduledFor"]),
+  workItems: defineTable({
+    eventId: v.id("events"),
+    title: v.string(),
+    notes: v.optional(v.string()),
+    status: v.union(v.literal("open"), v.literal("completed")),
+    completedAt: v.optional(v.number()),
+    completedBy: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_eventId_createdAt", ["eventId", "createdAt"]),
 });

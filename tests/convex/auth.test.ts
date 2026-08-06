@@ -20,6 +20,11 @@ import {
   create as createInvitation,
   normalizedEmail,
 } from "../../convex/invitations";
+import {
+  create as createWorkItem,
+  setCompletion as setWorkItemCompletion,
+  validatedWorkItemInput,
+} from "../../convex/work";
 
 const owner: ApplicationRole = "owner";
 
@@ -185,6 +190,18 @@ describe("Convex authorization helpers", () => {
     ).toThrow("planned date and time");
   });
 
+  it("normalizes the first checklist item shape", () => {
+    expect(
+      validatedWorkItemInput({
+        title: "  Load spare wheel ",
+        notes: "  Check the tie-down. ",
+      }),
+    ).toEqual({ title: "Load spare wheel", notes: "Check the tie-down." });
+    expect(() =>
+      validatedWorkItemInput({ title: "", notes: undefined }),
+    ).toThrow("Work item description");
+  });
+
   it("allows members to read but not crew members to change an itinerary", async () => {
     const context = {
       auth: {
@@ -302,6 +319,44 @@ describe("Convex authorization helpers", () => {
         },
       ),
     ).rejects.toThrow("Movement not found");
+  });
+
+  it("lets crew complete work but not create it", async () => {
+    const patches: Array<Record<string, unknown>> = [];
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+        }),
+        get: async () => ({ eventId: "events:one" }),
+        patch: async (_id: string, value: Record<string, unknown>) => {
+          patches.push(value);
+        },
+      },
+    };
+
+    await setWorkItemCompletion._handler(context as never, {
+      eventId: "events:one" as never,
+      itemId: "workItems:one" as never,
+      completed: true,
+    });
+    expect(patches).toContainEqual(
+      expect.objectContaining({ status: "completed", completedBy: "crew_123" }),
+    );
+
+    await expect(
+      createWorkItem._handler(context as never, {
+        eventId: "events:one" as never,
+        title: "Load spare wheel",
+      }),
+    ).rejects.toThrow("Forbidden");
   });
 
   it("normalizes invitation email addresses", () => {
