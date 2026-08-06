@@ -23,8 +23,8 @@ function routeSegments(dir: string, prefix = ""): string[] {
       // Detail and configuration routes are reached from Records, not sidebar
       // destinations in their own right.
       if (prefix === "records") continue;
-      // Parameterised routes are object details owned by their parent screen;
-      // they intentionally do not appear as sidebar destinations.
+      // Object detail routes are opened from their parent list and do not
+      // belong in sidebar navigation.
       if (entry.startsWith("[")) continue;
       found.push(
         ...routeSegments(full, prefix === "" ? entry : `${prefix}/${entry}`),

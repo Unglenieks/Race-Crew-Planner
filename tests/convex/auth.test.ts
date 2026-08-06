@@ -22,6 +22,7 @@ import {
   normalizedEmail,
 } from "../../convex/invitations";
 import {
+  addComment as addWorkItemComment,
   create as createWorkItem,
   get as getWorkItem,
   listAssignees as listWorkAssignees,
@@ -728,6 +729,57 @@ describe("Convex authorization helpers", () => {
         title: "Load spare wheel",
       }),
     ).rejects.toThrow("Forbidden");
+  });
+
+  it("does not expose a work item from another event through its detail query", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+        }),
+        get: async () => ({ eventId: "events:other" }),
+      },
+    };
+
+    await expect(
+      getWorkItem._handler(context as never, {
+        eventId: "events:one" as never,
+        itemId: "workItems:one" as never,
+      }),
+    ).rejects.toThrow("Work item not found");
+  });
+
+  it("does not let a member comment on a work item from another event", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+        }),
+        get: async () => ({ eventId: "events:other" }),
+      },
+    };
+
+    await expect(
+      addWorkItemComment._handler(context as never, {
+        eventId: "events:one" as never,
+        itemId: "workItems:one" as never,
+        body: "Load the spares before service.",
+      }),
+    ).rejects.toThrow("Work item not found");
   });
 
   it("accepts only an event member as a work assignee", async () => {
