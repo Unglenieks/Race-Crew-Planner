@@ -67,10 +67,48 @@ import {
   validateFields,
 } from "../../convex/forms";
 import { safeUrl, text } from "../../convex/activity";
+import { recordHeartbeat } from "../../convex/scheduler";
 
 const owner: ApplicationRole = "owner";
 
 describe("Convex authorization helpers", () => {
+  it("upserts the scheduler proving heartbeat without a caller identity", async () => {
+    const inserted: unknown[] = [];
+    const patches: unknown[] = [];
+    const absentContext = {
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => null }),
+        }),
+        insert: async (_table: string, value: unknown) => inserted.push(value),
+        patch: async (_id: string, value: unknown) => patches.push(value),
+      },
+    };
+
+    await recordHeartbeat._handler(absentContext as never, {
+      name: "scheduler-primitive",
+    });
+    expect(inserted).toHaveLength(1);
+    expect(patches).toHaveLength(0);
+
+    const existingContext = {
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            unique: async () => ({ _id: "schedulerHeartbeats:one" }),
+          }),
+        }),
+        insert: async (_table: string, value: unknown) => inserted.push(value),
+        patch: async (_id: string, value: unknown) => patches.push(value),
+      },
+    };
+    await recordHeartbeat._handler(existingContext as never, {
+      name: "scheduler-primitive",
+    });
+    expect(inserted).toHaveLength(1);
+    expect(patches).toHaveLength(1);
+  });
+
   it("requires a manager membership before changing directory fields", async () => {
     await expect(
       createRecordField._handler(

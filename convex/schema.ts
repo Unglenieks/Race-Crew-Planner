@@ -47,6 +47,11 @@ export default defineSchema({
     .index("by_eventId", ["eventId"])
     .index("by_eventId_email", ["eventId", "email"])
     .index("by_email_status", ["email", "status"]),
+  /** Deployment-visible proof that registered scheduled work is running. */
+  schedulerHeartbeats: defineTable({
+    name: v.string(),
+    lastRanAt: v.number(),
+  }).index("by_name", ["name"]),
   itineraryItems: defineTable({
     eventId: v.id("events"),
     title: v.string(),
