@@ -1,5 +1,11 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import {
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { requireIdentity, requireRole } from "./auth";
 
 const itineraryArgs = {
@@ -61,11 +67,14 @@ export function validatedItineraryInput({
   };
 }
 
-async function requireEventMembership(ctx: any, eventId: any) {
+async function requireEventMembership(
+  ctx: QueryCtx | MutationCtx,
+  eventId: Id<"events">,
+) {
   const identity = await requireIdentity(ctx);
   const membership = await ctx.db
     .query("eventMemberships")
-    .withIndex("by_eventId_userId", (q: any) =>
+    .withIndex("by_eventId_userId", (q) =>
       q.eq("eventId", eventId).eq("userId", identity.subject),
     )
     .unique();
@@ -77,16 +86,54 @@ async function requireEventMembership(ctx: any, eventId: any) {
   return membership;
 }
 
-/** Lists the protected itinerary in chronological event-local order. */
+/** Lists active movements in chronological event-local order. */
 export const list = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
     await requireEventMembership(ctx, eventId);
 
-    return await ctx.db
+    const items = await ctx.db
       .query("itineraryItems")
       .withIndex("by_eventId_scheduledFor", (q) => q.eq("eventId", eventId))
       .collect();
+
+    return items.filter((item) => item.archivedAt === undefined);
+  },
+});
+
+/** Archives a movement without destroying it, so the caller can undo safely. */
+export const archive = mutation({
+  args: { itemId: v.id("itineraryItems"), eventId: v.id("events") },
+  handler: async (ctx, { itemId, eventId }) => {
+    const membership = await requireEventMembership(ctx, eventId);
+    requireRole(membership.role, ["owner", "manager"]);
+    const existing = await ctx.db.get(itemId);
+
+    if (existing === null || existing.eventId !== eventId) {
+      throw new Error("Movement not found");
+    }
+
+    if (existing.archivedAt === undefined) {
+      await ctx.db.patch(itemId, { archivedAt: Date.now(), updatedAt: Date.now() });
+    }
+  },
+});
+
+/** Restores a movement previously archived in the same event. */
+export const restore = mutation({
+  args: { itemId: v.id("itineraryItems"), eventId: v.id("events") },
+  handler: async (ctx, { itemId, eventId }) => {
+    const membership = await requireEventMembership(ctx, eventId);
+    requireRole(membership.role, ["owner", "manager"]);
+    const existing = await ctx.db.get(itemId);
+
+    if (existing === null || existing.eventId !== eventId) {
+      throw new Error("Movement not found");
+    }
+
+    if (existing.archivedAt !== undefined) {
+      await ctx.db.patch(itemId, { archivedAt: undefined, updatedAt: Date.now() });
+    }
   },
 });
 

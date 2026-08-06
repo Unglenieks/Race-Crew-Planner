@@ -67,6 +67,16 @@ export const itineraryApi = {
     },
     null
   >("itinerary:update"),
+  archive: makeFunctionReference<
+    "mutation",
+    { eventId: string; itemId: string },
+    null
+  >("itinerary:archive"),
+  restore: makeFunctionReference<
+    "mutation",
+    { eventId: string; itemId: string },
+    null
+  >("itinerary:restore"),
 };
 
 export const invitationsApi = {
