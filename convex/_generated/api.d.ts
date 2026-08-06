@@ -10,6 +10,8 @@
 
 import type * as auth from "../auth.js";
 import type * as currentUser from "../currentUser.js";
+import type * as events from "../events.js";
+import type * as itinerary from "../itinerary.js";
 
 import type {
   ApiFromModules,
@@ -20,6 +22,8 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   currentUser: typeof currentUser;
+  events: typeof events;
+  itinerary: typeof itinerary;
 }>;
 
 /**
