@@ -13,7 +13,10 @@ const itineraryArgs = {
   title: v.string(),
   scheduledFor: v.string(),
   location: v.optional(v.string()),
+  recordId: v.optional(v.id("eventRecords")),
   notes: v.optional(v.string()),
+  sectionId: v.optional(v.id("planSections")),
+  timeKind: v.optional(v.union(v.literal("exact"), v.literal("approximate"), v.literal("range"), v.literal("allDay"), v.literal("unspecified"))),
 };
 
 type ItineraryInput = {
@@ -21,6 +24,8 @@ type ItineraryInput = {
   scheduledFor: string;
   location?: string;
   notes?: string;
+  sectionId?: any;
+  timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
 };
 
 function optionalText(value: string | undefined, maximum: number) {
@@ -43,6 +48,8 @@ export function validatedItineraryInput({
   scheduledFor,
   location,
   notes,
+  sectionId,
+  timeKind,
 }: ItineraryInput) {
   const normalizedTitle = title.trim();
 
@@ -52,10 +59,10 @@ export function validatedItineraryInput({
     );
   }
 
-  if (
+  if ((timeKind ?? "exact") !== "unspecified" && (
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(scheduledFor) ||
     Number.isNaN(Date.parse(`${scheduledFor}:00Z`))
-  ) {
+  )) {
     throw new Error("A valid planned date and time is required");
   }
 
@@ -64,6 +71,8 @@ export function validatedItineraryInput({
     scheduledFor,
     location: optionalText(location, 160),
     notes: optionalText(notes, 1000),
+    ...(sectionId === undefined ? {} : { sectionId }),
+    ...(timeKind === undefined ? {} : { timeKind }),
   };
 }
 
@@ -84,6 +93,22 @@ async function requireEventMembership(
   }
 
   return membership;
+}
+
+async function requireLocationRecord(
+  ctx: MutationCtx,
+  eventId: Id<"events">,
+  recordId: Id<"eventRecords"> | undefined,
+) {
+  if (recordId === undefined) return;
+  const record = await ctx.db.get(recordId);
+  if (
+    record === null ||
+    record.eventId !== eventId ||
+    !["venue", "place", "service"].includes(record.type)
+  ) {
+    throw new Error("Location record not found");
+  }
 }
 
 /** Lists active movements in chronological event-local order. */
@@ -144,11 +169,13 @@ export const create = mutation({
     const membership = await requireEventMembership(ctx, args.eventId);
     requireRole(membership.role, ["owner", "manager"]);
     const item = validatedItineraryInput(args);
+    await requireLocationRecord(ctx, args.eventId, args.recordId);
     const now = Date.now();
 
     return await ctx.db.insert("itineraryItems", {
       eventId: args.eventId,
       ...item,
+      recordId: args.recordId,
       createdAt: now,
       updatedAt: now,
     });
@@ -167,8 +194,11 @@ export const update = mutation({
       throw new Error("Movement not found");
     }
 
+    await requireLocationRecord(ctx, args.eventId, args.recordId);
+
     await ctx.db.patch(args.itemId, {
       ...validatedItineraryInput(args),
+      recordId: args.recordId,
       updatedAt: Date.now(),
     });
   },

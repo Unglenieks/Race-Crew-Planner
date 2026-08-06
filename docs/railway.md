@@ -13,10 +13,10 @@ It defines one project with these resources in every environment:
 | `Postgres`         | Convex backing store                                    | Railway private network only           |
 | `rcp-files`        | Convex file storage                                     | Credentials are private variables only |
 
-Railway environments are intentionally isolated. The currently deployed dev
-lane is named `preview` in Railway and sources the `dev` branch; `production`
-sources `main`. Rename the Railway environment before introducing a separate
-`preview` branch deployment lane.
+Railway environments are intentionally isolated. `development` is the only
+development lane and deploys the `dev` branch. `preview` deploys only the
+`preview` branch for shared release validation, and `production` deploys
+`main`. Do not use the `preview` environment for feature or development work.
 Each environment has independent Clerk and PostHog configuration, Convex
 credentials, database data, object-store credentials/prefix, and public domain.
 No secret value belongs in this repository.
@@ -29,7 +29,7 @@ authorized action.
 
 ```bash
 pnpm install --frozen-lockfile
-railway link --project <project-id> --environment <preview|production>
+railway link --project <project-id> --environment <development|preview|production>
 railway config plan
 railway config apply
 ```
@@ -100,7 +100,7 @@ Convex bucket variables: `S3_STORAGE_EXPORTS_BUCKET`,
 Set `NEXT_PUBLIC_DEPLOYMENT_URL` on the private dashboard to the matching
 backend API URL. Do not commit any of these values or expose the dashboard.
 
-For dev-lane code generation, run `railway run --environment preview
+For development-lane code generation, run `railway run --environment development
 --service convex-backend -- pnpm convex:codegen` from the relevant clean
 worktree. The command consumes the backend's self-hosted CLI configuration
 inside Railway and keeps the admin key out of local configuration.
@@ -127,14 +127,14 @@ backup, upgrade, and recovery procedure.
 
 ## Repairing a missing GitHub auto-deploy trigger
 
-The `web` service in the `preview`-named dev lane must be connected to
+The `web` service in the `development` lane must be connected to
 `Unglenieks/Race-Crew-Planner` branch `dev`. If a merge reaches `dev` but no
 Railway deployment is created for its commit, first inspect the source and
 recent deployment commits:
 
 ```bash
-railway service list --environment preview --json
-railway deployment list --environment preview --service web --limit 10 --json
+railway service list --environment development --json
+railway deployment list --environment development --service web --limit 10 --json
 ```
 
 If the source/branch is correct but the new commit has no queued deployment,
@@ -146,7 +146,7 @@ railway service source connect \
   --repo Unglenieks/Race-Crew-Planner \
   --branch dev \
   --service web \
-  --environment preview
+  --environment development
 ```
 
 The reconnect restores Railway's GitHub deployment trigger; it is not a

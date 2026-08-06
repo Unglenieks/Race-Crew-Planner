@@ -12,7 +12,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Input } from "@/components/ui/input";
 import { ItineraryPlan } from "@/components/itinerary-plan";
+import { WorkChecklist } from "@/components/work-checklist";
+import { RecordsDirectory } from "@/components/records-directory";
 import { EventContacts } from "@/components/event-contacts";
+import { FormsInspections } from "@/components/forms-inspections";
+import { ActivitySources } from "@/components/activity-sources";
+import { AttentionQueue } from "@/components/attention-queue";
+import { TodayOverview } from "@/components/today-overview";
+import { EventSetupGuide } from "@/components/event-setup-guide";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const hasConvexConnection =
@@ -186,6 +193,9 @@ function ConnectedEventContext() {
   const syncProfile = useMutation(invitationsApi.syncProfile);
   const claimInvitations = useMutation(invitationsApi.claim);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [recentlyCreatedEventId, setRecentlyCreatedEventId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -243,7 +253,12 @@ function ConnectedEventContext() {
             Start with the event name and its local time zone. You will be its
             owner and can add the plan and crew next.
           </p>
-          <CreateEventForm onCreated={setSelectedEventId} />
+          <CreateEventForm
+            onCreated={(eventId) => {
+              setSelectedEventId(eventId);
+              setRecentlyCreatedEventId(eventId);
+            }}
+          />
         </CardContent>
       </Card>
     );
@@ -255,7 +270,7 @@ function ConnectedEventContext() {
 
   return (
     <div className="grid gap-4">
-      <Card>
+      <Card id="event-context" className="scroll-mt-24">
         <CardHeader>
           <CardTitle>Your events</CardTitle>
         </CardHeader>
@@ -267,15 +282,43 @@ function ConnectedEventContext() {
           />
         </CardContent>
       </Card>
-      <ItineraryPlan
-        key={selectedEvent.id}
+      {recentlyCreatedEventId === selectedEvent.id ? (
+        <EventSetupGuide eventName={selectedEvent.name} />
+      ) : null}
+      <TodayOverview
+        key={`${selectedEvent.id}-today`}
         eventId={selectedEvent.id}
-        eventName={selectedEvent.name}
         timeZone={selectedEvent.timeZone}
+      />
+      <WorkChecklist
+        key={`work-${selectedEvent.id}`}
+        eventId={selectedEvent.id}
         role={selectedEvent.role}
       />
+      <RecordsDirectory
+        key={`records-${selectedEvent.id}`}
+        eventId={selectedEvent.id}
+        role={selectedEvent.role}
+      />
+      <FormsInspections eventId={selectedEvent.id} role={selectedEvent.role} />
+      <ActivitySources eventId={selectedEvent.id} />
+      <AttentionQueue
+        key={`${selectedEvent.id}-attention`}
+        eventId={selectedEvent.id}
+      />
+      <section id="plan" aria-label="Movement plan" className="scroll-mt-24">
+        <ItineraryPlan
+          key={selectedEvent.id}
+          eventId={selectedEvent.id}
+          eventName={selectedEvent.name}
+          timeZone={selectedEvent.timeZone}
+          role={selectedEvent.role}
+        />
+      </section>
       {selectedEvent.role === "owner" ? (
-        <EventContacts eventId={selectedEvent.id} />
+        <section id="people" aria-label="Event crew" className="scroll-mt-24">
+          <EventContacts eventId={selectedEvent.id} />
+        </section>
       ) : null}
     </div>
   );
