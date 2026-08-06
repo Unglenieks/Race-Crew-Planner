@@ -128,6 +128,7 @@ export type EventSource = {
   authorId: string;
   createdAt: number;
 };
+export type PlanSection = { _id: string; name: string; kind: "day" | "session" | "leg"; order: number };
 
 /**
  * Typed references for the event feature while the environment-owned Convex
@@ -378,4 +379,8 @@ export const activityApi = {
     { eventId: string; title: string; url?: string; excerpt?: string },
     string
   >("activity:addSource"),
+};
+export const planSectionsApi = {
+  list: makeFunctionReference<"query", { eventId: string }, PlanSection[]>("planSections:list"),
+  create: makeFunctionReference<"mutation", { eventId: string; name: string; kind: "day" | "session" | "leg" }, string>("planSections:create"),
 };

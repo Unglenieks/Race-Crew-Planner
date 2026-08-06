@@ -20,6 +20,7 @@ import { EmptyState } from "@/components/ui/data-display";
 import { Input } from "@/components/ui/input";
 import { PlanChangeDelivery } from "@/components/plan-change-delivery";
 import { PlanExport } from "@/components/plan-export";
+import { PlanSections } from "@/components/plan-sections";
 
 type EventRole = "owner" | "manager" | "crew";
 
@@ -563,6 +564,7 @@ export function ItineraryPlan({
       {items === undefined ? null : (
         <PlanExport items={items} timeZone={timeZone} />
       )}
+      <PlanSections eventId={eventId} role={role} />
     </div>
   );
 }
