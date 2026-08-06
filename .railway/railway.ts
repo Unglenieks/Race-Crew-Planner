@@ -2,10 +2,17 @@ import {
   bucket,
   defineRailway,
   github,
+  image,
   postgres,
   project,
   service,
 } from "railway/iac";
+
+/**
+ * Convex publishes compatible backend and dashboard images under the same
+ * release-branch commit. Update both together through the upgrade runbook.
+ */
+const convexImageRevision = "075bad9adce93eb2f63fffad76db5cb27e9e35bd";
 
 /**
  * Railway project topology. The CLI evaluates this once for each target
@@ -29,11 +36,18 @@ export default defineRailway((ctx) => {
     healthcheckTimeout: 300,
   });
 
-  // These services intentionally remain source-free until a separately
-  // reviewed PR pins the supported Convex self-hosted images and their
-  // required environment-variable contract.
-  const convexBackend = service("convex-backend");
-  const convexDashboard = service("convex-dashboard");
+  const convexBackend = service("convex-backend", {
+    source: image(
+      `ghcr.io/get-convex/convex-backend:${convexImageRevision}`,
+    ),
+    healthcheck: "/version",
+    healthcheckTimeout: 300,
+  });
+  const convexDashboard = service("convex-dashboard", {
+    source: image(
+      `ghcr.io/get-convex/convex-dashboard:${convexImageRevision}`,
+    ),
+  });
   const database = postgres("Postgres");
   const files = bucket("rcp-files", { region: "iad" });
 
