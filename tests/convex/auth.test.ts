@@ -39,6 +39,7 @@ import {
 import {
   createTemplate,
   missingRequiredFields,
+  validationIssues,
   validateFields,
 } from "../../convex/forms";
 import { safeUrl, text } from "../../convex/activity";
@@ -233,6 +234,76 @@ describe("Convex authorization helpers", () => {
     expect(() => validateFields([{ ...fields[0] }, { ...fields[0] }])).toThrow(
       "unique identifier",
     );
+  });
+
+  it("validates structured form answers against the captured field schema", () => {
+    const fields = validateFields([
+      {
+        id: "temperature",
+        label: "Temperature",
+        type: "number",
+        required: true,
+      },
+      {
+        id: "condition",
+        label: "Condition",
+        type: "select",
+        options: ["Dry", "Wet"],
+        required: true,
+      },
+      {
+        id: "issues",
+        label: "Issues found",
+        type: "multiSelect",
+        options: ["Brakes", "Lights"],
+        required: false,
+      },
+    ]);
+    expect(
+      validationIssues(fields, {
+        temperature: "hot",
+        condition: "Snow",
+        issues: ["Brakes", "Unknown"],
+        removed_field: "stale",
+      }),
+    ).toMatchObject({
+      temperature: "Enter a number.",
+      condition: "Choose one of the listed options.",
+      issues: "Choose one or more listed options.",
+      removed_field: "This answer is not part of this form.",
+    });
+    expect(
+      validationIssues(fields, {
+        temperature: 20,
+        condition: "Dry",
+        issues: ["Brakes"],
+      }),
+    ).toEqual({});
+  });
+
+  it("requires named, unique options for choice fields", () => {
+    expect(() =>
+      validateFields([
+        {
+          id: "condition",
+          label: "Condition",
+          type: "select",
+          options: ["Dry", "Dry"],
+          required: true,
+        },
+      ]),
+    ).toThrow("options must be unique");
+    expect(() =>
+      validateFields([
+        {
+          id: "note",
+          label: "Note",
+          type: "text",
+          options: ["Not allowed"],
+          required: false,
+        },
+      ]),
+    ).toThrow("Only choice fields");
   });
 
   it("does not let crew members create inspection templates", async () => {
@@ -592,7 +663,10 @@ describe("Convex authorization helpers", () => {
       assigneeId: "crew_456",
     });
 
-    expect(inserts[0]).toMatchObject({ assigneeId: "crew_456", priority: "normal" });
+    expect(inserts[0]).toMatchObject({
+      assigneeId: "crew_456",
+      priority: "normal",
+    });
   });
 
   it("rejects an assignee outside the event and restricts the assignee list", async () => {

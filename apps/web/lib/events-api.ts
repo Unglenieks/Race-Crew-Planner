@@ -90,8 +90,10 @@ export type PublishedPlanChange = {
 export type FormField = {
   id: string;
   label: string;
-  type: "text" | "boolean";
+  type: "text" | "number" | "date" | "select" | "multiSelect" | "boolean";
   required: boolean;
+  instructions?: string;
+  options?: string[];
 };
 export type FormTemplate = {
   _id: string;
@@ -105,7 +107,7 @@ export type FormSubmission = {
   templateName: string;
   templateVersion: number;
   fields: FormField[];
-  answers: Record<string, string | boolean | undefined>;
+  answers: Record<string, unknown>;
   status: "draft" | "submitted";
   submittedAt?: number;
 };
@@ -345,6 +347,11 @@ export const formsApi = {
     { eventId: string; name: string; fields: FormField[] },
     string
   >("forms:createTemplate"),
+  createTemplateVersion: makeFunctionReference<
+    "mutation",
+    { eventId: string; templateId: string; name: string; fields: FormField[] },
+    string
+  >("forms:createTemplateVersion"),
   listMySubmissions: makeFunctionReference<
     "query",
     { eventId: string },
@@ -356,7 +363,7 @@ export const formsApi = {
       eventId: string;
       templateId: string;
       submissionId?: string;
-      answers: Record<string, string | boolean | undefined>;
+      answers: Record<string, unknown>;
     },
     string
   >("forms:saveDraft"),
