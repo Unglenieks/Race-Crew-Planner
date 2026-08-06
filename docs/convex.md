@@ -13,13 +13,25 @@ resource-level checks remain in Convex.
    provisioning is intentionally deferred to Work Package 6.
 3. In Clerk, activate the Convex integration. It provisions the `convex` JWT
    template. Copy Clerk's Frontend API URL to `CLERK_JWT_ISSUER_DOMAIN` in the
-   matching Convex environment.
+   matching Convex environment. Verify the template issues `aud: convex`; a
+   template created by hand with empty claims omits `aud`, and
+   `convex/auth.config.ts` rejects the token, which surfaces as
+   `Unauthenticated` on every protected function.
 4. Run `pnpm convex:dev`. The CLI checks the functions, regenerates
    `convex/_generated/`, and syncs them to the selected development deployment.
 
 Use `pnpm convex:codegen` after changing a schema or function when a long-lived
 development process is not running. Generated files are committed because
 function modules import their typed builders from `convex/_generated/`.
+
+Code generation does not publish anything. Deployed environments publish
+`convex/` through `pnpm convex:deploy`, which the `web` build runs before it
+compiles the application; see [delivery](delivery.md). To publish to the
+development backend by hand from a clean worktree:
+
+```bash
+railway run --environment development --service convex-backend -- pnpm convex:deploy
+```
 
 For the Railway self-hosted development deployment, run code generation through
 the backend service so the CLI receives the private deployment URL and admin

@@ -12,6 +12,7 @@
     "format:check": "pnpm --filter @race-planner/web format:check",
     "convex:typecheck": "tsc --noEmit --project convex/tsconfig.json",
     "convex:codegen": "convex codegen --typecheck enable",
+    "convex:deploy": "convex deploy -y --typecheck enable",
     "convex:dev": "convex dev --typecheck enable"
   },
   "devDependencies": {

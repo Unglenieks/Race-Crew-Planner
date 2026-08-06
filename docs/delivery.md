@@ -28,6 +28,26 @@ development Convex deployment exists, run code generation after changing
 functions or schema and commit the resulting `convex/_generated/` changes in
 the owning feature PR.
 
+## Convex function deployment
+
+Committing a Convex function does not publish it. The `web` build command runs
+`pnpm build` and then `pnpm convex:deploy`, so every environment publishes
+`convex/` as part of the deployment that ships the matching client, and the build
+phase completes before the new container serves traffic. A failed push fails the
+build, which is deliberate: a released client must never call functions older
+than itself. Publishing after the artifact compiles means a failed build leaves
+the backend untouched.
+
+Removing or renaming a function still breaks the currently live client during the
+window between the push and the new container becoming healthy. Keep function
+changes backward compatible across one release, then remove the old function in a
+later one.
+
+Before this was automated, a client could reach an environment whose backend
+still lacked the queries it calls. Convex `useQuery` throws when the backend
+rejects a query, so that drift surfaced as a broken page rather than a
+degraded panel.
+
 ## Promotion flow
 
 ```text

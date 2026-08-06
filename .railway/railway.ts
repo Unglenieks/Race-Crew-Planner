@@ -6,6 +6,7 @@ import {
   postgres,
   preserve,
   project,
+  ref,
   service,
 } from "railway/iac";
 
@@ -29,23 +30,6 @@ export default defineRailway((ctx) => {
     ctx.isEnvironment("development") || ctx.isEnvironment("preview")
       ? "dev"
       : "main";
-
-  const web = service("web", {
-    source: github("Unglenieks/Race-Crew-Planner", { branch }),
-    build: "pnpm build",
-    start: "pnpm --filter @race-planner/web start",
-    healthcheck: "/health",
-    healthcheckTimeout: 300,
-    env: {
-      CLERK_SECRET_KEY: preserve(),
-      NEXT_PUBLIC_APP_ENV: preserve(),
-      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: preserve(),
-      NEXT_PUBLIC_CONVEX_URL: preserve(),
-      NEXT_PUBLIC_POSTHOG_HOST: preserve(),
-      NEXT_PUBLIC_POSTHOG_KEY: preserve(),
-      NEXT_PUBLIC_RELEASE_SHA: preserve(),
-    },
-  });
 
   const convexBackend = service("convex-backend", {
     source: image(
@@ -79,6 +63,32 @@ export default defineRailway((ctx) => {
       S3_STORAGE_MODULES_BUCKET: preserve(),
       S3_STORAGE_SEARCH_BUCKET: preserve(),
       S3_STORAGE_SNAPSHOT_IMPORTS_BUCKET: preserve(),
+    },
+  });
+
+  // The web build publishes `convex/` to this environment's backend once the
+  // application artifact has compiled, so a released client can never call
+  // functions that are older than itself, and a failed build never mutates the
+  // backend. A failed push fails the build by design.
+  const web = service("web", {
+    source: github("Unglenieks/Race-Crew-Planner", { branch }),
+    build: "pnpm build && pnpm convex:deploy",
+    start: "pnpm --filter @race-planner/web start",
+    healthcheck: "/health",
+    healthcheckTimeout: 300,
+    env: {
+      CLERK_SECRET_KEY: preserve(),
+      CONVEX_SELF_HOSTED_ADMIN_KEY: ref(
+        convexBackend,
+        "CONVEX_SELF_HOSTED_ADMIN_KEY",
+      ),
+      CONVEX_SELF_HOSTED_URL: ref(convexBackend, "CONVEX_CLOUD_ORIGIN"),
+      NEXT_PUBLIC_APP_ENV: preserve(),
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: preserve(),
+      NEXT_PUBLIC_CONVEX_URL: preserve(),
+      NEXT_PUBLIC_POSTHOG_HOST: preserve(),
+      NEXT_PUBLIC_POSTHOG_KEY: preserve(),
+      NEXT_PUBLIC_RELEASE_SHA: preserve(),
     },
   });
   const convexDashboard = service("convex-dashboard", {

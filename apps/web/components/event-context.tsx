@@ -9,6 +9,7 @@ import { eventsApi, type EventSummary } from "@/lib/events-api";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { Input } from "@/components/ui/input";
 import { ItineraryPlan } from "@/components/itinerary-plan";
 
@@ -157,6 +158,27 @@ function EventConnectionUnavailable() {
   );
 }
 
+function EventConnectionFailed({ onRetry }: { onRetry: () => void }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Event data could not be loaded</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <p className="text-sm leading-relaxed text-muted">
+          The Convex environment for this deployment rejected the request, which
+          usually means its functions are older than this application. If you
+          had just submitted something, check whether it went through before you
+          try again. Report the problem if it repeats.
+        </p>
+        <Button variant="secondary" className="w-fit" onClick={onRetry}>
+          Retry
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ConnectedEventContext() {
   const { isLoaded, isSignedIn } = useAuth();
   const events = useQuery(eventsApi.list, isSignedIn ? {} : "skip");
@@ -247,9 +269,15 @@ function ConnectedEventContext() {
 }
 
 export function EventContext() {
-  return hasConvexConnection ? (
-    <ConnectedEventContext />
-  ) : (
-    <EventConnectionUnavailable />
+  if (!hasConvexConnection) {
+    return <EventConnectionUnavailable />;
+  }
+
+  return (
+    <ErrorBoundary
+      fallback={(retry) => <EventConnectionFailed onRetry={retry} />}
+    >
+      <ConnectedEventContext />
+    </ErrorBoundary>
   );
 }
