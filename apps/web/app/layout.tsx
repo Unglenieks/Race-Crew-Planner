@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "./providers";
+import { displayModeInitScript } from "@/lib/display-mode";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -44,6 +45,9 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;1,6..72,500&display=swap"
           rel="stylesheet"
         />
+        {/* Applies the stored palette before first paint to avoid a flash of
+            the day theme. Must stay inline and blocking. */}
+        <script dangerouslySetInnerHTML={{ __html: displayModeInitScript }} />
       </head>
       <body className="min-h-full">
         {clerkPublishableKey === undefined ? (

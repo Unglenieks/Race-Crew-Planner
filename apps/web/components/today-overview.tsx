@@ -40,90 +40,75 @@ export function TodayOverview({
   const nextItem = todaysItems[0];
 
   return (
-    <section
-      id="today"
-      aria-labelledby="today-heading"
-      className="scroll-mt-24"
-    >
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="font-mono text-[11px] uppercase tracking-wider text-green-ink">
-                Current event
-              </p>
-              <CardTitle id="today-heading" className="mt-1">
-                Today
-              </CardTitle>
-            </div>
-            <Badge variant="neutral">Event time: {timeZone}</Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          {items === undefined ? (
-            <p className="text-sm text-muted" role="status">
-              Loading today&apos;s movement plan…
-            </p>
-          ) : nextItem === undefined ? (
-            <div className="rounded-lg border border-line2 bg-topbg p-4">
-              <div className="flex items-start gap-3">
-                <CalendarClock
-                  className="mt-0.5 h-5 w-5 shrink-0 text-green-ink"
-                  aria-hidden="true"
-                />
-                <div>
-                  <p className="font-semibold text-ink">
-                    No plan movements due today
-                  </p>
-                  <p className="mt-1 text-sm leading-relaxed text-muted">
-                    This reflects the current movement plan only. Work, forms,
-                    and change-delivery attention will appear here after their
-                    draft features are released.
-                  </p>
-                </div>
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <CardTitle>Movements today</CardTitle>
+          <Badge variant="neutral">Event time: {timeZone}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {items === undefined ? (
+          <p className="text-sm text-muted" role="status">
+            Loading today&apos;s movement plan…
+          </p>
+        ) : nextItem === undefined ? (
+          <div className="rounded-lg border border-line2 bg-topbg p-4">
+            <div className="flex items-start gap-3">
+              <CalendarClock
+                className="mt-0.5 h-5 w-5 shrink-0 text-green-ink"
+                aria-hidden="true"
+              />
+              <div>
+                <p className="font-semibold text-ink">
+                  No plan movements due today
+                </p>
+                <p className="mt-1 text-sm leading-relaxed text-muted">
+                  Nothing is scheduled in the movement plan for today. Work,
+                  forms, and change acknowledgements have their own screens in
+                  the sidebar.
+                </p>
               </div>
             </div>
-          ) : (
-            <div className="rounded-lg border border-success-ln bg-soft p-4">
-              <div className="flex items-start gap-3">
-                <CalendarClock
-                  className="mt-0.5 h-5 w-5 shrink-0 text-green-ink"
-                  aria-hidden="true"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold uppercase tracking-wider text-green-ink">
-                    Next movement
-                  </p>
-                  <p className="mt-1 font-semibold text-ink">
-                    {nextItem.title}
-                  </p>
-                  <p className="mt-1 text-sm text-muted">
-                    {timeFromScheduledFor(nextItem.scheduledFor)}
-                    {nextItem.location === undefined
-                      ? ""
-                      : ` · ${nextItem.location}`}
-                  </p>
-                </div>
-                <ChevronRight
-                  className="mt-1 h-5 w-5 shrink-0 text-green-ink"
-                  aria-hidden="true"
-                />
-              </div>
-            </div>
-          )}
-          <div className="flex items-center gap-3 border-t border-line pt-4 text-sm text-muted">
-            <ClipboardCheck
-              className="h-4 w-4 shrink-0 text-green-ink"
-              aria-hidden="true"
-            />
-            <span>
-              {items === undefined
-                ? "Checking the plan…"
-                : `${todaysItems.length} movement${todaysItems.length === 1 ? "" : "s"} scheduled today`}
-            </span>
           </div>
-        </CardContent>
-      </Card>
-    </section>
+        ) : (
+          <div className="rounded-lg border border-success-ln bg-soft p-4">
+            <div className="flex items-start gap-3">
+              <CalendarClock
+                className="mt-0.5 h-5 w-5 shrink-0 text-green-ink"
+                aria-hidden="true"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold uppercase tracking-wider text-green-ink">
+                  Next movement
+                </p>
+                <p className="mt-1 font-semibold text-ink">{nextItem.title}</p>
+                <p className="mt-1 text-sm text-muted">
+                  {timeFromScheduledFor(nextItem.scheduledFor)}
+                  {nextItem.location === undefined
+                    ? ""
+                    : ` · ${nextItem.location}`}
+                </p>
+              </div>
+              <ChevronRight
+                className="mt-1 h-5 w-5 shrink-0 text-green-ink"
+                aria-hidden="true"
+              />
+            </div>
+          </div>
+        )}
+        <div className="flex items-center gap-3 border-t border-line pt-4 text-sm text-muted">
+          <ClipboardCheck
+            className="h-4 w-4 shrink-0 text-green-ink"
+            aria-hidden="true"
+          />
+          <span>
+            {items === undefined
+              ? "Checking the plan…"
+              : `${todaysItems.length} movement${todaysItems.length === 1 ? "" : "s"} scheduled today`}
+          </span>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

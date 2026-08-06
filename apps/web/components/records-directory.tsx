@@ -3,7 +3,12 @@
 import { LoaderCircle, Pencil, Search } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { recordsApi, recordTypes, type EventRecord } from "@/lib/events-api";
+import {
+  recordsApi,
+  recordTypes,
+  type EventRecord,
+  type EventRole,
+} from "@/lib/events-api";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -11,7 +16,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/data-display";
 import { Input } from "@/components/ui/input";
 
-type EventRole = "owner" | "manager" | "crew";
 type Draft = {
   name: string;
   type: EventRecord["type"];
@@ -118,15 +122,17 @@ export function RecordsDirectory({
     <div className="grid gap-4">
       <Card>
         <CardHeader>
-          <div>
-            <CardTitle>Records and venues</CardTitle>
-            <p className="mt-1 text-sm text-muted">
-              Shared operational places, services, equipment, and people.
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Directory</CardTitle>
+              <p className="mt-1 text-sm text-muted">
+                Shared operational places, services, equipment, and people.
+              </p>
+            </div>
+            <Badge variant={canManage ? "success" : "neutral"}>
+              {canManage ? "Can manage" : "View only"}
+            </Badge>
           </div>
-          <Badge variant={canManage ? "success" : "neutral"}>
-            {canManage ? "Can manage" : "View only"}
-          </Badge>
         </CardHeader>
         <CardContent className="grid gap-4">
           {error === null ? null : (

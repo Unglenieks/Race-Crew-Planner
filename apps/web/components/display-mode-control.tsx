@@ -1,77 +1,108 @@
 "use client";
 
-import { Contrast, Moon, Sun } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Contrast, Monitor, Moon, Sun } from "lucide-react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  readDisplayPreference,
+  readServerDisplayPreference,
+  setDisplayPreference,
+  subscribeToDeviceAppearance,
+  subscribeToDisplayPreference,
+  type DisplayPreference,
+} from "@/lib/display-mode";
 
-type DisplayMode = "system" | "day" | "night" | "contrast";
-
-const modes: Array<{ mode: DisplayMode; label: string; Icon: typeof Sun }> = [
-  { mode: "system", label: "Use device display", Icon: Sun },
-  { mode: "day", label: "Use day display", Icon: Sun },
-  { mode: "night", label: "Use night display", Icon: Moon },
-  { mode: "contrast", label: "Use high-contrast display", Icon: Contrast },
+const options: Array<{
+  preference: DisplayPreference;
+  label: string;
+  Icon: typeof Sun;
+}> = [
+  { preference: "system", label: "Use device display", Icon: Monitor },
+  { preference: "day", label: "Use day display", Icon: Sun },
+  { preference: "night", label: "Use night display", Icon: Moon },
+  {
+    preference: "contrast",
+    label: "Use high-contrast display",
+    Icon: Contrast,
+  },
 ];
 
-function applyMode(mode: DisplayMode) {
-  document.documentElement.dataset.displayMode = mode;
-}
-
 export function DisplayModeControl() {
-  const [mode, setMode] = useState<DisplayMode>(() => {
-    if (typeof window === "undefined") return "system";
-    const saved = window.localStorage.getItem("race-planner-display-mode");
-    return saved === "day" || saved === "night" || saved === "contrast"
-      ? saved
-      : "system";
-  });
+  const preference = useSyncExternalStore(
+    subscribeToDisplayPreference,
+    readDisplayPreference,
+    readServerDisplayPreference,
+  );
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => subscribeToDeviceAppearance(), []);
 
   useEffect(() => {
-    applyMode(mode);
-  }, [mode]);
+    if (!isOpen) return;
 
-  function selectMode(nextMode: DisplayMode) {
-    setMode(nextMode);
-    applyMode(nextMode);
-    if (nextMode === "system") {
-      window.localStorage.removeItem("race-planner-display-mode");
-    } else {
-      window.localStorage.setItem("race-planner-display-mode", nextMode);
+    function onPointerDown(event: MouseEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
     }
-  }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setIsOpen(false);
+    }
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isOpen]);
+
+  const ActiveIcon =
+    options.find((option) => option.preference === preference)?.Icon ?? Sun;
 
   return (
-    <div className="relative group">
+    <div className="relative" ref={containerRef}>
       <Button
         type="button"
         size="sm"
         aria-label="Choose display mode"
-        aria-haspopup="true"
-        className="peer"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((open) => !open)}
       >
-        {mode === "night" ? (
-          <Moon className="h-4 w-4" />
-        ) : mode === "contrast" ? (
-          <Contrast className="h-4 w-4" />
-        ) : (
-          <Sun className="h-4 w-4" />
-        )}
-        Display
+        <ActiveIcon className="h-4 w-4" aria-hidden="true" />
+        <span className="hidden sm:inline">Display</span>
       </Button>
-      <div className="invisible absolute right-0 z-20 mt-2 grid w-56 gap-1 rounded-lg border border-line bg-card p-2 opacity-0 shadow-lg transition group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
-        {modes.map(({ mode: option, label, Icon }) => (
-          <button
-            key={option}
-            type="button"
-            onClick={() => selectMode(option)}
-            aria-pressed={mode === option}
-            className="flex min-h-11 items-center gap-2 rounded-md px-3 text-left text-sm font-semibold text-ink hover:bg-soft focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
-          >
-            <Icon className="h-4 w-4" aria-hidden="true" />
-            {label}
-          </button>
-        ))}
-      </div>
+      {isOpen ? (
+        <div
+          role="menu"
+          aria-label="Display mode"
+          className="absolute right-0 z-30 mt-2 grid w-56 gap-1 rounded-lg border border-line bg-card p-2 shadow-lg"
+        >
+          {options.map(({ preference: option, label, Icon }) => (
+            <button
+              key={option}
+              type="button"
+              role="menuitemradio"
+              aria-checked={preference === option}
+              onClick={() => {
+                setDisplayPreference(option);
+                setIsOpen(false);
+              }}
+              className="flex min-h-11 items-center gap-2 rounded-md px-3 text-left text-sm font-semibold text-ink hover:bg-soft focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
+            >
+              <Icon className="h-4 w-4 flex-none" aria-hidden="true" />
+              {label}
+              {preference === option ? (
+                <span className="ml-auto text-xs font-normal text-muted">
+                  Active
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

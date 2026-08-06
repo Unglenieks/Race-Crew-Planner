@@ -23,7 +23,7 @@ export function PlanSections({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Plan sections</CardTitle>
+        <CardTitle>Sections</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-3">
         {role === "crew" ? null : (

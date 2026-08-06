@@ -256,7 +256,7 @@ export function FormsInspections({
     <div className="grid gap-4">
       <Card>
         <CardHeader>
-          <CardTitle>Forms and inspections</CardTitle>
+          <CardTitle>Templates</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
           {role === "owner" || role === "manager" ? (
