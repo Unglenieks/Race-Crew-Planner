@@ -20,6 +20,11 @@ import {
   create as createInvitation,
   normalizedEmail,
 } from "../../convex/invitations";
+import {
+  createTemplate,
+  missingRequiredFields,
+  validateFields,
+} from "../../convex/forms";
 
 const owner: ApplicationRole = "owner";
 
@@ -183,6 +188,51 @@ describe("Convex authorization helpers", () => {
     expect(() =>
       validatedItineraryInput({ title: "Depart", scheduledFor: "tomorrow" }),
     ).toThrow("planned date and time");
+  });
+
+  it("validates unique, named inspection fields and reports missing required answers", () => {
+    const fields = validateFields([
+      {
+        id: " brakes ",
+        label: " Brake condition ",
+        type: "text",
+        required: true,
+      },
+      { id: "passed", label: "Passed", type: "boolean", required: true },
+    ]);
+    expect(fields[0]).toMatchObject({ id: "brakes", label: "Brake condition" });
+    expect(missingRequiredFields(fields, { brakes: "Good" })).toEqual([
+      fields[1],
+    ]);
+    expect(() => validateFields([{ ...fields[0] }, { ...fields[0] }])).toThrow(
+      "unique identifier",
+    );
+  });
+
+  it("does not let crew members create inspection templates", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+        }),
+      },
+    };
+    await expect(
+      createTemplate._handler(context as never, {
+        eventId: "events:one" as never,
+        name: "Vehicle inspection",
+        fields: [
+          { id: "passed", label: "Passed", type: "boolean", required: true },
+        ],
+      }),
+    ).rejects.toThrow("Forbidden");
   });
 
   it("allows members to read but not crew members to change an itinerary", async () => {

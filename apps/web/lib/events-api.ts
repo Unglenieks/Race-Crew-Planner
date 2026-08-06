@@ -25,6 +25,29 @@ export type EventContact = {
   phoneNumber?: string;
 };
 
+export type FormField = {
+  id: string;
+  label: string;
+  type: "text" | "boolean";
+  required: boolean;
+};
+export type FormTemplate = {
+  _id: string;
+  name: string;
+  version: number;
+  fields: FormField[];
+};
+export type FormSubmission = {
+  _id: string;
+  templateId: string;
+  templateName: string;
+  templateVersion: number;
+  fields: FormField[];
+  answers: Record<string, string | boolean | undefined>;
+  status: "draft" | "submitted";
+  submittedAt?: number;
+};
+
 /**
  * Typed references for the event feature while the environment-owned Convex
  * codegen command is unavailable in an isolated worktree.
@@ -106,4 +129,37 @@ export const invitationsApi = {
     { eventId: string; membershipId: string },
     null
   >("invitations:removeMember"),
+};
+
+export const formsApi = {
+  listTemplates: makeFunctionReference<
+    "query",
+    { eventId: string },
+    FormTemplate[]
+  >("forms:listTemplates"),
+  createTemplate: makeFunctionReference<
+    "mutation",
+    { eventId: string; name: string; fields: FormField[] },
+    string
+  >("forms:createTemplate"),
+  listMySubmissions: makeFunctionReference<
+    "query",
+    { eventId: string },
+    FormSubmission[]
+  >("forms:listMySubmissions"),
+  saveDraft: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      templateId: string;
+      submissionId?: string;
+      answers: Record<string, string | boolean | undefined>;
+    },
+    string
+  >("forms:saveDraft"),
+  submit: makeFunctionReference<
+    "mutation",
+    { eventId: string; submissionId: string },
+    null
+  >("forms:submit"),
 };

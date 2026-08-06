@@ -57,4 +57,42 @@ export default defineSchema({
   })
     .index("by_eventId", ["eventId"])
     .index("by_eventId_scheduledFor", ["eventId", "scheduledFor"]),
+  formTemplates: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    version: v.number(),
+    fields: v.array(
+      v.object({
+        id: v.string(),
+        label: v.string(),
+        type: v.union(v.literal("text"), v.literal("boolean")),
+        required: v.boolean(),
+      }),
+    ),
+    createdBy: v.string(),
+    createdAt: v.number(),
+  }).index("by_eventId", ["eventId"]),
+  formSubmissions: defineTable({
+    eventId: v.id("events"),
+    templateId: v.id("formTemplates"),
+    templateName: v.string(),
+    templateVersion: v.number(),
+    fields: v.array(
+      v.object({
+        id: v.string(),
+        label: v.string(),
+        type: v.union(v.literal("text"), v.literal("boolean")),
+        required: v.boolean(),
+      }),
+    ),
+    answers: v.any(),
+    status: v.union(v.literal("draft"), v.literal("submitted")),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    submittedBy: v.optional(v.string()),
+    submittedAt: v.optional(v.number()),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_eventId_createdBy", ["eventId", "createdBy"]),
 });
