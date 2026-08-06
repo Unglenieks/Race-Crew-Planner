@@ -170,6 +170,11 @@ export type FormTemplate = {
   name: string;
   version: number;
   fields: FormField[];
+  /**
+   * True when a newer version exists. Such a template is only returned because
+   * the caller still has an unfinished draft against it.
+   */
+  isSuperseded?: boolean;
 };
 export type FormSubmission = {
   _id: string;
@@ -295,7 +300,8 @@ export const recordsApi = {
       recordId: string;
       name: string;
       type: (typeof recordTypes)[number];
-      recordTypeId?: string;
+      /** Omit to keep the configured type, `null` to clear it. */
+      recordTypeId?: string | null;
       address?: string;
       notes?: string;
     },
@@ -315,8 +321,9 @@ export const recordsApi = {
       eventId: string;
       recordId: string;
       address?: string;
-      latitude?: number;
-      longitude?: number;
+      /** Omit to keep stored coordinates, `null` to clear them. */
+      latitude?: number | null;
+      longitude?: number | null;
       accessNotes?: string;
       hours?: string;
       contactDetail?: string;

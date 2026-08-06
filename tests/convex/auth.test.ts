@@ -6,7 +6,12 @@ import {
   type ApplicationRole,
 } from "../../convex/auth";
 import { getCurrentUser } from "../../convex/currentUser";
-import { create, get, validatedEventInput } from "../../convex/events";
+import {
+  create,
+  get,
+  isSupportedEventTimeZone,
+  validatedEventInput,
+} from "../../convex/events";
 import {
   create as createItineraryItem,
   archive as archiveItineraryItem,
@@ -43,6 +48,8 @@ import {
 import {
   create as createRecord,
   get as getRecord,
+  mergeCategory,
+  resolvedCoordinates,
   saveTravel,
   saveVenueDetails,
   update as updateRecord,
@@ -54,8 +61,12 @@ import {
   publish as publishPlanChange,
 } from "../../convex/planChanges";
 import {
+  blockingIssues,
+  codedIssues,
   createTemplate,
+  listTemplates,
   missingRequiredFields,
+  saveDraft,
   validationIssues,
   validateFields,
 } from "../../convex/forms";
@@ -1111,5 +1122,352 @@ describe("Convex authorization helpers", () => {
     expect(patches).toContainEqual(
       expect.objectContaining({ status: "accepted", acceptedBy: "crew_123" }),
     );
+  });
+});
+
+describe("regressions found reviewing the outage integration", () => {
+  const managerContext = (
+    db: Record<string, unknown>,
+    role: "owner" | "manager" | "crew" = "manager",
+  ) => ({
+    auth: {
+      getUserIdentity: async () => ({
+        tokenIdentifier: `issuer|${role}_123`,
+        subject: `${role}_123`,
+        issuer: "issuer",
+      }),
+    },
+    db: {
+      query: () => ({
+        withIndex: () => ({ unique: async () => ({ role }) }),
+      }),
+      ...db,
+    },
+  });
+
+  it("accepts IANA zones without depending on Intl.supportedValuesOf", () => {
+    const original = (Intl as { supportedValuesOf?: unknown })
+      .supportedValuesOf;
+    try {
+      // Simulates a runtime that does not expose the ES2022 helper, which is the
+      // case the Convex runtime must not crash on.
+      delete (Intl as { supportedValuesOf?: unknown }).supportedValuesOf;
+      expect(isSupportedEventTimeZone("America/Chicago")).toBe(true);
+      expect(isSupportedEventTimeZone("UTC")).toBe(true);
+      expect(isSupportedEventTimeZone("CST")).toBe(false);
+      expect(isSupportedEventTimeZone("GMT")).toBe(false);
+      expect(isSupportedEventTimeZone("not-a-zone")).toBe(false);
+      expect(() =>
+        validatedEventInput({ name: "Spring Rally", timeZone: "EST" }),
+      ).toThrow("IANA");
+    } finally {
+      (Intl as { supportedValuesOf?: unknown }).supportedValuesOf = original;
+    }
+  });
+
+  it("accepts valid IANA link names that canonical lists omit", () => {
+    expect(isSupportedEventTimeZone("Asia/Calcutta")).toBe(true);
+    expect(isSupportedEventTimeZone("US/Eastern")).toBe(true);
+  });
+
+  it("keeps stored coordinates when a caller does not send them", () => {
+    const existing = { latitude: 51.5, longitude: -0.12 };
+    expect(resolvedCoordinates({}, existing)).toEqual(existing);
+    expect(
+      resolvedCoordinates({ latitude: null, longitude: null }, existing),
+    ).toEqual({ latitude: undefined, longitude: undefined });
+    expect(
+      resolvedCoordinates({ latitude: 10, longitude: 20 }, existing),
+    ).toEqual({ latitude: 10, longitude: 20 });
+  });
+
+  it("rejects half a coordinate and out-of-range values", () => {
+    expect(() => resolvedCoordinates({ latitude: 10 }, {})).toThrow(
+      "latitude and longitude",
+    );
+    expect(() =>
+      resolvedCoordinates({ latitude: 91, longitude: 0 }, {}),
+    ).toThrow("latitude and longitude");
+    expect(() =>
+      resolvedCoordinates({ latitude: 0, longitude: 181 }, {}),
+    ).toThrow("latitude and longitude");
+    // Clearing one half while the other remains stored is still invalid.
+    expect(() =>
+      resolvedCoordinates({ latitude: null }, { latitude: 1, longitude: 2 }),
+    ).toThrow("latitude and longitude");
+  });
+
+  it("still saves a record whose configured type was archived", async () => {
+    const patches: Array<Record<string, unknown>> = [];
+    const context = managerContext({
+      get: async (id: string) =>
+        id === "eventRecords:one"
+          ? {
+              _id: "eventRecords:one",
+              eventId: "events:one",
+              recordTypeId: "eventRecordTypes:retired",
+            }
+          : {
+              _id: "eventRecordTypes:retired",
+              eventId: "events:one",
+              name: "Marshal post",
+              // Archiving is a decision about future records only.
+              archivedAt: 123,
+              isLocation: true,
+            },
+      patch: async (_id: string, value: Record<string, unknown>) => {
+        patches.push(value);
+      },
+    });
+
+    await updateRecord._handler(context as never, {
+      recordId: "eventRecords:one" as never,
+      eventId: "events:one" as never,
+      name: "Post 4",
+      type: "venue" as never,
+      recordTypeId: "eventRecordTypes:retired" as never,
+    });
+
+    expect(patches[0]).toMatchObject({
+      name: "Post 4",
+      recordTypeId: "eventRecordTypes:retired",
+      type: "Marshal post",
+    });
+  });
+
+  it("does not let a record move onto a different archived type", async () => {
+    const context = managerContext({
+      get: async (id: string) =>
+        id === "eventRecords:one"
+          ? { _id: "eventRecords:one", eventId: "events:one" }
+          : {
+              _id: "eventRecordTypes:retired",
+              eventId: "events:one",
+              name: "Marshal post",
+              archivedAt: 123,
+              isLocation: true,
+            },
+      patch: async () => undefined,
+    });
+
+    await expect(
+      updateRecord._handler(context as never, {
+        recordId: "eventRecords:one" as never,
+        eventId: "events:one" as never,
+        name: "Post 4",
+        type: "venue" as never,
+        recordTypeId: "eventRecordTypes:retired" as never,
+      }),
+    ).rejects.toThrow("Record type not found");
+  });
+
+  it("leaves a configured type alone unless the caller clears it", async () => {
+    const patches: Array<Record<string, unknown>> = [];
+    const context = managerContext({
+      get: async (id: string) =>
+        id === "eventRecords:one"
+          ? {
+              _id: "eventRecords:one",
+              eventId: "events:one",
+              recordTypeId: "eventRecordTypes:post",
+            }
+          : {
+              _id: "eventRecordTypes:post",
+              eventId: "events:one",
+              name: "Marshal post",
+              isLocation: true,
+            },
+      patch: async (_id: string, value: Record<string, unknown>) => {
+        patches.push(value);
+      },
+    });
+
+    // Omitted: keeps the team type.
+    await updateRecord._handler(context as never, {
+      recordId: "eventRecords:one" as never,
+      eventId: "events:one" as never,
+      name: "Post 4",
+      type: "venue" as never,
+    });
+    expect(patches[0]).toMatchObject({
+      recordTypeId: "eventRecordTypes:post",
+      type: "Marshal post",
+    });
+
+    // Explicit null: falls back to the built-in type.
+    await updateRecord._handler(context as never, {
+      recordId: "eventRecords:one" as never,
+      eventId: "events:one" as never,
+      name: "Post 4",
+      type: "venue" as never,
+      recordTypeId: null,
+    });
+    expect(patches[1]).toMatchObject({
+      recordTypeId: undefined,
+      type: "venue",
+    });
+  });
+
+  it("does not leave duplicate assignments when merging categories", async () => {
+    const deletes: string[] = [];
+    const patches: Array<{ id: string; value: Record<string, unknown> }> = [];
+    const assignments = {
+      "eventRecordCategories:source": [
+        { _id: "a1", recordId: "eventRecords:shared" },
+        { _id: "a2", recordId: "eventRecords:only-source" },
+      ],
+      "eventRecordCategories:target": [
+        { _id: "b1", recordId: "eventRecords:shared" },
+      ],
+    };
+    const context = managerContext({
+      get: async (id: string) => ({ _id: id, eventId: "events:one" }),
+      query: () => ({
+        withIndex: (_name: string, build: (q: unknown) => unknown) => {
+          // The membership lookup chains two `eq` calls; the assignment lookup
+          // uses one. Capture the last value either way.
+          let captured = "";
+          const chain = {
+            eq: (_field: string, value: string) => {
+              captured = value;
+              return chain;
+            },
+          };
+          build(chain);
+          return {
+            unique: async () => ({ role: "manager" }),
+            collect: async () =>
+              assignments[captured as keyof typeof assignments] ?? [],
+          };
+        },
+      }),
+      delete: async (id: string) => {
+        deletes.push(id);
+      },
+      patch: async (id: string, value: Record<string, unknown>) => {
+        patches.push({ id, value });
+      },
+    });
+
+    await mergeCategory._handler(context as never, {
+      eventId: "events:one" as never,
+      sourceCategoryId: "eventRecordCategories:source" as never,
+      targetCategoryId: "eventRecordCategories:target" as never,
+    });
+
+    // The record already in the target keeps one assignment; the other moves.
+    expect(deletes).toEqual(["a1"]);
+    expect(
+      patches.filter((entry) => entry.id === "a2").map((entry) => entry.value),
+    ).toEqual([{ categoryId: "eventRecordCategories:target" }]);
+    expect(patches.at(-1)).toMatchObject({
+      id: "eventRecordCategories:source",
+      value: expect.objectContaining({ archivedAt: expect.any(Number) }),
+    });
+  });
+
+  it("separates incomplete answers from malformed ones by code", () => {
+    const fields = validateFields([
+      { id: "temp", label: "Temperature", type: "number", required: true },
+      { id: "note", label: "Note", type: "text", required: false },
+    ]);
+
+    // An empty required field is recoverable, so a draft may still be saved.
+    expect(codedIssues(fields, {})).toEqual({
+      temp: { code: "missing", message: "This field is required." },
+    });
+    expect(blockingIssues(fields, {})).toEqual([]);
+
+    // A wrong type is never storable, whatever the message happens to say.
+    expect(blockingIssues(fields, { temp: "hot" }).map(([id]) => id)).toEqual([
+      "temp",
+    ]);
+    expect(
+      blockingIssues(fields, { temp: 1, stale: "x" }).map(([id]) => id),
+    ).toEqual(["stale"]);
+    // The flattened view stays available for rendering.
+    expect(validationIssues(fields, { temp: "hot" })).toEqual({
+      temp: "Enter a number.",
+    });
+  });
+
+  it("saves an incomplete draft but refuses a malformed one", async () => {
+    const template = {
+      _id: "formTemplates:one",
+      eventId: "events:one",
+      name: "Vehicle",
+      version: 1,
+      fields: validateFields([
+        { id: "temp", label: "Temperature", type: "number", required: true },
+      ]),
+    };
+    const inserts: Array<Record<string, unknown>> = [];
+    const context = managerContext(
+      {
+        get: async () => template,
+        insert: async (_table: string, value: Record<string, unknown>) => {
+          inserts.push(value);
+          return "formSubmissions:one";
+        },
+      },
+      "crew",
+    );
+
+    await saveDraft._handler(context as never, {
+      eventId: "events:one" as never,
+      templateId: "formTemplates:one" as never,
+      answers: {},
+    });
+    expect(inserts[0]).toMatchObject({ status: "draft", answers: {} });
+
+    await expect(
+      saveDraft._handler(context as never, {
+        eventId: "events:one" as never,
+        templateId: "formTemplates:one" as never,
+        answers: { temp: "hot" },
+      }),
+    ).rejects.toThrow("Temperature");
+  });
+
+  it("keeps a superseded template reachable while its draft is unfinished", async () => {
+    const templates = [
+      { _id: "formTemplates:v1", version: 1, isCurrent: false },
+      { _id: "formTemplates:v2", version: 2, isCurrent: true },
+      { _id: "formTemplates:other-v1", version: 1, isCurrent: false },
+    ];
+    const submissions = [
+      { templateId: "formTemplates:v1", status: "draft" },
+      { templateId: "formTemplates:other-v1", status: "submitted" },
+    ];
+    let call = 0;
+    const context = managerContext(
+      {
+        query: () => ({
+          withIndex: () => ({
+            unique: async () => ({ role: "crew" }),
+            collect: async () => {
+              call += 1;
+              return call === 1 ? templates : submissions;
+            },
+          }),
+        }),
+      },
+      "crew",
+    );
+
+    const visible = await listTemplates._handler(context as never, {
+      eventId: "events:one" as never,
+    });
+
+    expect(
+      visible.map((t: { _id: string; isSuperseded: boolean }) => [
+        t._id,
+        t.isSuperseded,
+      ]),
+    ).toEqual([
+      // Stranded draft stays reachable and is labelled as superseded.
+      ["formTemplates:v1", true],
+      ["formTemplates:v2", false],
+    ]);
   });
 });

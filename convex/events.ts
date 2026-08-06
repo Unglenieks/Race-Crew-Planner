@@ -7,11 +7,48 @@ const eventArgs = {
   timeZone: v.string(),
 };
 
-function isSupportedEventTimeZone(timeZone: string) {
-  return (
-    timeZone === "UTC" ||
-    Intl.supportedValuesOf("timeZone").includes(timeZone)
-  );
+/**
+ * `Region/Location` shape, which every IANA zone name outside `UTC` follows.
+ * Requiring the separator is what rejects ambiguous abbreviations such as
+ * `CST`, `EST`, and `GMT+5`, which `Intl.DateTimeFormat` would otherwise accept.
+ */
+const ianaTimeZonePattern = /^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)+$/;
+
+/**
+ * Resolves the canonical zone list once, tolerating runtimes that do not expose
+ * `Intl.supportedValuesOf`. The Convex default runtime is a custom V8 embedding
+ * rather than Node, so this must never be assumed to exist: if it is missing we
+ * fall back to probing `Intl.DateTimeFormat`, which every runtime here provides.
+ */
+function canonicalTimeZones(): ReadonlySet<string> | null {
+  const supportedValuesOf = (
+    Intl as { supportedValuesOf?: (key: string) => string[] }
+  ).supportedValuesOf;
+  if (typeof supportedValuesOf !== "function") return null;
+  try {
+    return new Set(supportedValuesOf.call(Intl, "timeZone"));
+  } catch {
+    return null;
+  }
+}
+
+function isKnownTimeZone(timeZone: string) {
+  const canonical = canonicalTimeZones();
+  if (canonical !== null && canonical.has(timeZone)) return true;
+  // Canonical lists omit valid IANA link names such as `Asia/Calcutta`, so a
+  // successful format is still accepted once the shape check has passed.
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function isSupportedEventTimeZone(timeZone: string) {
+  if (timeZone === "UTC") return true;
+  if (!ianaTimeZonePattern.test(timeZone)) return false;
+  return isKnownTimeZone(timeZone);
 }
 
 function validatedEventInput({

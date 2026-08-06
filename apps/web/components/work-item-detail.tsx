@@ -177,7 +177,10 @@ export function WorkItemDetail({
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+    <section
+      aria-labelledby="work-item-detail-heading"
+      className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]"
+    >
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -188,7 +191,12 @@ export function WorkItemDetail({
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Work
               </Link>
-              <CardTitle className="mt-3">{item.title}</CardTitle>
+              <h1
+                id="work-item-detail-heading"
+                className="mt-3 font-serif text-[clamp(24px,3vw,32px)] font-semibold leading-tight tracking-tight text-ink"
+              >
+                {item.title}
+              </h1>
               <p className="mt-1 text-sm text-muted">
                 Complete it quickly, then keep assignment and handoff context in
                 one place.
@@ -458,6 +466,6 @@ export function WorkItemDetail({
           </CardContent>
         </Card>
       </div>
-    </div>
+    </section>
   );
 }

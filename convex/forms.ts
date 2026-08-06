@@ -85,43 +85,113 @@ export function validateTemplateName(name: string) {
   return normalized;
 }
 
-export function validationIssues(fields: FormField[], answers: Answers) {
-  const known = new Set(fields.map((item) => item.id));
-  const issues: Record<string, string> = {};
-  for (const id of Object.keys(answers)) {
-    if (!known.has(id)) issues[id] = "This answer is not part of this form.";
+/**
+ * Why an answer is unacceptable, kept separate from the wording shown to people.
+ *
+ * `missing` is recoverable — a draft is allowed to be incomplete — while
+ * `unknown` and `invalid` mean the payload does not fit the captured schema and
+ * must never be stored. Behaviour must key off these codes, never off the
+ * message text, so copy edits cannot change what the server accepts.
+ */
+export type IssueCode = "missing" | "unknown" | "invalid";
+export type FieldIssue = { code: IssueCode; message: string };
+
+const issueMessages: Record<string, string> = {
+  unknown: "This answer is not part of this form.",
+  missing: "This field is required.",
+};
+
+function invalidMessage(type: FormField["type"]) {
+  switch (type) {
+    case "text":
+      return "Enter text.";
+    case "number":
+      return "Enter a number.";
+    case "date":
+      return "Enter a date.";
+    case "boolean":
+      return "Choose yes or no.";
+    case "select":
+      return "Choose one of the listed options.";
+    case "multiSelect":
+      return "Choose one or more listed options.";
   }
+}
+
+function isValidAnswer(item: FormField, value: unknown) {
+  switch (item.type) {
+    case "text":
+      return typeof value === "string";
+    case "number":
+      return typeof value === "number" && Number.isFinite(value);
+    case "date":
+      return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+    case "boolean":
+      return typeof value === "boolean";
+    case "select":
+      return (
+        typeof value === "string" && item.options?.includes(value) === true
+      );
+    case "multiSelect":
+      return (
+        Array.isArray(value) &&
+        value.length > 0 &&
+        value.every(
+          (option) =>
+            typeof option === "string" && item.options?.includes(option),
+        )
+      );
+  }
+}
+
+/** Every problem with a payload, each tagged with a machine-readable code. */
+export function codedIssues(
+  fields: FormField[],
+  answers: Answers,
+): Record<string, FieldIssue> {
+  const known = new Set(fields.map((item) => item.id));
+  const issues: Record<string, FieldIssue> = {};
+
+  for (const id of Object.keys(answers)) {
+    if (!known.has(id))
+      issues[id] = { code: "unknown", message: issueMessages.unknown };
+  }
+
   for (const item of fields) {
     const value = answers[item.id];
     if (!hasAnswer(value)) {
-      if (item.required) issues[item.id] = "This field is required.";
+      if (item.required)
+        issues[item.id] = { code: "missing", message: issueMessages.missing };
       continue;
     }
-    if (item.type === "text" && typeof value !== "string")
-      issues[item.id] = "Enter text.";
-    if (item.type === "number" && (typeof value !== "number" || !Number.isFinite(value)))
-      issues[item.id] = "Enter a number.";
-    if (
-      item.type === "date" &&
-      (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value))
-    )
-      issues[item.id] = "Enter a date.";
-    if (item.type === "boolean" && typeof value !== "boolean")
-      issues[item.id] = "Choose yes or no.";
-    if (
-      item.type === "select" &&
-      (typeof value !== "string" || !item.options?.includes(value))
-    )
-      issues[item.id] = "Choose one of the listed options.";
-    if (
-      item.type === "multiSelect" &&
-      (!Array.isArray(value) ||
-        value.length === 0 ||
-        value.some((option) => typeof option !== "string" || !item.options?.includes(option)))
-    )
-      issues[item.id] = "Choose one or more listed options.";
+    if (!isValidAnswer(item, value))
+      issues[item.id] = {
+        code: "invalid",
+        message: invalidMessage(item.type),
+      };
   }
+
   return issues;
+}
+
+/**
+ * Problems that block *saving* as opposed to blocking submission. A draft may be
+ * incomplete, so `missing` is excluded; a draft may never be malformed.
+ */
+export function blockingIssues(fields: FormField[], answers: Answers) {
+  return Object.entries(codedIssues(fields, answers)).filter(
+    ([, issue]) => issue.code !== "missing",
+  );
+}
+
+/** Flattens to `id -> message`, for callers that only render the text. */
+export function validationIssues(fields: FormField[], answers: Answers) {
+  return Object.fromEntries(
+    Object.entries(codedIssues(fields, answers)).map(([id, issue]) => [
+      id,
+      issue.message,
+    ]),
+  );
 }
 
 export function missingRequiredFields(fields: FormField[], answers: Answers) {
@@ -143,15 +213,46 @@ async function requireMembership(
   return { identity, membership };
 }
 
+/**
+ * Templates a member can still act on.
+ *
+ * Superseded versions are normally hidden, but one is still returned when the
+ * caller has an unfinished draft against it. Without this, publishing a new
+ * version silently strands in-progress inspections: the draft row survives but
+ * no screen can reach it, so the work has to be redone from scratch.
+ */
 export const listTemplates = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
-    await requireMembership(ctx, eventId);
+    const { identity } = await requireMembership(ctx, eventId);
     const templates = await ctx.db
       .query("formTemplates")
       .withIndex("by_eventId", (index) => index.eq("eventId", eventId))
       .collect();
-    return templates.filter((template) => template.isCurrent !== false);
+    const mySubmissions = await ctx.db
+      .query("formSubmissions")
+      .withIndex("by_eventId_createdBy", (index) =>
+        index.eq("eventId", eventId).eq("createdBy", identity.subject),
+      )
+      .collect();
+    const templatesWithMyDraft = new Set(
+      mySubmissions
+        .filter((submission) => submission.status === "draft")
+        .map((submission) => submission.templateId),
+    );
+
+    return templates
+      .filter(
+        (template) =>
+          template.isCurrent !== false ||
+          templatesWithMyDraft.has(template._id),
+      )
+      .map((template) => ({
+        ...template,
+        // Lets the UI label a stranded draft instead of presenting a superseded
+        // schema as if it were the live one.
+        isSuperseded: template.isCurrent === false,
+      }));
   },
 });
 
@@ -183,7 +284,11 @@ export const createTemplateVersion = mutation({
     const { identity, membership } = await requireMembership(ctx, eventId);
     requireRole(membership.role, ["owner", "manager"]);
     const template = await ctx.db.get(templateId);
-    if (template === null || template.eventId !== eventId || template.isCurrent === false)
+    if (
+      template === null ||
+      template.eventId !== eventId ||
+      template.isCurrent === false
+    )
       throw new Error("Current form template not found");
     const versionId = await ctx.db.insert("formTemplates", {
       eventId,
@@ -225,11 +330,24 @@ export const saveDraft = mutation({
     const template = await ctx.db.get(templateId);
     if (template === null || template.eventId !== eventId)
       throw new Error("Form template not found");
-    if (typeof answers !== "object" || answers === null || Array.isArray(answers))
+    if (
+      typeof answers !== "object" ||
+      answers === null ||
+      Array.isArray(answers)
+    )
       throw new Error("Form answers must be an object");
-    const issues = validationIssues(template.fields, answers as Answers);
-    if (Object.keys(issues).some((id) => !issues[id]?.includes("required")))
-      throw new Error("Correct invalid form answers before saving");
+    // A draft may be incomplete but never malformed, so only non-`missing`
+    // issues block the save. Keyed off issue codes, not message wording.
+    const blocking = blockingIssues(template.fields, answers as Answers);
+    if (blocking.length > 0)
+      throw new Error(
+        `Correct these answers before saving: ${blocking
+          .map(
+            ([id]) =>
+              template.fields.find((field) => field.id === id)?.label ?? id,
+          )
+          .join(", ")}`,
+      );
     const now = Date.now();
     if (submissionId === undefined)
       return ctx.db.insert("formSubmissions", {
@@ -270,11 +388,18 @@ export const submit = mutation({
       submission.status !== "draft"
     )
       throw new Error("Draft form not found");
-    const issues = validationIssues(submission.fields, submission.answers as Answers);
-    if (Object.keys(issues).length > 0)
+    const issues = codedIssues(
+      submission.fields,
+      submission.answers as Answers,
+    );
+    const ids = Object.keys(issues);
+    if (ids.length > 0)
       throw new Error(
-        `Correct form fields: ${Object.keys(issues)
-          .map((id) => submission.fields.find((field) => field.id === id)?.label ?? id)
+        `Correct form fields: ${ids
+          .map(
+            (id) =>
+              submission.fields.find((field) => field.id === id)?.label ?? id,
+          )
           .join(", ")}`,
       );
     await ctx.db.patch(submissionId, {
