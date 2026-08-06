@@ -57,9 +57,10 @@ component tests for its own screens.
 
 ### P2 · Scheduler primitive
 
-**Why first.** There is no `convex/crons.ts`, no `convex/http.ts`, and no
-`ctx.scheduler` call anywhere. Retention expiry (S5) and change escalation (S8)
-both need scheduled work, and both will otherwise invent it.
+**Current state.** `convex/crons.ts` registers an internal heartbeat proving job
+and `docs/scheduling.md` defines the recurring/deferred work convention.
+Retention expiry (S5) and change escalation (S8) still need their own jobs, but
+they now share this reviewed boundary rather than inventing one.
 
 **Scope.** One reviewed pattern for scheduled and deferred Convex work:
 where cron definitions live, how a scheduled function proves authorization
@@ -70,7 +71,8 @@ development environment.
 one trivial proving job only.
 
 **Exit criteria.** A scheduled function runs in the development deployment, is
-observable, and has a documented failure path.
+observable, and has a documented failure path. **Code complete; deployment
+verification remains required before the slice is operationally complete.**
 
 ## Slices, in dependency order
 

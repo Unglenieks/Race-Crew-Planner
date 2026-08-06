@@ -18,6 +18,7 @@ import type * as itinerary from "../itinerary.js";
 import type * as planChanges from "../planChanges.js";
 import type * as planSections from "../planSections.js";
 import type * as records from "../records.js";
+import type * as scheduler from "../scheduler.js";
 import type * as work from "../work.js";
 import type * as workTemplates from "../workTemplates.js";
 
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   planChanges: typeof planChanges;
   planSections: typeof planSections;
   records: typeof records;
+  scheduler: typeof scheduler;
   work: typeof work;
   workTemplates: typeof workTemplates;
 }>;
