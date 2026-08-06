@@ -9,7 +9,9 @@ import { getCurrentUser } from "../../convex/currentUser";
 import { create, get, validatedEventInput } from "../../convex/events";
 import {
   create as createItineraryItem,
+  archive as archiveItineraryItem,
   list as listItineraryItems,
+  restore as restoreItineraryItem,
   update as updateItineraryItem,
   validatedItineraryInput,
 } from "../../convex/itinerary";
@@ -240,6 +242,65 @@ describe("Convex authorization helpers", () => {
         title: "Depart",
         scheduledFor: "2026-10-16T08:30",
       }),
+    ).rejects.toThrow("Movement not found");
+  });
+
+  it("archives and restores only movements in the selected event", async () => {
+    const patches: Array<Record<string, unknown>> = [];
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|owner_123",
+          subject: "owner_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "owner" }) }),
+        }),
+        get: async () => ({ eventId: "events:one", archivedAt: 123 }),
+        patch: async (_id: string, value: Record<string, unknown>) => {
+          patches.push(value);
+        },
+      },
+    };
+
+    await restoreItineraryItem._handler(context as never, {
+      itemId: "itineraryItems:one" as never,
+      eventId: "events:one" as never,
+    });
+
+    expect(patches).toContainEqual(
+      expect.objectContaining({ archivedAt: undefined }),
+    );
+
+    await archiveItineraryItem._handler(
+      {
+        ...context,
+        db: { ...context.db, get: async () => ({ eventId: "events:one" }) },
+      } as never,
+      {
+        itemId: "itineraryItems:one" as never,
+        eventId: "events:one" as never,
+      },
+    );
+
+    expect(patches).toContainEqual(
+      expect.objectContaining({ archivedAt: expect.any(Number) }),
+    );
+
+    await expect(
+      archiveItineraryItem._handler(
+        {
+          ...context,
+          db: { ...context.db, get: async () => ({ eventId: "events:other" }) },
+        } as never,
+        {
+          itemId: "itineraryItems:one" as never,
+          eventId: "events:one" as never,
+        },
+      ),
     ).rejects.toThrow("Movement not found");
   });
 

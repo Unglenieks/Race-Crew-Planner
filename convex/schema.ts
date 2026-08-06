@@ -50,6 +50,8 @@ export default defineSchema({
     scheduledFor: v.string(),
     location: v.optional(v.string()),
     notes: v.optional(v.string()),
+    /** Archive is reversible so a movement can be restored from its undo action. */
+    archivedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
