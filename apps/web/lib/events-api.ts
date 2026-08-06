@@ -53,6 +53,30 @@ export type WorkAssignee = {
   role: "owner" | "manager" | "crew";
 };
 
+export type WorkTemplateItem = {
+  title: string;
+  notes?: string;
+  priority: "low" | "normal" | "high";
+  dueContext?: string;
+};
+
+export type WorkTemplate = {
+  _id: string;
+  name: string;
+  items: WorkTemplateItem[];
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type WorkAutomationRule = {
+  _id: string;
+  name: string;
+  trigger: "planChangePublished" | "workCompleted";
+  action: "createWorkItem" | "notifyAssignee";
+  itemTitle?: string;
+  enabled: boolean;
+};
+
 export type EventContact = {
   id: string;
   type: "member" | "invitation";
@@ -261,6 +285,51 @@ export const workApi = {
     { eventId: string },
     WorkAssignee[]
   >("work:listAssignees"),
+};
+
+export const workTemplatesApi = {
+  list: makeFunctionReference<"query", { eventId: string }, WorkTemplate[]>(
+    "workTemplates:list",
+  ),
+  create: makeFunctionReference<
+    "mutation",
+    { eventId: string; name: string; items: WorkTemplateItem[] },
+    string
+  >("workTemplates:create"),
+  apply: makeFunctionReference<
+    "mutation",
+    { eventId: string; templateId: string },
+    string[]
+  >("workTemplates:apply"),
+  archive: makeFunctionReference<
+    "mutation",
+    { eventId: string; templateId: string },
+    null
+  >("workTemplates:archive"),
+};
+
+export const workAutomationApi = {
+  list: makeFunctionReference<
+    "query",
+    { eventId: string },
+    WorkAutomationRule[]
+  >("workAutomation:list"),
+  create: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      name: string;
+      trigger: WorkAutomationRule["trigger"];
+      action: WorkAutomationRule["action"];
+      itemTitle?: string;
+    },
+    string
+  >("workAutomation:create"),
+  setEnabled: makeFunctionReference<
+    "mutation",
+    { eventId: string; ruleId: string; enabled: boolean },
+    null
+  >("workAutomation:setEnabled"),
 };
 
 export const invitationsApi = {
