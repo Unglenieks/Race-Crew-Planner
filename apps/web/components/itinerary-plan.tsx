@@ -10,7 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
-import { itineraryApi, type ItineraryItem } from "@/lib/events-api";
+import { itineraryApi, recordsApi, type ItineraryItem } from "@/lib/events-api";
 import { useMutation, useQuery } from "convex/react";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
@@ -25,6 +25,7 @@ type Draft = {
   title: string;
   scheduledFor: string;
   location: string;
+  recordId: string;
   notes: string;
 };
 
@@ -32,6 +33,7 @@ const emptyDraft: Draft = {
   title: "",
   scheduledFor: "",
   location: "",
+  recordId: "",
   notes: "",
 };
 
@@ -63,6 +65,7 @@ function itemToDraft(item: ItineraryItem): Draft {
     title: item.title,
     scheduledFor: item.scheduledFor,
     location: item.location ?? "",
+    recordId: item.recordId ?? "",
     notes: item.notes ?? "",
   };
 }
@@ -72,6 +75,7 @@ function isSameDraft(left: Draft, right: Draft) {
     left.title === right.title &&
     left.scheduledFor === right.scheduledFor &&
     left.location === right.location &&
+    left.recordId === right.recordId &&
     left.notes === right.notes
   );
 }
@@ -88,6 +92,7 @@ export function ItineraryPlan({
   role: EventRole;
 }) {
   const items = useQuery(itineraryApi.list, { eventId });
+  const records = useQuery(recordsApi.list, { eventId });
   const createItem = useMutation(itineraryApi.create);
   const updateItem = useMutation(itineraryApi.update);
   const archiveItem = useMutation(itineraryApi.archive);
@@ -109,6 +114,17 @@ export function ItineraryPlan({
         new Set((items ?? []).map((item) => item.scheduledFor.split("T")[0])),
       ),
     [items],
+  );
+  const locationRecords = useMemo(
+    () =>
+      (records ?? []).filter((record) =>
+        ["venue", "place", "service"].includes(record.type),
+      ),
+    [records],
+  );
+  const recordsById = useMemo(
+    () => new Map((records ?? []).map((record) => [record._id, record])),
+    [records],
   );
   const visibleItems = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
@@ -157,6 +173,7 @@ export function ItineraryPlan({
       title: draft.title,
       scheduledFor: draft.scheduledFor,
       location: draft.location || undefined,
+      recordId: draft.recordId || undefined,
       notes: draft.notes || undefined,
     };
 
@@ -351,6 +368,13 @@ export function ItineraryPlan({
                             {item.location}
                           </p>
                         )}
+                        {item.recordId === undefined ? null : (
+                          <p className="mt-1 text-xs font-medium text-green-ink">
+                            Linked location:{" "}
+                            {recordsById.get(item.recordId)?.name ??
+                              "Unavailable record"}
+                          </p>
+                        )}
                         {item.notes === undefined ? null : (
                           <p className="mt-1 text-sm leading-relaxed text-muted">
                             {item.notes}
@@ -427,6 +451,33 @@ export function ItineraryPlan({
                   }
                   required
                 />
+              </div>
+              <div className="grid gap-1.5">
+                <label
+                  className="text-sm font-medium text-ink"
+                  htmlFor="movement-record"
+                >
+                  Linked location <span className="text-muted">(optional)</span>
+                </label>
+                <select
+                  id="movement-record"
+                  value={draft.recordId}
+                  onChange={(event) =>
+                    updateDraft("recordId", event.target.value)
+                  }
+                  className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink shadow-sm outline-none focus:border-ink focus:ring-2 focus:ring-ink"
+                >
+                  <option value="">No linked location</option>
+                  {locationRecords.map((record) => (
+                    <option key={record._id} value={record._id}>
+                      {record.name} · {record.type}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted">
+                  Only venue, place, and service records can be linked to a
+                  movement.
+                </p>
               </div>
               <div className="grid gap-1.5">
                 <label

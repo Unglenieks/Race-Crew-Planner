@@ -25,6 +25,11 @@ import {
   setCompletion as setWorkItemCompletion,
   validatedWorkItemInput,
 } from "../../convex/work";
+import {
+  create as createRecord,
+  update as updateRecord,
+  validatedRecordInput,
+} from "../../convex/records";
 
 const owner: ApplicationRole = "owner";
 
@@ -202,6 +207,25 @@ describe("Convex authorization helpers", () => {
     ).toThrow("Work item description");
   });
 
+  it("normalizes operational records without imposing optional details", () => {
+    expect(
+      validatedRecordInput({
+        name: "  Service Park entrance ",
+        type: "venue",
+        address: "  North gate ",
+        notes: "  Use the gravel access road. ",
+      }),
+    ).toEqual({
+      name: "Service Park entrance",
+      type: "venue",
+      address: "North gate",
+      notes: "Use the gravel access road.",
+    });
+    expect(() => validatedRecordInput({ name: "", type: "venue" })).toThrow(
+      "Record name",
+    );
+  });
+
   it("allows members to read but not crew members to change an itinerary", async () => {
     const context = {
       auth: {
@@ -233,6 +257,33 @@ describe("Convex authorization helpers", () => {
         scheduledFor: "2026-10-16T08:30",
       }),
     ).rejects.toThrow("Forbidden");
+  });
+
+  it("rejects a location record from another event before saving a movement", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|owner_123",
+          subject: "owner_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "owner" }) }),
+        }),
+        get: async () => ({ eventId: "events:other", type: "venue" }),
+      },
+    };
+
+    await expect(
+      createItineraryItem._handler(context as never, {
+        eventId: "events:one" as never,
+        title: "Arrive at service park",
+        scheduledFor: "2026-10-16T08:30",
+        recordId: "eventRecords:one" as never,
+      }),
+    ).rejects.toThrow("Location record not found");
   });
 
   it("updates only a movement that belongs to the selected event", async () => {
@@ -357,6 +408,50 @@ describe("Convex authorization helpers", () => {
         title: "Load spare wheel",
       }),
     ).rejects.toThrow("Forbidden");
+  });
+
+  it("allows only managers to change records in their event", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+        }),
+        get: async () => ({ eventId: "events:other" }),
+      },
+    };
+
+    await expect(
+      createRecord._handler(context as never, {
+        eventId: "events:one" as never,
+        name: "Service Park",
+        type: "venue",
+      }),
+    ).rejects.toThrow("Forbidden");
+
+    const managerContext = {
+      ...context,
+      db: {
+        ...context.db,
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "manager" }) }),
+        }),
+      },
+    };
+    await expect(
+      updateRecord._handler(managerContext as never, {
+        eventId: "events:one" as never,
+        recordId: "eventRecords:one" as never,
+        name: "Service Park",
+        type: "venue",
+      }),
+    ).rejects.toThrow("Record not found");
   });
 
   it("normalizes invitation email addresses", () => {

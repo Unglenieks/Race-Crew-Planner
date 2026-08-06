@@ -49,6 +49,7 @@ export default defineSchema({
     /** A local date/time in the event's declared IANA time zone. */
     scheduledFor: v.string(),
     location: v.optional(v.string()),
+    recordId: v.optional(v.id("eventRecords")),
     notes: v.optional(v.string()),
     /** Archive is reversible so a movement can be restored from its undo action. */
     archivedAt: v.optional(v.number()),
@@ -57,6 +58,25 @@ export default defineSchema({
   })
     .index("by_eventId", ["eventId"])
     .index("by_eventId_scheduledFor", ["eventId", "scheduledFor"]),
+  eventRecords: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    type: v.union(
+      v.literal("venue"),
+      v.literal("place"),
+      v.literal("service"),
+      v.literal("vehicle"),
+      v.literal("equipment"),
+      v.literal("organization"),
+      v.literal("person"),
+    ),
+    address: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_eventId_name", ["eventId", "name"]),
   workItems: defineTable({
     eventId: v.id("events"),
     title: v.string(),

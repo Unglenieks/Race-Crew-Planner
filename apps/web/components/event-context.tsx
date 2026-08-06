@@ -13,6 +13,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { Input } from "@/components/ui/input";
 import { ItineraryPlan } from "@/components/itinerary-plan";
 import { WorkChecklist } from "@/components/work-checklist";
+import { RecordsDirectory } from "@/components/records-directory";
 import { EventContacts } from "@/components/event-contacts";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -277,6 +278,11 @@ function ConnectedEventContext() {
       />
       <WorkChecklist
         key={`work-${selectedEvent.id}`}
+        eventId={selectedEvent.id}
+        role={selectedEvent.role}
+      />
+      <RecordsDirectory
+        key={`records-${selectedEvent.id}`}
         eventId={selectedEvent.id}
         role={selectedEvent.role}
       />
