@@ -16,6 +16,8 @@ export type ItineraryItem = {
   location?: string;
   recordId?: string;
   notes?: string;
+  timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
+  archivedAt?: number;
 };
 
 export const recordTypes = [
@@ -156,6 +158,11 @@ export const itineraryApi = {
   list: makeFunctionReference<"query", { eventId: string }, ItineraryItem[]>(
     "itinerary:list",
   ),
+  get: makeFunctionReference<
+    "query",
+    { eventId: string; itemId: string },
+    ItineraryItem
+  >("itinerary:get"),
   create: makeFunctionReference<
     "mutation",
     {
@@ -165,6 +172,7 @@ export const itineraryApi = {
       location?: string;
       recordId?: string;
       notes?: string;
+      timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
     },
     string
   >("itinerary:create"),
@@ -178,6 +186,7 @@ export const itineraryApi = {
       location?: string;
       recordId?: string;
       notes?: string;
+      timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
     },
     null
   >("itinerary:update"),
@@ -314,6 +323,11 @@ export const planChangesApi = {
     { eventId: string },
     PublishedPlanChange[]
   >("planChanges:listForPublisher"),
+  listForMovement: makeFunctionReference<
+    "query",
+    { eventId: string; itemId: string },
+    PublishedPlanChange[]
+  >("planChanges:listForMovement"),
   listForMe: makeFunctionReference<
     "query",
     { eventId: string },

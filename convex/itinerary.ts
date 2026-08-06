@@ -16,7 +16,15 @@ const itineraryArgs = {
   recordId: v.optional(v.id("eventRecords")),
   notes: v.optional(v.string()),
   sectionId: v.optional(v.id("planSections")),
-  timeKind: v.optional(v.union(v.literal("exact"), v.literal("approximate"), v.literal("range"), v.literal("allDay"), v.literal("unspecified"))),
+  timeKind: v.optional(
+    v.union(
+      v.literal("exact"),
+      v.literal("approximate"),
+      v.literal("range"),
+      v.literal("allDay"),
+      v.literal("unspecified"),
+    ),
+  ),
 };
 
 type ItineraryInput = {
@@ -59,10 +67,11 @@ export function validatedItineraryInput({
     );
   }
 
-  if ((timeKind ?? "exact") !== "unspecified" && (
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(scheduledFor) ||
-    Number.isNaN(Date.parse(`${scheduledFor}:00Z`))
-  )) {
+  if (
+    (timeKind ?? "exact") !== "unspecified" &&
+    (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(scheduledFor) ||
+      Number.isNaN(Date.parse(`${scheduledFor}:00Z`)))
+  ) {
     throw new Error("A valid planned date and time is required");
   }
 
@@ -126,6 +135,19 @@ export const list = query({
   },
 });
 
+/** Returns one movement after proving it belongs to the caller's event. */
+export const get = query({
+  args: { eventId: v.id("events"), itemId: v.id("itineraryItems") },
+  handler: async (ctx, { eventId, itemId }) => {
+    await requireEventMembership(ctx, eventId);
+    const item = await ctx.db.get(itemId);
+    if (item === null || item.eventId !== eventId) {
+      throw new Error("Movement not found");
+    }
+    return item;
+  },
+});
+
 /** Archives a movement without destroying it, so the caller can undo safely. */
 export const archive = mutation({
   args: { itemId: v.id("itineraryItems"), eventId: v.id("events") },
@@ -139,7 +161,10 @@ export const archive = mutation({
     }
 
     if (existing.archivedAt === undefined) {
-      await ctx.db.patch(itemId, { archivedAt: Date.now(), updatedAt: Date.now() });
+      await ctx.db.patch(itemId, {
+        archivedAt: Date.now(),
+        updatedAt: Date.now(),
+      });
     }
   },
 });
@@ -157,7 +182,10 @@ export const restore = mutation({
     }
 
     if (existing.archivedAt !== undefined) {
-      await ctx.db.patch(itemId, { archivedAt: undefined, updatedAt: Date.now() });
+      await ctx.db.patch(itemId, {
+        archivedAt: undefined,
+        updatedAt: Date.now(),
+      });
     }
   },
 });
