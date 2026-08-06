@@ -92,4 +92,41 @@ export default defineSchema({
   })
     .index("by_eventId", ["eventId"])
     .index("by_eventId_createdAt", ["eventId", "createdAt"]),
+  planChanges: defineTable({
+    eventId: v.id("events"),
+    itineraryItemId: v.id("itineraryItems"),
+    title: v.string(),
+    scheduledFor: v.string(),
+    location: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    previousTitle: v.optional(v.string()),
+    previousScheduledFor: v.optional(v.string()),
+    previousLocation: v.optional(v.string()),
+    previousNotes: v.optional(v.string()),
+    reason: v.string(),
+    severity: v.union(v.literal("routine"), v.literal("critical")),
+    publishedBy: v.string(),
+    publishedAt: v.number(),
+  })
+    .index("by_eventId_publishedAt", ["eventId", "publishedAt"])
+    .index("by_itemId_publishedAt", ["itineraryItemId", "publishedAt"]),
+  planChangeRecipients: defineTable({
+    eventId: v.id("events"),
+    changeId: v.id("planChanges"),
+    userId: v.string(),
+    state: v.union(
+      v.literal("sent"),
+      v.literal("opened"),
+      v.literal("acknowledged"),
+      v.literal("acknowledgedElsewhere"),
+    ),
+    sentAt: v.number(),
+    openedAt: v.optional(v.number()),
+    acknowledgedAt: v.optional(v.number()),
+    acknowledgedBy: v.optional(v.string()),
+    acknowledgementNote: v.optional(v.string()),
+  })
+    .index("by_changeId", ["changeId"])
+    .index("by_changeId_userId", ["changeId", "userId"])
+    .index("by_userId_state", ["userId", "state"]),
 });
