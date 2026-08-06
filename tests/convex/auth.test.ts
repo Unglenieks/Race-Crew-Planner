@@ -22,10 +22,22 @@ import {
 } from "../../convex/invitations";
 import {
   create as createWorkItem,
+  get as getWorkItem,
   listAssignees as listWorkAssignees,
   setCompletion as setWorkItemCompletion,
   validatedWorkItemInput,
 } from "../../convex/work";
+import {
+  apply as applyWorkTemplate,
+  create as createWorkTemplate,
+  validatedItems as validatedTemplateItems,
+  validatedName as validatedTemplateName,
+} from "../../convex/workTemplates";
+import {
+  create as createWorkAutomationRule,
+  validatedItemTitle,
+  validatedName as validatedRuleName,
+} from "../../convex/workAutomation";
 import {
   create as createRecord,
   update as updateRecord,
@@ -632,6 +644,132 @@ describe("Convex authorization helpers", () => {
         { eventId: "events:one" as never },
       ),
     ).rejects.toThrow("Unauthenticated");
+  });
+
+  it("reads a work item only after checking event membership and ownership", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+        }),
+        get: async () => ({ eventId: "events:other" }),
+      },
+    };
+
+    await expect(
+      getWorkItem._handler(context as never, {
+        eventId: "events:one" as never,
+        itemId: "workItems:one" as never,
+      }),
+    ).rejects.toThrow("Work item not found");
+  });
+
+  it("validates and creates an event-local work template for a manager", async () => {
+    const inserts: Array<{ table: string; value: Record<string, unknown> }> =
+      [];
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|manager_123",
+          subject: "manager_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "manager" }) }),
+        }),
+        insert: async (table: string, value: Record<string, unknown>) => {
+          inserts.push({ table, value });
+          return "workTemplates:one";
+        },
+      },
+    };
+
+    await createWorkTemplate._handler(context as never, {
+      eventId: "events:one" as never,
+      name: "  Service arrival  ",
+      items: [{ title: "  Set up awning ", priority: "high" }],
+    });
+
+    expect(inserts[0]).toMatchObject({
+      table: "workTemplates",
+      value: {
+        eventId: "events:one",
+        name: "Service arrival",
+        createdBy: "manager_123",
+        items: [{ title: "Set up awning", priority: "high" }],
+      },
+    });
+    expect(() => validatedTemplateName(" ")).toThrow("Template name");
+    expect(() => validatedTemplateItems([])).toThrow("template needs");
+  });
+
+  it("does not apply an archived or cross-event work template", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|manager_123",
+          subject: "manager_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "manager" }) }),
+        }),
+        get: async () => ({
+          eventId: "events:other",
+          items: [{ title: "Set up awning", priority: "normal" }],
+        }),
+      },
+    };
+
+    await expect(
+      applyWorkTemplate._handler(context as never, {
+        eventId: "events:one" as never,
+        templateId: "workTemplates:one" as never,
+      }),
+    ).rejects.toThrow("Template not found");
+  });
+
+  it("limits automation rules to managers and requires work-item titles", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+        }),
+      },
+    };
+
+    await expect(
+      createWorkAutomationRule._handler(context as never, {
+        eventId: "events:one" as never,
+        name: "Create recovery task",
+        trigger: "planChangePublished",
+        action: "createWorkItem",
+      }),
+    ).rejects.toThrow("Forbidden");
+    expect(() => validatedItemTitle(" ", "createWorkItem")).toThrow(
+      "needs a title",
+    );
+    expect(validatedRuleName("  Plan change follow-up ")).toBe(
+      "Plan change follow-up",
+    );
   });
 
   it("allows only managers to change records in their event", async () => {
