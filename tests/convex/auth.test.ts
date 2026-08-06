@@ -8,8 +8,10 @@ import {
 import { getCurrentUser } from "../../convex/currentUser";
 import {
   create,
+  createSample,
   get,
   isSupportedEventTimeZone,
+  removeSample,
   validatedEventInput,
 } from "../../convex/events";
 import {
@@ -72,6 +74,94 @@ import { recordHeartbeat } from "../../convex/scheduler";
 const owner: ApplicationRole = "owner";
 
 describe("Convex authorization helpers", () => {
+  it("creates a representative, owner-owned sample event", async () => {
+    const inserts: Array<{ table: string; value: Record<string, unknown> }> = [];
+    const eventId = await createSample._handler(
+      {
+        auth: {
+          getUserIdentity: async () => ({
+            tokenIdentifier: "issuer|owner",
+            subject: "owner",
+            issuer: "issuer",
+          }),
+        },
+        db: {
+          insert: async (table: string, value: Record<string, unknown>) => {
+            inserts.push({ table, value });
+            return `${table}:${inserts.length}`;
+          },
+        },
+      } as never,
+      {},
+    );
+    expect(eventId).toBe("events:1");
+    expect(inserts.find((insert) => insert.table === "events")?.value).toMatchObject({
+      isSample: true,
+      createdBy: "owner",
+    });
+    expect(inserts.find((insert) => insert.table === "eventRecordFields")?.value).toMatchObject({
+      key: "readiness",
+      type: "select",
+    });
+    expect(inserts.filter((insert) => insert.table === "eventRecords")).toHaveLength(2);
+    expect(inserts.some((insert) => insert.table === "itineraryItems")).toBe(true);
+    expect(inserts.some((insert) => insert.table === "workItems")).toBe(true);
+  });
+
+  it("will not let another user remove a sample event", async () => {
+    await expect(
+      removeSample._handler(
+        {
+          auth: {
+            getUserIdentity: async () => ({
+              tokenIdentifier: "issuer|other",
+              subject: "other",
+              issuer: "issuer",
+            }),
+          },
+          db: {
+            get: async () => ({ isSample: true, createdBy: "owner" }),
+          },
+        } as never,
+        { eventId: "events:sample" as never },
+      ),
+    ).rejects.toThrow("Forbidden");
+  });
+
+  it("removes event-local rows before deleting an owner's sample event", async () => {
+    const queriedTables: string[] = [];
+    const deleted: string[] = [];
+    await removeSample._handler(
+      {
+        auth: {
+          getUserIdentity: async () => ({
+            tokenIdentifier: "issuer|owner",
+            subject: "owner",
+            issuer: "issuer",
+          }),
+        },
+        db: {
+          get: async () => ({ isSample: true, createdBy: "owner" }),
+          query: (table: string) => {
+            queriedTables.push(table);
+            return {
+              withIndex: () => ({ unique: async () => ({ role: "owner" }) }),
+              filter: () => ({
+                collect: async () =>
+                  table === "eventRecords" ? [{ _id: "eventRecords:one" }] : [],
+              }),
+            };
+          },
+          delete: async (id: string) => deleted.push(id),
+        },
+      } as never,
+      { eventId: "events:sample" as never },
+    );
+    expect(queriedTables).toContain("eventRecordCategoryAssignments");
+    expect(queriedTables).toContain("eventMemberships");
+    expect(deleted).toEqual(["eventRecords:one", "events:sample"]);
+  });
+
   it("upserts the scheduler proving heartbeat without a caller identity", async () => {
     const inserted: unknown[] = [];
     const patches: unknown[] = [];

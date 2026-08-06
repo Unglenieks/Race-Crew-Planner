@@ -7,6 +7,7 @@ export type EventSummary = {
   name: string;
   timeZone: string;
   role: EventRole;
+  isSample?: boolean;
 };
 
 export type ItineraryItem = {
@@ -224,6 +225,14 @@ export const eventsApi = {
     { name: string; timeZone: string },
     string
   >("events:create"),
+  createSample: makeFunctionReference<
+    "mutation",
+    Record<string, never>,
+    string
+  >("events:createSample"),
+  removeSample: makeFunctionReference<"mutation", { eventId: string }, null>(
+    "events:removeSample",
+  ),
   list: makeFunctionReference<"query", Record<string, never>, EventSummary[]>(
     "events:list",
   ),

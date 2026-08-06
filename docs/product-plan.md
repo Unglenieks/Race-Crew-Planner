@@ -82,8 +82,11 @@ verification remains required before the slice is operationally complete.**
 with required responsive reflow" is named in §13 Build first, which places it
 ahead of everything else here.
 
-**Current state.** No route, no component, no table. The spec's "Views & fields"
-prototype screen has no counterpart in code.
+**Current state.** Event records have configurable text/select fields, table and
+list views, responsive reflow, and result-changing filters. This is deliberately
+the collection boundary for S1; the product has no generic collection model, so
+extending it to unrelated screens needs its own design rather than a misleading
+shared abstraction.
 
 **Scope.** Per-collection configurable fields; table and list views with the
 required responsive reflow; filters that visibly change results.
@@ -94,16 +97,17 @@ saved shared views in Build next.
 
 **Prerequisites.** P1.
 
-**Exit criteria.** A team can rename and reorder fields on a collection, switch
-between table and list, and every filter control changes the rows behind it
-(Guardrail E).
+**Exit criteria.** A team can rename and reorder fields on the event-record
+collection, switch between table and list, and every filter control changes the
+rows behind it (Guardrail E). **Code complete in the PR chain headed by #52.**
 
 ### S2 · First run, empty states, and a removable sample event
 
 **Tier.** Build first.
 
-**Current state.** No seed or sample-data code exists anywhere. Individual empty
-states exist on most screens already and are good; the first-run path does not.
+**Current state.** A new account can either create an event or open a populated,
+owner-owned sample event with records, configured fields, a plan item, and work.
+The sample can be removed in one action, including all event-local rows.
 
 **Scope.** A populated sample event that demonstrates the product and is
 removable in one action, plus the first-run path for a brand-new account.
@@ -114,7 +118,8 @@ removable in one action, plus the first-run path for a brand-new account.
 configured fields and views rather than needing rework.
 
 **Exit criteria.** A new account lands somewhere useful, and the sample event can
-be removed in one action without leaving orphaned rows.
+be removed in one action without leaving orphaned rows. **Code complete in this
+PR.**
 
 ### S3 · Evidence and field readiness — files and sources library
 

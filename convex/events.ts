@@ -1,6 +1,7 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { requireIdentity } from "./auth";
+import type { Id } from "./_generated/dataModel";
+import { mutation, query, type MutationCtx } from "./_generated/server";
+import { requireIdentity, requireRole } from "./auth";
 
 const eventArgs = {
   name: v.string(),
@@ -100,6 +101,141 @@ export const create = mutation({
   },
 });
 
+/**
+ * Creates a useful, event-local walkthrough without bypassing the application's
+ * data model. It deliberately uses ordinary records, fields, plan items, and
+ * work so the sample stays representative as those screens evolve.
+ */
+export const createSample = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await requireIdentity(ctx);
+    const createdAt = Date.now();
+    const eventId = await ctx.db.insert("events", {
+      name: "Pine Ridge Rally — sample event",
+      timeZone: "America/Denver",
+      isSample: true,
+      createdAt,
+      createdBy: identity.subject,
+    });
+    await ctx.db.insert("eventMemberships", {
+      eventId,
+      userId: identity.subject,
+      role: "owner",
+      createdAt,
+    });
+
+    await ctx.db.insert("eventRecordFields", {
+      eventId,
+      key: "readiness",
+      label: "Readiness",
+      type: "select",
+      options: ["Ready", "Needs follow-up"],
+      order: 0,
+      createdAt,
+      updatedAt: createdAt,
+    });
+    const venueId = await ctx.db.insert("eventRecords", {
+      eventId,
+      name: "North service park",
+      type: "venue",
+      address: "42 Pine Ridge Road",
+      notes: "Check access before the first crew arrival.",
+      fieldValues: { readiness: "Ready" },
+      createdAt,
+      updatedAt: createdAt,
+    });
+    await ctx.db.insert("eventRecords", {
+      eventId,
+      name: "Fuel and supplies",
+      type: "service",
+      notes: "Confirm the delivery window with the supplier.",
+      fieldValues: { readiness: "Needs follow-up" },
+      createdAt,
+      updatedAt: createdAt,
+    });
+    const departureId = await ctx.db.insert("itineraryItems", {
+      eventId,
+      title: "Crew call at service park",
+      scheduledFor: "2026-09-18T07:30",
+      location: "North service park",
+      recordId: venueId,
+      notes: "Review the day plan and radio check.",
+      timeKind: "exact",
+      createdAt,
+      updatedAt: createdAt,
+    });
+    await ctx.db.insert("workItems", {
+      eventId,
+      title: "Confirm service-park access",
+      notes: "Use the sample record to see the readiness field in action.",
+      status: "open",
+      priority: "high",
+      recordId: venueId,
+      itineraryItemId: departureId,
+      createdAt,
+      updatedAt: createdAt,
+    });
+    return eventId;
+  },
+});
+
+const eventTables = [
+  "eventRecordCategoryAssignments",
+  "travelContexts",
+  "workItemComments",
+  "planChangeRecipients",
+  "planChanges",
+  "formSubmissions",
+  "formTemplates",
+  "eventActivity",
+  "eventComments",
+  "eventSources",
+  "planSections",
+  "workItems",
+  "workTemplates",
+  "itineraryItems",
+  "eventRecords",
+  "eventRecordFields",
+  "eventRecordTypes",
+  "eventRecordCategories",
+  "eventInvitations",
+  "eventMemberships",
+] as const;
+
+async function deleteEventRows(
+  ctx: MutationCtx,
+  eventId: Id<"events">,
+) {
+  for (const table of eventTables) {
+    const rows = await ctx.db
+      .query(table)
+      .filter((q) => q.eq(q.field("eventId"), eventId))
+      .collect();
+    await Promise.all(rows.map((row) => ctx.db.delete(row._id)));
+  }
+}
+
+/** Removes only an owner's sample event and all of its event-local data. */
+export const removeSample = mutation({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    const identity = await requireIdentity(ctx);
+    const event = await ctx.db.get(eventId);
+    if (event === null || !event.isSample) throw new Error("Sample event not found");
+    if (event.createdBy !== identity.subject) throw new Error("Forbidden");
+    const membership = await ctx.db
+      .query("eventMemberships")
+      .withIndex("by_eventId_userId", (q) =>
+        q.eq("eventId", eventId).eq("userId", identity.subject),
+      )
+      .unique();
+    requireRole(membership?.role, ["owner"]);
+    await deleteEventRows(ctx, eventId);
+    await ctx.db.delete(eventId);
+  },
+});
+
 /** Lists only events where the verified caller has an application membership. */
 export const list = query({
   args: {},
@@ -120,6 +256,7 @@ export const list = query({
               name: event.name,
               timeZone: event.timeZone,
               role: membership.role,
+              isSample: event.isSample === true,
             };
       }),
     );
