@@ -15,6 +15,7 @@ import { ItineraryPlan } from "@/components/itinerary-plan";
 import { EventContacts } from "@/components/event-contacts";
 import { AttentionQueue } from "@/components/attention-queue";
 import { TodayOverview } from "@/components/today-overview";
+import { EventSetupGuide } from "@/components/event-setup-guide";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const hasConvexConnection =
@@ -188,6 +189,9 @@ function ConnectedEventContext() {
   const syncProfile = useMutation(invitationsApi.syncProfile);
   const claimInvitations = useMutation(invitationsApi.claim);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [recentlyCreatedEventId, setRecentlyCreatedEventId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -245,7 +249,12 @@ function ConnectedEventContext() {
             Start with the event name and its local time zone. You will be its
             owner and can add the plan and crew next.
           </p>
-          <CreateEventForm onCreated={setSelectedEventId} />
+          <CreateEventForm
+            onCreated={(eventId) => {
+              setSelectedEventId(eventId);
+              setRecentlyCreatedEventId(eventId);
+            }}
+          />
         </CardContent>
       </Card>
     );
@@ -269,6 +278,9 @@ function ConnectedEventContext() {
           />
         </CardContent>
       </Card>
+      {recentlyCreatedEventId === selectedEvent.id ? (
+        <EventSetupGuide eventName={selectedEvent.name} />
+      ) : null}
       <TodayOverview
         key={`${selectedEvent.id}-today`}
         eventId={selectedEvent.id}
