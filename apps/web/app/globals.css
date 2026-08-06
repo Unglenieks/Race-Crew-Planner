@@ -1,6 +1,15 @@
 @import "tailwindcss";
 
-@theme inline {
+/*
+ * `@theme` (not `@theme inline`) is required for runtime theming.
+ *
+ * With `inline`, Tailwind compiles each utility to the literal token value
+ * (`.bg-card{background-color:#fff}`), so redefining `--color-card` under a
+ * display mode has no effect and every override below becomes dead CSS.
+ * Without `inline`, utilities compile to `var(--color-card)` and the display
+ * mode blocks actually apply. `tests/theme-contract.test.ts` locks this in.
+ */
+@theme {
   --color-paper: #f7f8f2;
   --color-card: #ffffff;
   --color-side: #eff3ed;
@@ -46,25 +55,14 @@
   --foreground: var(--color-ink);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root[data-display-mode="system"] {
-    --background: #102019;
-    --foreground: #f4f8f1;
-    --color-paper: #102019;
-    --color-card: #172b21;
-    --color-side: #13251c;
-    --color-topbg: #12251b;
-    --color-ink: #f4f8f1;
-    --color-ink2: #dbe8de;
-    --color-muted: #b3c5b8;
-    --color-line: #3a5544;
-    --color-line2: #2c4535;
-  }
-}
-
+/*
+ * `data-display-mode` always holds a *resolved* mode: day, night, or contrast.
+ * The user's raw preference (which may be "system") lives in
+ * `data-display-preference`. Resolving in JS keeps every palette defined
+ * exactly once here, instead of duplicating it under a
+ * `prefers-color-scheme` media query.
+ */
 :root[data-display-mode="night"] {
-  --background: #102019;
-  --foreground: #f4f8f1;
   --color-paper: #102019;
   --color-card: #172b21;
   --color-side: #13251c;
@@ -72,13 +70,35 @@
   --color-ink: #f4f8f1;
   --color-ink2: #dbe8de;
   --color-muted: #b3c5b8;
+  --color-faint: #93a89a;
   --color-line: #3a5544;
   --color-line2: #2c4535;
+  --color-btnline: #46614f;
+  --color-green: #2f8f68;
+  --color-green-ink: #7fd8ab;
+  --color-lime: #d6f77a;
+  --color-soft: #1c3a2b;
+  --color-dark: #0b1712;
+  --color-focus: #7fd8ab;
+
+  --color-success-bg: #1d3a28;
+  --color-success-tx: #8fe0ac;
+  --color-success-ln: #2f6344;
+  --color-warning-bg: #3d3216;
+  --color-warning-tx: #f0d489;
+  --color-warning-ln: #6b5a28;
+  --color-info-bg: #16323d;
+  --color-info-tx: #9dd4ec;
+  --color-info-ln: #2b5c70;
+  --color-danger-bg: #3f2019;
+  --color-danger-tx: #f5b3a3;
+  --color-danger-ln: #7b4033;
+  --color-neutral-bg: #1e2f26;
+  --color-neutral-tx: #c2d2c7;
+  --color-neutral-ln: #3a4d42;
 }
 
 :root[data-display-mode="contrast"] {
-  --background: #ffffff;
-  --foreground: #000000;
   --color-paper: #ffffff;
   --color-card: #ffffff;
   --color-side: #f4f4f4;
@@ -86,9 +106,32 @@
   --color-ink: #000000;
   --color-ink2: #000000;
   --color-muted: #242424;
+  --color-faint: #242424;
   --color-line: #000000;
   --color-line2: #333333;
+  --color-btnline: #000000;
+  --color-green: #00402e;
+  --color-green-ink: #00402e;
+  --color-lime: #ffffff;
+  --color-soft: #ededed;
+  --color-dark: #000000;
   --color-focus: #0000c7;
+
+  --color-success-bg: #e4f4e4;
+  --color-success-tx: #00330f;
+  --color-success-ln: #00330f;
+  --color-warning-bg: #fff4d6;
+  --color-warning-tx: #3d2c00;
+  --color-warning-ln: #3d2c00;
+  --color-info-bg: #e0f0ff;
+  --color-info-tx: #002a4d;
+  --color-info-ln: #002a4d;
+  --color-danger-bg: #ffe6e0;
+  --color-danger-tx: #4d0f00;
+  --color-danger-ln: #4d0f00;
+  --color-neutral-bg: #ededed;
+  --color-neutral-tx: #1a1a1a;
+  --color-neutral-ln: #000000;
 }
 
 body {

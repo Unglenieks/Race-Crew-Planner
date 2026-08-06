@@ -5,6 +5,7 @@ import { FormEvent, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   planChangesApi,
+  type EventRole,
   type ItineraryItem,
   type PublishedPlanChange,
 } from "@/lib/events-api";
@@ -12,8 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/data-display";
-
-type EventRole = "owner" | "manager" | "crew";
 
 function displayTime(value: number) {
   return new Intl.DateTimeFormat(undefined, {

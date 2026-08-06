@@ -43,7 +43,7 @@ export function PlanExport({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Plan view and export</CardTitle>
+        <CardTitle>Filtered plan</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
         <div className="flex flex-wrap items-center gap-2">

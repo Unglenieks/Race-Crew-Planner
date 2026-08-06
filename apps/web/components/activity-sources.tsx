@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  FileText,
-  Link2,
-  LoaderCircle,
-  MessageSquare,
-  Plus,
-} from "lucide-react";
+import { FileText, Link2, LoaderCircle, MessageSquare } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { activityApi } from "@/lib/events-api";
@@ -68,10 +62,10 @@ export function ActivitySources({ eventId }: { eventId: string }) {
     }
   }
   return (
-    <div className="grid gap-4">
+    <div className="grid items-start gap-4 xl:grid-cols-[.65fr_1.35fr]">
       <Card>
         <CardHeader>
-          <CardTitle>Activity and sources</CardTitle>
+          <CardTitle>Add a comment or source</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-6">
           <form className="grid gap-2" onSubmit={commentSubmit}>
@@ -136,68 +130,72 @@ export function ActivitySources({ eventId }: { eventId: string }) {
           )}
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent activity</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {data.activity.length === 0 ? (
-            <p className="text-sm text-muted">No activity recorded yet.</p>
-          ) : (
-            <ol className="grid gap-3">
-              {data.activity.map((item) => (
-                <li
-                  key={item._id}
-                  className="flex gap-2 border-b border-line pb-3 last:border-0"
-                >
-                  <FileText
-                    className="mt-0.5 h-4 w-4 text-green-ink"
-                    aria-hidden="true"
-                  />
-                  <div>
-                    <p className="text-sm text-ink">{item.message}</p>
-                    <p className="text-xs text-muted">
-                      {item.actorId} · {date(item.createdAt)}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          )}
-        </CardContent>
-      </Card>
-      {data.sources.length === 0 ? null : (
+      <div className="grid gap-4">
         <Card>
           <CardHeader>
-            <CardTitle>Sources</CardTitle>
+            <CardTitle>Recent activity</CardTitle>
           </CardHeader>
           <CardContent>
-            <ul className="grid gap-3">
-              {data.sources.map((source) => (
-                <li key={source._id}>
-                  <p className="font-medium text-ink">
-                    {source.url === undefined ? (
-                      source.title
-                    ) : (
-                      <a
-                        className="underline"
-                        href={source.url}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {source.title}
-                      </a>
-                    )}
-                  </p>
-                  {source.excerpt === undefined ? null : (
-                    <p className="mt-1 text-sm text-muted">{source.excerpt}</p>
-                  )}
-                </li>
-              ))}
-            </ul>
+            {data.activity.length === 0 ? (
+              <p className="text-sm text-muted">No activity recorded yet.</p>
+            ) : (
+              <ol className="grid gap-3">
+                {data.activity.map((item) => (
+                  <li
+                    key={item._id}
+                    className="flex gap-2 border-b border-line pb-3 last:border-0"
+                  >
+                    <FileText
+                      className="mt-0.5 h-4 w-4 text-green-ink"
+                      aria-hidden="true"
+                    />
+                    <div>
+                      <p className="text-sm text-ink">{item.message}</p>
+                      <p className="text-xs text-muted">
+                        {item.actorId} · {date(item.createdAt)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
           </CardContent>
         </Card>
-      )}
+        {data.sources.length === 0 ? null : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Sources</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="grid gap-3">
+                {data.sources.map((source) => (
+                  <li key={source._id}>
+                    <p className="font-medium text-ink">
+                      {source.url === undefined ? (
+                        source.title
+                      ) : (
+                        <a
+                          className="underline"
+                          href={source.url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {source.title}
+                        </a>
+                      )}
+                    </p>
+                    {source.excerpt === undefined ? null : (
+                      <p className="mt-1 text-sm text-muted">
+                        {source.excerpt}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }

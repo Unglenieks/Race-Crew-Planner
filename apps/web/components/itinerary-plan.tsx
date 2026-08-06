@@ -10,7 +10,12 @@ import {
   X,
 } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
-import { itineraryApi, recordsApi, type ItineraryItem } from "@/lib/events-api";
+import {
+  itineraryApi,
+  recordsApi,
+  type EventRole,
+  type ItineraryItem,
+} from "@/lib/events-api";
 import { useMutation, useQuery } from "convex/react";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
@@ -18,11 +23,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/data-display";
 import { Input } from "@/components/ui/input";
-import { PlanChangeDelivery } from "@/components/plan-change-delivery";
-import { PlanExport } from "@/components/plan-export";
-import { PlanSections } from "@/components/plan-sections";
-
-type EventRole = "owner" | "manager" | "crew";
 
 type Draft = {
   title: string;
@@ -225,18 +225,24 @@ export function ItineraryPlan({
   }
 
   return (
-    <div className="grid gap-4">
+    <div
+      className={`grid items-start gap-4 ${
+        canEdit ? "xl:grid-cols-[1.35fr_.65fr]" : ""
+      }`}
+    >
       <Card>
         <CardHeader>
-          <div>
-            <CardTitle>Movement plan</CardTitle>
-            <p className="mt-1 text-sm text-muted">
-              {eventName} · times are in {timeZone}
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Schedule</CardTitle>
+              <p className="mt-1 text-sm text-muted">
+                {eventName} · times are in {timeZone}
+              </p>
+            </div>
+            <Badge variant={canEdit ? "success" : "neutral"}>
+              {canEdit ? "Can edit" : "View only"}
+            </Badge>
           </div>
-          <Badge variant={canEdit ? "success" : "neutral"}>
-            {canEdit ? "Can edit" : "View only"}
-          </Badge>
         </CardHeader>
         <CardContent className="grid gap-4">
           {undoItem === null ? null : (
@@ -556,15 +562,6 @@ export function ItineraryPlan({
           </CardContent>
         </Card>
       ) : null}
-
-      {items === undefined ? null : (
-        <PlanChangeDelivery eventId={eventId} role={role} items={items} />
-      )}
-
-      {items === undefined ? null : (
-        <PlanExport items={items} timeZone={timeZone} />
-      )}
-      <PlanSections eventId={eventId} role={role} />
     </div>
   );
 }

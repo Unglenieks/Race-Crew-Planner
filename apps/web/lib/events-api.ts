@@ -1,10 +1,12 @@
 import { makeFunctionReference } from "convex/server";
 
+export type EventRole = "owner" | "manager" | "crew";
+
 export type EventSummary = {
   id: string;
   name: string;
   timeZone: string;
-  role: "owner" | "manager" | "crew";
+  role: EventRole;
 };
 
 export type ItineraryItem = {

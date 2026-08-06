@@ -3,7 +3,12 @@
 import { Check, Circle, LoaderCircle, Pencil, RotateCcw } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { workApi, type WorkAssignee, type WorkItem } from "@/lib/events-api";
+import {
+  workApi,
+  type EventRole,
+  type WorkAssignee,
+  type WorkItem,
+} from "@/lib/events-api";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -11,7 +16,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/data-display";
 import { Input } from "@/components/ui/input";
 
-type EventRole = "owner" | "manager" | "crew";
 type WorkFilter = "open" | "completed" | "all";
 type Priority = "low" | "normal" | "high";
 type Draft = {
@@ -149,18 +153,24 @@ export function WorkChecklist({
   }
 
   return (
-    <div className="grid gap-4">
+    <div
+      className={`grid items-start gap-4 ${
+        canManage ? "xl:grid-cols-[1.35fr_.65fr]" : ""
+      }`}
+    >
       <Card>
         <CardHeader>
-          <div>
-            <CardTitle>Work checklist</CardTitle>
-            <p className="mt-1 text-sm text-muted">
-              {openCount} open · {completedCount} completed
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Checklist</CardTitle>
+              <p className="mt-1 text-sm text-muted">
+                {openCount} open · {completedCount} completed
+              </p>
+            </div>
+            <Badge variant={canManage ? "success" : "neutral"}>
+              {canManage ? "Can manage" : "Can complete"}
+            </Badge>
           </div>
-          <Badge variant={canManage ? "success" : "neutral"}>
-            {canManage ? "Can manage" : "Can complete"}
-          </Badge>
         </CardHeader>
         <CardContent className="grid gap-4">
           {undoCompletion === null ? null : (
