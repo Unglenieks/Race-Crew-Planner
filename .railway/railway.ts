@@ -23,11 +23,10 @@ const convexImageRevision = "075bad9adce93eb2f63fffad76db5cb27e9e35bd";
  * of source control; see docs/railway.md for the reviewed apply procedure.
  */
 export default defineRailway((ctx) => {
-  // The existing shared dev lane is named "preview" in Railway. Keep it and
-  // a future renamed "development" lane aligned with the dev branch.
-  const branch =
-    ctx.isEnvironment("development") || ctx.isEnvironment("preview")
-      ? "dev"
+  const branch = ctx.isEnvironment("development")
+    ? "dev"
+    : ctx.isEnvironment("preview")
+      ? "preview"
       : "main";
 
   const web = service("web", {
