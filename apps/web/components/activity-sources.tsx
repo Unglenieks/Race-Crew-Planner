@@ -132,7 +132,8 @@ export function ActivitySources({ eventId }: { eventId: string }) {
                     <div>
                       <p className="text-sm text-ink">{item.message}</p>
                       <p className="text-xs text-muted">
-                        {item.actorId} · {date(item.createdAt)}
+                        {item.actorName ?? item.actorId} ·{" "}
+                        {date(item.createdAt)}
                       </p>
                     </div>
                   </li>

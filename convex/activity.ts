@@ -72,8 +72,20 @@ export const list = query({
         )
         .collect(),
     ]);
+    const namedActivity = await Promise.all(
+      activity.reverse().map(async (entry) => {
+        const profile = await ctx.db
+          .query("userProfiles")
+          .withIndex("by_userId", (index) => index.eq("userId", entry.actorId))
+          .unique();
+        return {
+          ...entry,
+          actorName: profile?.displayName ?? profile?.email,
+        };
+      }),
+    );
     return {
-      activity: activity.reverse(),
+      activity: namedActivity,
       comments: comments.reverse(),
       sources: sources.reverse(),
     };

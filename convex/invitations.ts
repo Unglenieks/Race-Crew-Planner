@@ -42,12 +42,17 @@ export const syncProfile = mutation({
       .query("userProfiles")
       .withIndex("by_userId", (index) => index.eq("userId", identity.subject))
       .unique();
+    const email = identity.emailVerified
+      ? identity.email?.trim().toLowerCase()
+      : undefined;
+    const fallbackName = email?.split("@")[0];
     const profile = {
       userId: identity.subject,
-      displayName: identity.name?.trim() || undefined,
-      email: identity.emailVerified
-        ? identity.email?.trim().toLowerCase()
-        : undefined,
+      // Do not erase a usable existing name just because a particular Clerk
+      // token omits the optional name claim.
+      displayName:
+        identity.name?.trim() || existing?.displayName || fallbackName,
+      email,
       phoneNumber: identity.phoneNumberVerified
         ? identity.phoneNumber?.trim()
         : undefined,
@@ -198,7 +203,7 @@ export const listContacts = query({
           type: "member" as const,
           role: membership.role,
           userId: membership.userId,
-          name: profile?.displayName,
+          name: profile?.displayName ?? profile?.email,
           email: profile?.email,
           phoneNumber: profile?.phoneNumber,
         };

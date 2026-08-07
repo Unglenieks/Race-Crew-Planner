@@ -185,7 +185,7 @@ export const listAssignees = query({
           .unique();
         return {
           userId: membership.userId,
-          name: profile?.displayName,
+          name: profile?.displayName ?? profile?.email,
           role: membership.role,
         };
       }),
@@ -343,7 +343,10 @@ export const listComments = query({
           .query("userProfiles")
           .withIndex("by_userId", (q) => q.eq("userId", comment.authorId))
           .unique();
-        return { ...comment, authorName: profile?.displayName };
+        return {
+          ...comment,
+          authorName: profile?.displayName ?? profile?.email,
+        };
       }),
     );
   },
