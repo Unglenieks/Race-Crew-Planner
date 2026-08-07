@@ -45,10 +45,13 @@ const starterFields: FormField[] = [
   { id: "notes", label: "Notes", type: "text", required: false },
 ];
 
-function newField(existing: FormField[]): FormField {
+type BuilderField = FormField & { builderKey: string };
+
+function newField(existing: BuilderField[]): BuilderField {
   let index = existing.length + 1;
   while (existing.some((field) => field.id === `field_${index}`)) index += 1;
   return {
+    builderKey: `field-${Date.now()}-${index}`,
     id: `field_${index}`,
     label: "New field",
     type: "text",
@@ -68,8 +71,11 @@ function TemplateBuilder({
   const createTemplate = useMutation(formsApi.createTemplate);
   const createVersion = useMutation(formsApi.createTemplateVersion);
   const [name, setName] = useState(template?.name ?? "Vehicle inspection");
-  const [fields, setFields] = useState<FormField[]>(
-    template?.fields ?? starterFields,
+  const [fields, setFields] = useState<BuilderField[]>(
+    (template?.fields ?? starterFields).map((field, index) => ({
+      ...field,
+      builderKey: `initial-${index}`,
+    })),
   );
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
@@ -90,16 +96,41 @@ function TemplateBuilder({
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    const identifiers = fields.map((field) => field.id);
+    if (
+      identifiers.some((id) => !/^[a-z][a-z0-9_]{0,39}$/.test(id)) ||
+      new Set(identifiers).size !== identifiers.length
+    ) {
+      setError(
+        "Every field identifier must be unique and use lowercase letters, numbers, or underscores.",
+      );
+      return;
+    }
+    if (
+      fields.some(
+        (field) =>
+          (field.type === "select" || field.type === "multiSelect") &&
+          (field.options ?? []).length === 0,
+      )
+    ) {
+      setError("Choose at least one option for every choice field.");
+      return;
+    }
     setWorking(true);
+    const submittedFields = fields.map((builderField) => {
+      const { builderKey, ...field } = builderField;
+      void builderKey;
+      return field;
+    });
     try {
       if (template)
         await createVersion({
           eventId,
           templateId: template._id,
           name,
-          fields,
+          fields: submittedFields,
         });
-      else await createTemplate({ eventId, name, fields });
+      else await createTemplate({ eventId, name, fields: submittedFields });
       onDone();
     } catch {
       setError(
@@ -136,7 +167,7 @@ function TemplateBuilder({
           <div className="grid gap-3">
             {fields.map((field, index) => (
               <fieldset
-                key={`${field.id}-${index}`}
+                key={field.builderKey}
                 className="grid gap-3 rounded-lg border border-line p-3"
               >
                 <legend className="px-1 text-sm font-medium text-ink">
@@ -307,10 +338,12 @@ function SubmissionForm({
   eventId,
   template,
   draft,
+  lastSubmission,
 }: {
   eventId: string;
   template: FormTemplate;
   draft?: FormSubmission;
+  lastSubmission?: FormSubmission;
 }) {
   const saveDraft = useMutation(formsApi.saveDraft);
   const submit = useMutation(formsApi.submit);
@@ -327,6 +360,9 @@ function SubmissionForm({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(
+    draft === undefined && lastSubmission !== undefined,
+  );
   const fields = useRef<Record<string, HTMLElement | null>>({});
   const setAnswer = (id: string, value: unknown) => {
     setAnswers((current) => ({ ...current, [id]: value }));
@@ -391,6 +427,7 @@ function SubmissionForm({
     setWorking(true);
     try {
       await submit({ eventId, submissionId: id });
+      setIsSubmitted(true);
       setMessage(
         "Submitted. This completed inspection retains its exact template version and field schema.",
       );
@@ -403,6 +440,14 @@ function SubmissionForm({
     }
   }
   const invalidCount = Object.keys(fieldErrors).length;
+  function startAnotherInspection() {
+    setAnswers({});
+    setSubmissionId(null);
+    setFieldErrors({});
+    setMessage(null);
+    setError(null);
+    setIsSubmitted(false);
+  }
   return (
     <Card>
       <CardHeader>
@@ -414,281 +459,312 @@ function SubmissionForm({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <form className="grid gap-4" onSubmit={onSubmit} noValidate>
-          {invalidCount ? (
-            <div
-              className="rounded-md border border-danger-tx bg-danger-bg px-3 py-2 text-sm text-danger-tx"
-              role="alert"
-              aria-live="assertive"
-            >
-              <p>
-                {invalidCount} required field
-                {invalidCount === 1 ? " is" : "s are"} incomplete.
-              </p>
-              <ul className="mt-1 list-disc pl-5">
-                {Object.keys(fieldErrors).map((id) => (
-                  <li key={id}>
-                    <button
-                      type="button"
-                      className="underline"
-                      onClick={() => fields.current[id]?.focus()}
-                    >
-                      {template.fields.find((field) => field.id === id)?.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {template.fields.map((field) => (
-            <div key={field.id} className="grid gap-1.5">
-              <label
-                className="text-sm font-medium text-ink"
-                htmlFor={`form-${template._id}-${field.id}`}
-              >
-                {field.label}
-                {field.required ? " (required)" : ""}
-              </label>
-              {field.instructions ? (
-                <p className="text-sm text-muted">{field.instructions}</p>
-              ) : null}
-              {field.type === "boolean" ? (
-                <select
-                  ref={(element) => {
-                    fields.current[field.id] = element;
-                  }}
-                  id={`form-${template._id}-${field.id}`}
-                  value={
-                    answers[field.id] === undefined
-                      ? ""
-                      : String(answers[field.id])
-                  }
-                  onChange={(event) =>
-                    setAnswer(
-                      field.id,
-                      event.target.value === ""
-                        ? undefined
-                        : event.target.value === "true",
-                    )
-                  }
-                  aria-invalid={Boolean(fieldErrors[field.id])}
-                  className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
-                >
-                  <option value="">Choose an answer</option>
-                  <option value="true">Yes</option>
-                  <option value="false">No</option>
-                </select>
-              ) : null}
-              {field.type === "person" ? (
-                <select
-                  ref={(element) => {
-                    fields.current[field.id] = element;
-                  }}
-                  id={`form-${template._id}-${field.id}`}
-                  value={String(answers[field.id] ?? "")}
-                  onChange={(event) =>
-                    setAnswer(field.id, event.target.value || undefined)
-                  }
-                  aria-invalid={Boolean(fieldErrors[field.id])}
-                  className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
-                >
-                  <option value="">Choose a person</option>
-                  {(people ?? []).map((person) => (
-                    <option key={person.userId} value={person.userId}>
-                      {person.name ?? person.userId} · {person.role}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-              {field.type === "recordLink" ? (
-                <select
-                  ref={(element) => {
-                    fields.current[field.id] = element;
-                  }}
-                  id={`form-${template._id}-${field.id}`}
-                  value={String(answers[field.id] ?? "")}
-                  onChange={(event) =>
-                    setAnswer(field.id, event.target.value || undefined)
-                  }
-                  aria-invalid={Boolean(fieldErrors[field.id])}
-                  className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
-                >
-                  <option value="">Choose a record</option>
-                  {(records ?? []).map((record) => (
-                    <option key={record._id} value={record._id}>
-                      {record.name} · {record.type}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-              {field.type === "file" || field.type === "photo" ? (
-                <select
-                  ref={(element) => {
-                    fields.current[field.id] = element;
-                  }}
-                  id={`form-${template._id}-${field.id}`}
-                  value={String(answers[field.id] ?? "")}
-                  onChange={(event) =>
-                    setAnswer(field.id, event.target.value || undefined)
-                  }
-                  aria-invalid={Boolean(fieldErrors[field.id])}
-                  className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
-                >
-                  <option value="">
-                    Choose stored{" "}
-                    {field.type === "photo" ? "photo" : "evidence"}
-                  </option>
-                  {(files ?? [])
-                    .filter(
-                      (file) =>
-                        field.type !== "photo" ||
-                        file.contentType.startsWith("image/"),
-                    )
-                    .map((file) => (
-                      <option key={file._id} value={file._id}>
-                        {file.name}
-                      </option>
-                    ))}
-                </select>
-              ) : null}
-              {field.type === "select" ? (
-                <select
-                  ref={(element) => {
-                    fields.current[field.id] = element;
-                  }}
-                  id={`form-${template._id}-${field.id}`}
-                  value={String(answers[field.id] ?? "")}
-                  onChange={(event) =>
-                    setAnswer(field.id, event.target.value || undefined)
-                  }
-                  aria-invalid={Boolean(fieldErrors[field.id])}
-                  className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
-                >
-                  <option value="">Choose an answer</option>
-                  {field.options?.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-              {field.type === "multiSelect" ? (
-                <div
-                  ref={(element) => {
-                    fields.current[field.id] = element;
-                  }}
-                  className="grid gap-2"
-                  aria-invalid={Boolean(fieldErrors[field.id])}
-                >
-                  {field.options?.map((option) => {
-                    const rawAnswer = answers[field.id];
-                    const selected =
-                      Array.isArray(rawAnswer) && rawAnswer.includes(option);
-                    return (
-                      <label
-                        key={option}
-                        className="flex items-center gap-2 text-sm text-ink"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          onChange={(event) => {
-                            const current = Array.isArray(rawAnswer)
-                              ? rawAnswer.filter(
-                                  (value): value is string =>
-                                    typeof value === "string",
-                                )
-                              : [];
-                            setAnswer(
-                              field.id,
-                              event.target.checked
-                                ? [...current, option]
-                                : current.filter((value) => value !== option),
-                            );
-                          }}
-                        />
-                        {option}
-                      </label>
-                    );
-                  })}
-                </div>
-              ) : null}
-              {field.type === "text" ? (
-                <textarea
-                  ref={(element) => {
-                    fields.current[field.id] = element;
-                  }}
-                  id={`form-${template._id}-${field.id}`}
-                  value={String(answers[field.id] ?? "")}
-                  onChange={(event) => setAnswer(field.id, event.target.value)}
-                  aria-invalid={Boolean(fieldErrors[field.id])}
-                  className="min-h-20 rounded-lg border border-line bg-card px-3 py-2 text-sm"
-                />
-              ) : null}
-              {field.type === "number" || field.type === "date" ? (
-                <Input
-                  ref={(element) => {
-                    fields.current[field.id] = element;
-                  }}
-                  id={`form-${template._id}-${field.id}`}
-                  type={field.type}
-                  value={String(answers[field.id] ?? "")}
-                  onChange={(event) =>
-                    setAnswer(
-                      field.id,
-                      event.target.value === ""
-                        ? undefined
-                        : field.type === "number"
-                          ? Number(event.target.value)
-                          : event.target.value,
-                    )
-                  }
-                  aria-invalid={Boolean(fieldErrors[field.id])}
-                />
-              ) : null}
-              {fieldErrors[field.id] ? (
-                <p className="text-sm text-danger-tx" role="alert">
-                  {fieldErrors[field.id]}
-                </p>
-              ) : null}
-            </div>
-          ))}
-          {error ? (
-            <p
-              className="rounded-md border border-danger-tx bg-danger-bg px-3 py-2 text-sm text-danger-tx"
-              role="alert"
-            >
-              {error}
-            </p>
-          ) : null}
-          {message ? (
+        {isSubmitted ? (
+          <div className="grid gap-4">
             <p
               className="rounded-md border border-green bg-soft px-3 py-2 text-sm text-green-ink"
               role="status"
             >
-              {message}
+              Submitted inspection
+              {lastSubmission?.submittedAt === undefined
+                ? "."
+                : ` on ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(lastSubmission.submittedAt)}.`}
             </p>
-          ) : null}
-          <div className="flex flex-wrap gap-2">
+            <p className="text-sm text-muted">
+              Completed inspections are retained as submitted records and can no
+              longer be changed.
+            </p>
             <Button
               type="button"
-              variant="secondary"
-              disabled={working}
-              onClick={() => void save()}
+              className="w-fit"
+              onClick={startAnotherInspection}
             >
-              <Save className="h-4 w-4" />
-              Save draft
-            </Button>
-            <Button type="submit" disabled={working}>
-              {working ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
-                <Check className="h-4 w-4" />
-              )}
-              Submit inspection
+              Start another inspection
             </Button>
           </div>
-        </form>
+        ) : (
+          <form className="grid gap-4" onSubmit={onSubmit} noValidate>
+            {invalidCount ? (
+              <div
+                className="rounded-md border border-danger-tx bg-danger-bg px-3 py-2 text-sm text-danger-tx"
+                role="alert"
+                aria-live="assertive"
+              >
+                <p>
+                  {invalidCount} required field
+                  {invalidCount === 1 ? " is" : "s are"} incomplete.
+                </p>
+                <ul className="mt-1 list-disc pl-5">
+                  {Object.keys(fieldErrors).map((id) => (
+                    <li key={id}>
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() => fields.current[id]?.focus()}
+                      >
+                        {
+                          template.fields.find((field) => field.id === id)
+                            ?.label
+                        }
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {template.fields.map((field) => (
+              <div key={field.id} className="grid gap-1.5">
+                <label
+                  className="text-sm font-medium text-ink"
+                  htmlFor={`form-${template._id}-${field.id}`}
+                >
+                  {field.label}
+                  {field.required ? " (required)" : ""}
+                </label>
+                {field.instructions ? (
+                  <p className="text-sm text-muted">{field.instructions}</p>
+                ) : null}
+                {field.type === "boolean" ? (
+                  <select
+                    ref={(element) => {
+                      fields.current[field.id] = element;
+                    }}
+                    id={`form-${template._id}-${field.id}`}
+                    value={
+                      answers[field.id] === undefined
+                        ? ""
+                        : String(answers[field.id])
+                    }
+                    onChange={(event) =>
+                      setAnswer(
+                        field.id,
+                        event.target.value === ""
+                          ? undefined
+                          : event.target.value === "true",
+                      )
+                    }
+                    aria-invalid={Boolean(fieldErrors[field.id])}
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                  >
+                    <option value="">Choose an answer</option>
+                    <option value="true">Yes</option>
+                    <option value="false">No</option>
+                  </select>
+                ) : null}
+                {field.type === "person" ? (
+                  <select
+                    ref={(element) => {
+                      fields.current[field.id] = element;
+                    }}
+                    id={`form-${template._id}-${field.id}`}
+                    value={String(answers[field.id] ?? "")}
+                    onChange={(event) =>
+                      setAnswer(field.id, event.target.value || undefined)
+                    }
+                    aria-invalid={Boolean(fieldErrors[field.id])}
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                  >
+                    <option value="">Choose a person</option>
+                    {(people ?? []).map((person) => (
+                      <option key={person.userId} value={person.userId}>
+                        {person.name ?? person.userId} · {person.role}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                {field.type === "recordLink" ? (
+                  <select
+                    ref={(element) => {
+                      fields.current[field.id] = element;
+                    }}
+                    id={`form-${template._id}-${field.id}`}
+                    value={String(answers[field.id] ?? "")}
+                    onChange={(event) =>
+                      setAnswer(field.id, event.target.value || undefined)
+                    }
+                    aria-invalid={Boolean(fieldErrors[field.id])}
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                  >
+                    <option value="">Choose a record</option>
+                    {(records ?? []).map((record) => (
+                      <option key={record._id} value={record._id}>
+                        {record.name} · {record.type}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                {field.type === "file" || field.type === "photo" ? (
+                  <select
+                    ref={(element) => {
+                      fields.current[field.id] = element;
+                    }}
+                    id={`form-${template._id}-${field.id}`}
+                    value={String(answers[field.id] ?? "")}
+                    onChange={(event) =>
+                      setAnswer(field.id, event.target.value || undefined)
+                    }
+                    aria-invalid={Boolean(fieldErrors[field.id])}
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                  >
+                    <option value="">
+                      Choose stored{" "}
+                      {field.type === "photo" ? "photo" : "evidence"}
+                    </option>
+                    {(files ?? [])
+                      .filter(
+                        (file) =>
+                          field.type !== "photo" ||
+                          file.contentType.startsWith("image/"),
+                      )
+                      .map((file) => (
+                        <option key={file._id} value={file._id}>
+                          {file.name}
+                        </option>
+                      ))}
+                  </select>
+                ) : null}
+                {field.type === "select" ? (
+                  <select
+                    ref={(element) => {
+                      fields.current[field.id] = element;
+                    }}
+                    id={`form-${template._id}-${field.id}`}
+                    value={String(answers[field.id] ?? "")}
+                    onChange={(event) =>
+                      setAnswer(field.id, event.target.value || undefined)
+                    }
+                    aria-invalid={Boolean(fieldErrors[field.id])}
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                  >
+                    <option value="">Choose an answer</option>
+                    {field.options?.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                {field.type === "multiSelect" ? (
+                  <div
+                    ref={(element) => {
+                      fields.current[field.id] = element;
+                    }}
+                    tabIndex={-1}
+                    className="grid gap-2"
+                    aria-invalid={Boolean(fieldErrors[field.id])}
+                  >
+                    {field.options?.map((option) => {
+                      const rawAnswer = answers[field.id];
+                      const selected =
+                        Array.isArray(rawAnswer) && rawAnswer.includes(option);
+                      return (
+                        <label
+                          key={option}
+                          className="flex items-center gap-2 text-sm text-ink"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={(event) => {
+                              const current = Array.isArray(rawAnswer)
+                                ? rawAnswer.filter(
+                                    (value): value is string =>
+                                      typeof value === "string",
+                                  )
+                                : [];
+                              setAnswer(
+                                field.id,
+                                event.target.checked
+                                  ? [...current, option]
+                                  : current.filter((value) => value !== option),
+                              );
+                            }}
+                          />
+                          {option}
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                {field.type === "text" ? (
+                  <textarea
+                    ref={(element) => {
+                      fields.current[field.id] = element;
+                    }}
+                    id={`form-${template._id}-${field.id}`}
+                    value={String(answers[field.id] ?? "")}
+                    onChange={(event) =>
+                      setAnswer(field.id, event.target.value)
+                    }
+                    aria-invalid={Boolean(fieldErrors[field.id])}
+                    className="min-h-20 rounded-lg border border-line bg-card px-3 py-2 text-sm"
+                  />
+                ) : null}
+                {field.type === "number" || field.type === "date" ? (
+                  <Input
+                    ref={(element) => {
+                      fields.current[field.id] = element;
+                    }}
+                    id={`form-${template._id}-${field.id}`}
+                    type={field.type}
+                    value={String(answers[field.id] ?? "")}
+                    onChange={(event) =>
+                      setAnswer(
+                        field.id,
+                        event.target.value === ""
+                          ? undefined
+                          : field.type === "number"
+                            ? Number(event.target.value)
+                            : event.target.value,
+                      )
+                    }
+                    aria-invalid={Boolean(fieldErrors[field.id])}
+                  />
+                ) : null}
+                {fieldErrors[field.id] ? (
+                  <p className="text-sm text-danger-tx" role="alert">
+                    {fieldErrors[field.id]}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+            {error ? (
+              <p
+                className="rounded-md border border-danger-tx bg-danger-bg px-3 py-2 text-sm text-danger-tx"
+                role="alert"
+              >
+                {error}
+              </p>
+            ) : null}
+            {message ? (
+              <p
+                className="rounded-md border border-green bg-soft px-3 py-2 text-sm text-green-ink"
+                role="status"
+              >
+                {message}
+              </p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={working}
+                onClick={() => void save()}
+              >
+                <Save className="h-4 w-4" />
+                Save draft
+              </Button>
+              <Button type="submit" disabled={working}>
+                {working ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4" />
+                )}
+                Submit inspection
+              </Button>
+            </div>
+          </form>
+        )}
       </CardContent>
     </Card>
   );
@@ -783,6 +859,11 @@ export function FormsInspections({
                   draft={submissions.find(
                     (submission) =>
                       submission.status === "draft" &&
+                      submission.templateId === template._id,
+                  )}
+                  lastSubmission={submissions.find(
+                    (submission) =>
+                      submission.status === "submitted" &&
                       submission.templateId === template._id,
                   )}
                 />

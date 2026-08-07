@@ -210,6 +210,7 @@ export type FormSubmission = {
 export type EventActivity = {
   _id: string;
   actorId: string;
+  actorName?: string;
   kind: "comment" | "source";
   message: string;
   createdAt: number;
