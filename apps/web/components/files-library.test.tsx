@@ -56,7 +56,9 @@ describe("FilesLibrary", () => {
     fireEvent.change(screen.getByLabelText("File"), {
       target: { files: [file] },
     });
-    fireEvent.submit(screen.getByRole("button", { name: "Store file" }).closest("form")!);
+    fireEvent.submit(
+      screen.getByRole("button", { name: "Store file" }).closest("form")!,
+    );
     expect(screen.getByRole("alert").textContent).toContain(
       "between 1 byte and 10 MB",
     );
