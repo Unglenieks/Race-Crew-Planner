@@ -127,6 +127,7 @@ export const publish = mutation({
       )
       .collect();
     const prior = priorPublications.at(-1);
+    const hasLastChangedSnapshot = item.lastChangedAt !== undefined;
     const now = Date.now();
     const changeId = await ctx.db.insert("planChanges", {
       eventId,
@@ -135,10 +136,18 @@ export const publish = mutation({
       scheduledFor: item.scheduledFor,
       location: item.location,
       notes: item.notes,
-      previousTitle: item.lastChangedTitle ?? prior?.title,
-      previousScheduledFor: item.lastChangedScheduledFor ?? prior?.scheduledFor,
-      previousLocation: item.lastChangedLocation ?? prior?.location,
-      previousNotes: item.lastChangedNotes ?? prior?.notes,
+      previousTitle: hasLastChangedSnapshot
+        ? item.lastChangedTitle
+        : prior?.title,
+      previousScheduledFor: hasLastChangedSnapshot
+        ? item.lastChangedScheduledFor
+        : prior?.scheduledFor,
+      previousLocation: hasLastChangedSnapshot
+        ? item.lastChangedLocation
+        : prior?.location,
+      previousNotes: hasLastChangedSnapshot
+        ? item.lastChangedNotes
+        : prior?.notes,
       reason: normalizedReason(reason),
       severity,
       publishedBy: identity.subject,

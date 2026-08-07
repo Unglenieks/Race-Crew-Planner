@@ -2,26 +2,26 @@
 
 import { CalendarClock, ChevronRight, ClipboardCheck } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { itineraryApi } from "@/lib/events-api";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-function eventDay(timeZone: string) {
+function eventDay(timeZone: string, now: Date) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).formatToParts(new Date());
+  }).formatToParts(now);
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((item) => item.type === type)?.value;
 
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
-function eventLocalDateTime(timeZone: string) {
+function eventLocalDateTime(timeZone: string, now: Date) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
@@ -30,7 +30,7 @@ function eventLocalDateTime(timeZone: string) {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
-  }).formatToParts(new Date());
+  }).formatToParts(now);
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((item) => item.type === type)?.value;
 
@@ -49,8 +49,21 @@ export function TodayOverview({
   timeZone: string;
 }) {
   const items = useQuery(itineraryApi.list, { eventId });
-  const today = useMemo(() => eventDay(timeZone), [timeZone]);
-  const now = useMemo(() => eventLocalDateTime(timeZone), [timeZone]);
+  const [clock, setClock] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setClock(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const today = useMemo(
+    () => eventDay(timeZone, new Date(clock)),
+    [clock, timeZone],
+  );
+  const now = useMemo(
+    () => eventLocalDateTime(timeZone, new Date(clock)),
+    [clock, timeZone],
+  );
   const todaysItems = useMemo(
     () => (items ?? []).filter((item) => item.scheduledFor.startsWith(today)),
     [items, today],
