@@ -19,7 +19,11 @@ export function PlanExportScreen() {
           Loading the movement plan…
         </p>
       ) : (
-        <PlanExport items={items} timeZone={event.timeZone} />
+        <PlanExport
+          eventId={event.id}
+          items={items}
+          timeZone={event.timeZone}
+        />
       )}
     </WorkspaceScreen>
   );

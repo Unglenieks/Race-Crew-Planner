@@ -268,17 +268,22 @@ a superseded version without altering completed submissions.
 
 **Tier.** Build next.
 
-**Current state.** `apps/web/components/plan-export.tsx` calls
-`window.print()`. There is no PDF, spreadsheet, share link, or offline brief
-generation anywhere.
+**Current state.** The plan export screen still supports browser print, and now
+also creates a downloadable CSV brief. Each download is an authorized,
+event-local snapshot with its generation time, selected-day filter, timezone,
+and movement rows. The export history compares each snapshot to the live
+filtered plan and explicitly marks a prior brief superseded when the plan has
+moved on.
 
 **Scope.** Export with supersede marking, per §05, so a printed or exported plan
-that has since changed says so.
+that has since changed says so. CSV is the portable first artifact; no PDF,
+share link, or offline briefing package is implied.
 
 **Prerequisites.** P1.
 
 **Exit criteria.** An exported artefact carries its generation time and a
-supersede marker when the plan has moved on.
+supersede marker when the plan has moved on. **Code complete in the PR stacked
+on #61.**
 
 ### S8 · Escalation for unacknowledged critical changes
 
