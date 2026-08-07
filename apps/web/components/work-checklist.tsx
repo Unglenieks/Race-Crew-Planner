@@ -1,6 +1,13 @@
 "use client";
 
-import { Check, Circle, LoaderCircle, Pencil, RotateCcw } from "lucide-react";
+import {
+  Check,
+  Circle,
+  LoaderCircle,
+  Pencil,
+  Plus,
+  RotateCcw,
+} from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
@@ -59,7 +66,13 @@ function itemToDraft(item: WorkItem): Draft {
 }
 
 function isSameDraft(left: Draft, right: Draft) {
-  return left.title === right.title && left.notes === right.notes;
+  return (
+    left.title === right.title &&
+    left.notes === right.notes &&
+    left.priority === right.priority &&
+    left.dueContext === right.dueContext &&
+    left.assigneeId === right.assigneeId
+  );
 }
 
 export function WorkChecklist({
@@ -78,6 +91,7 @@ export function WorkChecklist({
   const [filter, setFilter] = useState<WorkFilter>("open");
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [editingItem, setEditingItem] = useState<WorkItem | null>(null);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingItemId, setPendingItemId] = useState<string | null>(null);
   const [undoCompletion, setUndoCompletion] = useState<{
@@ -109,12 +123,21 @@ export function WorkChecklist({
     setEditingItem(null);
     setDraft(emptyDraft);
     setError(null);
+    setIsEditorOpen(false);
+  }
+
+  function beginAdding() {
+    setEditingItem(null);
+    setDraft(emptyDraft);
+    setError(null);
+    setIsEditorOpen(true);
   }
 
   function beginEditing(item: WorkItem) {
     setEditingItem(item);
     setDraft(itemToDraft(item));
     setError(null);
+    setIsEditorOpen(true);
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -198,9 +221,17 @@ export function WorkChecklist({
                 {openCount} open · {completedCount} completed
               </p>
             </div>
-            <Badge variant={canManage ? "success" : "neutral"}>
-              {canManage ? "Can manage" : "Can complete"}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant={canManage ? "success" : "neutral"}>
+                {canManage ? "Can manage" : "Can complete"}
+              </Badge>
+              {canManage ? (
+                <Button type="button" size="sm" onClick={beginAdding}>
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  Add work item
+                </Button>
+              ) : null}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -248,6 +279,14 @@ export function WorkChecklist({
             <EmptyState
               title="No work items yet"
               description="Start a shared checklist with the next task the crew needs to complete."
+              action={
+                canManage ? (
+                  <Button type="button" size="sm" onClick={beginAdding}>
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    Add work item
+                  </Button>
+                ) : undefined
+              }
             />
           ) : (
             <>
@@ -372,7 +411,7 @@ export function WorkChecklist({
         </CardContent>
       </Card>
 
-      {canManage ? (
+      {canManage && isEditorOpen ? (
         <Card>
           <CardHeader>
             <div>
