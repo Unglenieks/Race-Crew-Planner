@@ -18,6 +18,7 @@ import {
   type EventRecord,
   type EventRole,
   type RecordField,
+  type RecordType,
 } from "@/lib/events-api";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
@@ -72,6 +73,22 @@ function labelForType(type: EventRecord["type"]) {
   return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
+function displayRecordType(
+  record: EventRecord,
+  configuredTypes: readonly RecordType[] | undefined,
+) {
+  return (
+    configuredTypes?.find((type) => type._id === record.recordTypeId)?.name ??
+    labelForType(record.type)
+  );
+}
+
+function draftTypeValue(draft: Draft) {
+  return draft.recordTypeId === undefined
+    ? `builtin:${draft.type}`
+    : `custom:${draft.recordTypeId}`;
+}
+
 export function RecordsDirectory({
   eventId,
   role,
@@ -97,6 +114,8 @@ export function RecordsDirectory({
   const [newFieldOptions, setNewFieldOptions] = useState("");
   const [editingField, setEditingField] = useState<RecordField | null>(null);
   const [fieldError, setFieldError] = useState<string | null>(null);
+  const [isFieldConfigurationOpen, setIsFieldConfigurationOpen] =
+    useState(false);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [editingRecord, setEditingRecord] = useState<EventRecord | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -242,17 +261,29 @@ export function RecordsDirectory({
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Link
-                className="text-sm font-semibold text-green-ink underline underline-offset-4"
-                href={`/events/${eventId}/records/types`}
-              >
-                Types & categories
-              </Link>
-              <Link
-                className="text-sm font-semibold text-green-ink underline underline-offset-4"
+                className="inline-flex min-h-11 items-center rounded-lg border border-btnline bg-card px-3 text-sm font-semibold text-green-ink hover:border-green focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
                 href={`/events/${eventId}/records/travel`}
               >
-                Travel context
+                Travel reference
               </Link>
+              <Link
+                className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-green-ink underline underline-offset-4 focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
+                href={`/events/${eventId}/records/types`}
+              >
+                Configure records
+              </Link>
+              {canManage ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setIsFieldConfigurationOpen((open) => !open)}
+                >
+                  {isFieldConfigurationOpen
+                    ? "Close field settings"
+                    : "Configure fields"}
+                </Button>
+              ) : null}
               <Badge variant={canManage ? "success" : "neutral"}>
                 {canManage ? "Can manage" : "View only"}
               </Badge>
@@ -422,7 +453,9 @@ export function RecordsDirectory({
                               {record.name}
                             </Link>
                           </td>
-                          <td className="p-2">{labelForType(record.type)}</td>
+                          <td className="p-2">
+                            {displayRecordType(record, configuredTypes)}
+                          </td>
                           {(fields ?? []).map((field) => (
                             <td className="p-2" key={field._id}>
                               {record.fieldValues?.[field.key] ?? "—"}
@@ -466,7 +499,7 @@ export function RecordsDirectory({
                             {record.name}
                           </Link>
                           <Badge variant="neutral">
-                            {labelForType(record.type)}
+                            {displayRecordType(record, configuredTypes)}
                           </Badge>
                         </div>
                         {record.address === undefined ? null : (
@@ -514,7 +547,7 @@ export function RecordsDirectory({
         </CardContent>
       </Card>
 
-      {canManage ? (
+      {canManage && isFieldConfigurationOpen ? (
         <Card>
           <CardHeader>
             <div>
@@ -752,53 +785,42 @@ export function RecordsDirectory({
                 </label>
                 <select
                   id="record-type"
-                  value={draft.type}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      type: event.target.value as (typeof recordTypes)[number],
-                    }))
-                  }
+                  value={draftTypeValue(draft)}
+                  onChange={(event) => {
+                    const [kind, value] = event.target.value.split(":", 2);
+                    setDraft((current) =>
+                      kind === "custom"
+                        ? { ...current, type: "venue", recordTypeId: value }
+                        : {
+                            ...current,
+                            type: value as (typeof recordTypes)[number],
+                            recordTypeId: undefined,
+                          },
+                    );
+                  }}
                   className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink shadow-sm outline-none focus:border-ink focus:ring-2 focus:ring-ink"
                 >
-                  {recordTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {labelForType(type)}
-                    </option>
-                  ))}
+                  <optgroup label="Built-in types">
+                    {recordTypes.map((type) => (
+                      <option key={type} value={`builtin:${type}`}>
+                        {labelForType(type)}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {configuredTypes === undefined ? null : (
+                    <optgroup label="Event types">
+                      {configuredTypes
+                        .filter((type) => type.archivedAt === undefined)
+                        .map((type) => (
+                          <option key={type._id} value={`custom:${type._id}`}>
+                            {type.name}
+                            {type.isLocation ? " · location" : ""}
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
                 </select>
               </div>
-              {configuredTypes === undefined ? null : (
-                <div className="grid gap-1.5">
-                  <label
-                    className="text-sm font-medium text-ink"
-                    htmlFor="record-configured-type"
-                  >
-                    Team type <span className="text-muted">(optional)</span>
-                  </label>
-                  <select
-                    id="record-configured-type"
-                    value={draft.recordTypeId ?? ""}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        recordTypeId: event.target.value || undefined,
-                      }))
-                    }
-                    className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink shadow-sm outline-none focus:border-ink focus:ring-2 focus:ring-ink"
-                  >
-                    <option value="">Use the built-in type</option>
-                    {configuredTypes
-                      .filter((type) => type.archivedAt === undefined)
-                      .map((type) => (
-                        <option key={type._id} value={type._id}>
-                          {type.name}
-                          {type.isLocation ? " · location" : ""}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              )}
               {(fields ?? []).map((field) => (
                 <div className="grid gap-1.5" key={field._id}>
                   <label

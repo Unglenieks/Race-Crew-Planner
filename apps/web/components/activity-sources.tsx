@@ -24,6 +24,9 @@ export function ActivitySources({ eventId }: { eventId: string }) {
   const [url, setUrl] = useState("");
   const [excerpt, setExcerpt] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isSourceComposerOpen, setIsSourceComposerOpen] = useState(false);
+  const [isSavingComment, setIsSavingComment] = useState(false);
+  const [isSavingSource, setIsSavingSource] = useState(false);
   if (data === undefined)
     return (
       <p className="flex items-center text-sm text-muted" role="status">
@@ -37,16 +40,20 @@ export function ActivitySources({ eventId }: { eventId: string }) {
   async function commentSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setIsSavingComment(true);
     try {
       await addComment({ eventId, body: comment });
       setComment("");
     } catch {
       setError("The comment was not saved. Please try again.");
+    } finally {
+      setIsSavingComment(false);
     }
   }
   async function sourceSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setIsSavingSource(true);
     try {
       await addSource({
         eventId,
@@ -57,15 +64,18 @@ export function ActivitySources({ eventId }: { eventId: string }) {
       setTitle("");
       setUrl("");
       setExcerpt("");
+      setIsSourceComposerOpen(false);
     } catch {
       setError("The source was not saved. Check its title and link.");
+    } finally {
+      setIsSavingSource(false);
     }
   }
   return (
     <div className="grid items-start gap-4 xl:grid-cols-[.65fr_1.35fr]">
       <Card>
         <CardHeader>
-          <CardTitle>Add a comment or source</CardTitle>
+          <CardTitle>Add a comment</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-6">
           <form className="grid gap-2" onSubmit={commentSubmit}>
@@ -83,44 +93,14 @@ export function ActivitySources({ eventId }: { eventId: string }) {
               required
               className="min-h-20 rounded-lg border border-line bg-card px-3 py-2 text-sm"
             />
-            <Button className="w-fit" type="submit" variant="secondary">
+            <Button
+              className="w-fit"
+              type="submit"
+              variant="secondary"
+              disabled={isSavingComment || comment.trim().length === 0}
+            >
               <MessageSquare className="h-4 w-4" aria-hidden="true" />
-              Save comment
-            </Button>
-          </form>
-          <form className="grid gap-2" onSubmit={sourceSubmit}>
-            <p className="text-sm font-medium text-ink">Add a source</p>
-            <label className="sr-only" htmlFor="source-title">
-              Source title
-            </label>
-            <Input
-              id="source-title"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Source title"
-              maxLength={160}
-              required
-            />
-            <label className="sr-only" htmlFor="source-url">
-              Source link
-            </label>
-            <Input
-              id="source-url"
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-              placeholder="https://… (optional)"
-              maxLength={1000}
-            />
-            <textarea
-              value={excerpt}
-              onChange={(event) => setExcerpt(event.target.value)}
-              placeholder="Quoted excerpt or context (optional)"
-              maxLength={2000}
-              className="min-h-20 rounded-lg border border-line bg-card px-3 py-2 text-sm"
-            />
-            <Button className="w-fit" type="submit" variant="secondary">
-              <Link2 className="h-4 w-4" aria-hidden="true" />
-              Save source
+              {isSavingComment ? "Saving comment…" : "Save comment"}
             </Button>
           </form>
           {error === null ? null : (
@@ -161,12 +141,88 @@ export function ActivitySources({ eventId }: { eventId: string }) {
             )}
           </CardContent>
         </Card>
-        {data.sources.length === 0 ? null : (
-          <Card>
-            <CardHeader>
-              <CardTitle>Sources</CardTitle>
-            </CardHeader>
-            <CardContent>
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <CardTitle>Sources</CardTitle>
+                <p className="mt-1 text-sm text-muted">
+                  References supporting the event&apos;s shared decisions.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => setIsSourceComposerOpen((open) => !open)}
+              >
+                <Link2 className="h-4 w-4" aria-hidden="true" />
+                {isSourceComposerOpen ? "Close" : "Add source"}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            {isSourceComposerOpen ? (
+              <form
+                className="grid gap-2 rounded-lg border border-line p-3"
+                onSubmit={sourceSubmit}
+              >
+                <label
+                  className="text-sm font-medium text-ink"
+                  htmlFor="source-title"
+                >
+                  Source title
+                </label>
+                <Input
+                  id="source-title"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="Source title"
+                  maxLength={160}
+                  required
+                />
+                <label
+                  className="text-sm font-medium text-ink"
+                  htmlFor="source-url"
+                >
+                  Source link{" "}
+                  <span className="font-normal text-muted">(optional)</span>
+                </label>
+                <Input
+                  id="source-url"
+                  value={url}
+                  onChange={(event) => setUrl(event.target.value)}
+                  placeholder="https://…"
+                  maxLength={1000}
+                />
+                <label
+                  className="text-sm font-medium text-ink"
+                  htmlFor="source-excerpt"
+                >
+                  Context{" "}
+                  <span className="font-normal text-muted">(optional)</span>
+                </label>
+                <textarea
+                  id="source-excerpt"
+                  value={excerpt}
+                  onChange={(event) => setExcerpt(event.target.value)}
+                  maxLength={2000}
+                  className="min-h-20 rounded-lg border border-line bg-card px-3 py-2 text-sm"
+                />
+                <Button
+                  className="w-fit"
+                  type="submit"
+                  variant="secondary"
+                  disabled={isSavingSource}
+                >
+                  <Link2 className="h-4 w-4" aria-hidden="true" />
+                  {isSavingSource ? "Saving source…" : "Save source"}
+                </Button>
+              </form>
+            ) : null}
+            {data.sources.length === 0 ? (
+              <p className="text-sm text-muted">No sources saved yet.</p>
+            ) : (
               <ul className="grid gap-3">
                 {data.sources.map((source) => (
                   <li key={source._id}>
@@ -192,9 +248,9 @@ export function ActivitySources({ eventId }: { eventId: string }) {
                   </li>
                 ))}
               </ul>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

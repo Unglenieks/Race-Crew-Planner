@@ -33,6 +33,7 @@ export type ScreenId =
   | "work"
   | "work-templates"
   | "records"
+  | "travel"
   | "files"
   | "offline"
   | "forms"
@@ -129,6 +130,15 @@ export const screens: ScreenDefinition[] = [
     minRole: "crew",
   },
   {
+    id: "travel",
+    segment: "records/travel",
+    label: "Travel reference",
+    shortLabel: "Travel",
+    description: "Place-to-place estimates and route notes for the event.",
+    icon: MapPin,
+    minRole: "crew",
+  },
+  {
     id: "files",
     segment: "files",
     label: "Files & sources",
@@ -191,7 +201,7 @@ export const screenGroups: ScreenGroup[] = [
     label: "Work",
     screenIds: ["work", "work-templates"],
   },
-  { label: "Records", screenIds: ["records", "files"] },
+  { label: "Records", screenIds: ["records", "travel", "files"] },
   { label: "Forms", screenIds: ["forms"] },
   { label: "Trust & setup", screenIds: ["activity", "offline", "people"] },
 ];

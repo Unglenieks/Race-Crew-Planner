@@ -24,7 +24,6 @@ const nonNavigableSegments = new Set([
   "plan/publish",
   "plan/sections",
   "records/types",
-  "records/travel",
 ]);
 
 /** Every static `page.tsx` under the workspace route, as a path segment. */
