@@ -112,6 +112,8 @@ export default defineSchema({
   eventFiles: defineTable({
     eventId: v.id("events"),
     recordId: v.optional(v.id("eventRecords")),
+    workItemId: v.optional(v.id("workItems")),
+    itineraryItemId: v.optional(v.id("itineraryItems")),
     storageId: v.id("_storage"),
     name: v.string(),
     contentType: v.string(),
@@ -120,7 +122,9 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_eventId_createdAt", ["eventId", "createdAt"])
-    .index("by_eventId_recordId", ["eventId", "recordId"]),
+    .index("by_eventId_recordId", ["eventId", "recordId"])
+    .index("by_eventId_workItemId", ["eventId", "workItemId"])
+    .index("by_eventId_itineraryItemId", ["eventId", "itineraryItemId"]),
   eventRecordFields: defineTable({
     eventId: v.id("events"),
     /** Stable key means renaming a field never loses its existing values. */

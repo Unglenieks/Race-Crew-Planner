@@ -3,7 +3,13 @@
 import { FileUp, LoaderCircle, Trash2 } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { filesApi, recordsApi, type EventRole } from "@/lib/events-api";
+import {
+  filesApi,
+  itineraryApi,
+  recordsApi,
+  workApi,
+  type EventRole,
+} from "@/lib/events-api";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,11 +38,13 @@ export function FilesLibrary({
 }) {
   const files = useQuery(filesApi.list, { eventId });
   const records = useQuery(recordsApi.list, { eventId });
+  const work = useQuery(workApi.list, { eventId });
+  const movements = useQuery(itineraryApi.list, { eventId });
   const generateUploadUrl = useMutation(filesApi.generateUploadUrl);
   const save = useMutation(filesApi.save);
   const remove = useMutation(filesApi.remove);
   const [file, setFile] = useState<File | null>(null);
-  const [recordId, setRecordId] = useState("");
+  const [target, setTarget] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canRemove = role === "owner" || role === "manager";
@@ -56,14 +64,21 @@ export function FilesLibrary({
       if (!response.ok) throw new Error("Upload failed");
       const { storageId } = (await response.json()) as { storageId?: string };
       if (storageId === undefined) throw new Error("Upload failed");
+      const [targetType, targetId] = target.split(":");
       await save({
         eventId,
         storageId,
         name: file.name,
-        ...(recordId === "" ? {} : { recordId }),
+        ...(targetId === undefined
+          ? {}
+          : targetType === "record"
+            ? { recordId: targetId }
+            : targetType === "work"
+              ? { workItemId: targetId }
+              : { itineraryItemId: targetId }),
       });
       setFile(null);
-      setRecordId("");
+      setTarget("");
       const input = document.getElementById(
         "event-file",
       ) as HTMLInputElement | null;
@@ -84,7 +99,12 @@ export function FilesLibrary({
     }
   }
 
-  if (files === undefined || records === undefined)
+  if (
+    files === undefined ||
+    records === undefined ||
+    work === undefined ||
+    movements === undefined
+  )
     return (
       <p className="flex items-center text-sm text-muted" role="status">
         <LoaderCircle
@@ -128,13 +148,23 @@ export function FilesLibrary({
               <select
                 id="file-record"
                 className="rounded-lg border border-line bg-card px-3 py-2 text-sm"
-                value={recordId}
-                onChange={(event) => setRecordId(event.target.value)}
+                value={target}
+                onChange={(event) => setTarget(event.target.value)}
               >
                 <option value="">Event library only</option>
                 {records.map((record) => (
-                  <option key={record._id} value={record._id}>
-                    {record.name}
+                  <option key={record._id} value={`record:${record._id}`}>
+                    Record: {record.name}
+                  </option>
+                ))}
+                {work.map((item) => (
+                  <option key={item._id} value={`work:${item._id}`}>
+                    Work: {item.title}
+                  </option>
+                ))}
+                {movements.map((item) => (
+                  <option key={item._id} value={`movement:${item._id}`}>
+                    Movement: {item.title}
                   </option>
                 ))}
               </select>
@@ -197,9 +227,13 @@ export function FilesLibrary({
                     <p className="text-xs text-muted">
                       {item.contentType} · {readableSize(item.size)} ·{" "}
                       {date(item.createdAt)}
-                      {item.recordId === undefined
-                        ? " · Event"
-                        : ` · ${records.find((record) => record._id === item.recordId)?.name ?? "Record"}`}
+                      {item.recordId !== undefined
+                        ? ` · Record: ${records.find((record) => record._id === item.recordId)?.name ?? "Record"}`
+                        : item.workItemId !== undefined
+                          ? ` · Work: ${work.find((entry) => entry._id === item.workItemId)?.title ?? "Work item"}`
+                          : item.itineraryItemId !== undefined
+                            ? ` · Movement: ${movements.find((entry) => entry._id === item.itineraryItemId)?.title ?? "Movement"}`
+                            : " · Event"}
                     </p>
                   </div>
                   {canRemove ? (
