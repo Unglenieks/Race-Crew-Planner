@@ -11,6 +11,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { EventWorkspaceProvider } from "@/components/workspace/event-workspace";
+import { OfflineSync } from "@/components/offline-sync";
 import { WorkspaceTopbar } from "@/components/workspace/workspace-topbar";
 import { eventsApi, invitationsApi } from "@/lib/events-api";
 import { findScreenByPath, roleSatisfies } from "@/lib/screens";
@@ -114,6 +115,7 @@ function ConnectedShell({
 
   return (
     <EventWorkspaceProvider event={event} events={events ?? []}>
+      <OfflineSync eventId={eventId} />
       <div className="flex min-h-screen">
         <a
           href="#workspace-content"

@@ -16,6 +16,7 @@ import {
   type EventRole,
   type WorkItem,
 } from "@/lib/events-api";
+import { queueWorkCompletion } from "@/lib/offline-queue";
 
 type Draft = {
   title: string;
@@ -147,6 +148,14 @@ export function WorkItemDetail({
     setError(null);
     setIsCompleting(true);
     try {
+      if (!navigator.onLine) {
+        await queueWorkCompletion({
+          eventId,
+          label: `${workItem.status === "completed" ? "Reopen" : "Complete"} ${workItem.title}`,
+          payload: { itemId, completed: workItem.status !== "completed" },
+        });
+        return;
+      }
       await setCompletion({
         eventId,
         itemId,
