@@ -5,7 +5,12 @@ export type QueuedChange = {
   createdAt: number;
   status: "queued" | "syncing" | "needsResolution";
   kind: "workCompletion";
-  payload: { itemId: string; completed: boolean };
+  payload: {
+    itemId: string;
+    completed: boolean;
+    expectedUpdatedAt: number;
+    serverStatusAtQueue: "open" | "inProgress" | "blocked" | "completed";
+  };
   error?: string;
 };
 
@@ -14,6 +19,20 @@ export type OfflinePackage = {
   selected: { plan: boolean; work: boolean; files: boolean };
   downloadedAt: number;
   counts: { plan: number; work: number; files: number };
+  /** Serialized event data, deliberately excluding signed file URLs. */
+  plan: Array<{
+    id: string;
+    title: string;
+    scheduledFor: string;
+    location?: string;
+  }>;
+  work: Array<{
+    id: string;
+    title: string;
+    status: "open" | "inProgress" | "blocked" | "completed";
+    updatedAt: number;
+  }>;
+  lastSuccessfulSyncAt?: number;
 };
 
 const dbName = "race-planner-offline";
@@ -22,7 +41,7 @@ const packagesStore = "packages";
 
 function open() {
   return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(dbName, 2);
+    const request = indexedDB.open(dbName, 3);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(changesStore))
@@ -101,4 +120,12 @@ export async function getOfflinePackage(eventId: string) {
     "readonly",
     (store) => store.get(eventId),
   );
+}
+
+export async function markSuccessfulSync(eventId: string) {
+  const value = await getOfflinePackage(eventId);
+  if (value === undefined) return;
+  const next = { ...value, lastSuccessfulSyncAt: Date.now() };
+  await saveOfflinePackage(next);
+  return next;
 }

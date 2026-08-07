@@ -155,7 +155,12 @@ export function WorkItemDetail({
         await queueWorkCompletion({
           eventId,
           label: `${workItem.status === "completed" ? "Reopen" : "Complete"} ${workItem.title}`,
-          payload: { itemId, completed: workItem.status !== "completed" },
+          payload: {
+            itemId,
+            completed: workItem.status !== "completed",
+            expectedUpdatedAt: workItem.updatedAt,
+            serverStatusAtQueue: workItem.status,
+          },
         });
         return;
       }

@@ -42,6 +42,18 @@ export function OfflineManager({ eventId }: { eventId: string }) {
       selected: { plan: true, work: true, files: false },
       downloadedAt: Date.now(),
       counts: { plan: plan.length, work: work.length, files: files.length },
+      plan: plan.map((item) => ({
+        id: item._id,
+        title: item.title,
+        scheduledFor: item.scheduledFor,
+        location: item.location,
+      })),
+      work: work.map((item) => ({
+        id: item._id,
+        title: item.title,
+        status: item.status,
+        updatedAt: item.updatedAt,
+      })),
     };
     await saveOfflinePackage(value);
     setOfflinePackage(value);
@@ -70,11 +82,26 @@ export function OfflineManager({ eventId }: { eventId: string }) {
           {offlinePackage === null ? (
             <p className="text-sm text-muted">No offline package downloaded.</p>
           ) : (
-            <p className="text-sm text-ink">
-              Downloaded {offlinePackage.counts.plan} plan entries and{" "}
-              {offlinePackage.counts.work} work items. File library (
-              {offlinePackage.counts.files} files) needs a connection.
-            </p>
+            <>
+              <p className="text-sm text-ink">
+                Downloaded {offlinePackage.counts.plan} plan entries and{" "}
+                {offlinePackage.counts.work} work items. File library (
+                {offlinePackage.counts.files} files) needs a connection.
+              </p>
+              {offlinePackage.lastSuccessfulSyncAt === undefined ? (
+                <p className="text-xs text-muted">
+                  No queued change has synced yet.
+                </p>
+              ) : (
+                <p className="text-xs text-muted">
+                  Last successful sync:{" "}
+                  {new Date(
+                    offlinePackage.lastSuccessfulSyncAt,
+                  ).toLocaleString()}
+                  .
+                </p>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -109,6 +136,17 @@ export function OfflineManager({ eventId }: { eventId: string }) {
                   {change.label}
                   {change.error === undefined ? null : (
                     <span className="block text-muted">{change.error}</span>
+                  )}
+                  {change.status !== "needsResolution" ? null : (
+                    <span className="block text-muted">
+                      Local request:{" "}
+                      {change.payload.completed ? "completed" : "reopened"};
+                      server was {change.payload.serverStatusAtQueue} when
+                      queued and is now{" "}
+                      {work?.find((item) => item._id === change.payload.itemId)
+                        ?.status ?? "unavailable"}
+                      . Decide which state is correct before retrying.
+                    </span>
                   )}
                 </li>
               ))}
