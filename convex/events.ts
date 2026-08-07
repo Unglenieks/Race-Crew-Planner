@@ -1,11 +1,61 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { requireIdentity } from "./auth";
+import type { Id } from "./_generated/dataModel";
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+} from "./_generated/server";
+import { requireIdentity, requireRole } from "./auth";
 
 const eventArgs = {
   name: v.string(),
   timeZone: v.string(),
 };
+
+/**
+ * `Region/Location` shape, which every IANA zone name outside `UTC` follows.
+ * Requiring the separator is what rejects ambiguous abbreviations such as
+ * `CST`, `EST`, and `GMT+5`, which `Intl.DateTimeFormat` would otherwise accept.
+ */
+const ianaTimeZonePattern = /^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)+$/;
+
+/**
+ * Resolves the canonical zone list once, tolerating runtimes that do not expose
+ * `Intl.supportedValuesOf`. The Convex default runtime is a custom V8 embedding
+ * rather than Node, so this must never be assumed to exist: if it is missing we
+ * fall back to probing `Intl.DateTimeFormat`, which every runtime here provides.
+ */
+function canonicalTimeZones(): ReadonlySet<string> | null {
+  const supportedValuesOf = (
+    Intl as { supportedValuesOf?: (key: string) => string[] }
+  ).supportedValuesOf;
+  if (typeof supportedValuesOf !== "function") return null;
+  try {
+    return new Set(supportedValuesOf.call(Intl, "timeZone"));
+  } catch {
+    return null;
+  }
+}
+
+function isKnownTimeZone(timeZone: string) {
+  const canonical = canonicalTimeZones();
+  if (canonical !== null && canonical.has(timeZone)) return true;
+  // Canonical lists omit valid IANA link names such as `Asia/Calcutta`, so a
+  // successful format is still accepted once the shape check has passed.
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function isSupportedEventTimeZone(timeZone: string) {
+  if (timeZone === "UTC") return true;
+  if (!ianaTimeZonePattern.test(timeZone)) return false;
+  return isKnownTimeZone(timeZone);
+}
 
 function validatedEventInput({
   name,
@@ -25,9 +75,7 @@ function validatedEventInput({
     throw new Error("A valid event time zone is required");
   }
 
-  try {
-    Intl.DateTimeFormat(undefined, { timeZone: normalizedTimeZone });
-  } catch {
+  if (!isSupportedEventTimeZone(normalizedTimeZone)) {
     throw new Error("A valid IANA event time zone is required");
   }
 
@@ -58,6 +106,151 @@ export const create = mutation({
   },
 });
 
+/**
+ * Creates a useful, event-local walkthrough without bypassing the application's
+ * data model. It deliberately uses ordinary records, fields, plan items, and
+ * work so the sample stays representative as those screens evolve.
+ */
+export const createSample = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await requireIdentity(ctx);
+    const createdAt = Date.now();
+    const eventId = await ctx.db.insert("events", {
+      name: "Pine Ridge Rally — sample event",
+      timeZone: "America/Denver",
+      isSample: true,
+      createdAt,
+      createdBy: identity.subject,
+    });
+    await ctx.db.insert("eventMemberships", {
+      eventId,
+      userId: identity.subject,
+      role: "owner",
+      createdAt,
+    });
+
+    await ctx.db.insert("eventRecordFields", {
+      eventId,
+      key: "readiness",
+      label: "Readiness",
+      type: "select",
+      options: ["Ready", "Needs follow-up"],
+      order: 0,
+      createdAt,
+      updatedAt: createdAt,
+    });
+    const venueId = await ctx.db.insert("eventRecords", {
+      eventId,
+      name: "North service park",
+      type: "venue",
+      address: "42 Pine Ridge Road",
+      notes: "Check access before the first crew arrival.",
+      fieldValues: { readiness: "Ready" },
+      createdAt,
+      updatedAt: createdAt,
+    });
+    await ctx.db.insert("eventRecords", {
+      eventId,
+      name: "Fuel and supplies",
+      type: "service",
+      notes: "Confirm the delivery window with the supplier.",
+      fieldValues: { readiness: "Needs follow-up" },
+      createdAt,
+      updatedAt: createdAt,
+    });
+    const departureId = await ctx.db.insert("itineraryItems", {
+      eventId,
+      title: "Crew call at service park",
+      scheduledFor: "2026-09-18T07:30",
+      location: "North service park",
+      recordId: venueId,
+      notes: "Review the day plan and radio check.",
+      timeKind: "exact",
+      createdAt,
+      updatedAt: createdAt,
+    });
+    await ctx.db.insert("workItems", {
+      eventId,
+      title: "Confirm service-park access",
+      notes: "Use the sample record to see the readiness field in action.",
+      status: "open",
+      priority: "high",
+      recordId: venueId,
+      itineraryItemId: departureId,
+      createdAt,
+      updatedAt: createdAt,
+    });
+    return eventId;
+  },
+});
+
+const eventTables = [
+  "eventRecordCategoryAssignments",
+  "travelContexts",
+  "workItemComments",
+  "planChangeRecipients",
+  "planChanges",
+  "formSubmissions",
+  "formTemplates",
+  "eventActivity",
+  "eventComments",
+  "eventSources",
+  "planSections",
+  "workItems",
+  "workTemplates",
+  "itineraryItems",
+  "eventRecords",
+  "eventRecordFields",
+  "eventRecordTypes",
+  "eventRecordCategories",
+  "eventInvitations",
+  "eventMemberships",
+] as const;
+
+const retentionWindowMs = 30 * 24 * 60 * 60 * 1000;
+
+async function deleteEventRows(ctx: MutationCtx, eventId: Id<"events">) {
+  const files = await ctx.db
+    .query("eventFiles")
+    .filter((q) => q.eq(q.field("eventId"), eventId))
+    .collect();
+  await Promise.all(
+    files.map(async (file) => {
+      await ctx.storage.delete(file.storageId);
+      await ctx.db.delete(file._id);
+    }),
+  );
+  for (const table of eventTables) {
+    const rows = await ctx.db
+      .query(table)
+      .filter((q) => q.eq(q.field("eventId"), eventId))
+      .collect();
+    await Promise.all(rows.map((row) => ctx.db.delete(row._id)));
+  }
+}
+
+/** Removes only an owner's sample event and all of its event-local data. */
+export const removeSample = mutation({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    const identity = await requireIdentity(ctx);
+    const event = await ctx.db.get(eventId);
+    if (event === null || !event.isSample)
+      throw new Error("Sample event not found");
+    if (event.createdBy !== identity.subject) throw new Error("Forbidden");
+    const membership = await ctx.db
+      .query("eventMemberships")
+      .withIndex("by_eventId_userId", (q) =>
+        q.eq("eventId", eventId).eq("userId", identity.subject),
+      )
+      .unique();
+    requireRole(membership?.role, ["owner"]);
+    await deleteEventRows(ctx, eventId);
+    await ctx.db.delete(eventId);
+  },
+});
+
 /** Lists only events where the verified caller has an application membership. */
 export const list = query({
   args: {},
@@ -71,18 +264,115 @@ export const list = query({
     const events = await Promise.all(
       memberships.map(async (membership) => {
         const event = await ctx.db.get(membership.eventId);
-        return event === null
+        return event === null || event.archivedAt !== undefined
           ? null
           : {
               id: event._id,
               name: event.name,
               timeZone: event.timeZone,
               role: membership.role,
+              isSample: event.isSample === true,
             };
       }),
     );
 
     return events.filter((event) => event !== null);
+  },
+});
+
+/** Lists archived events only for their owners, with their restore deadline. */
+export const listArchived = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await requireIdentity(ctx);
+    const memberships = await ctx.db
+      .query("eventMemberships")
+      .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
+      .collect();
+    const events = await Promise.all(
+      memberships
+        .filter((membership) => membership.role === "owner")
+        .map(async (membership) => {
+          const event = await ctx.db.get(membership.eventId);
+          return event === null || event.archivedAt === undefined
+            ? null
+            : {
+                id: event._id,
+                name: event.name,
+                timeZone: event.timeZone,
+                archivedAt: event.archivedAt,
+                purgeAt: event.archivedAt + retentionWindowMs,
+              };
+        }),
+    );
+    return events.filter((event) => event !== null);
+  },
+});
+
+async function requireOwnedEvent(ctx: MutationCtx, eventId: Id<"events">) {
+  const identity = await requireIdentity(ctx);
+  const membership = await ctx.db
+    .query("eventMemberships")
+    .withIndex("by_eventId_userId", (q) =>
+      q.eq("eventId", eventId).eq("userId", identity.subject),
+    )
+    .unique();
+  requireRole(membership?.role, ["owner"]);
+  const event = await ctx.db.get(eventId);
+  if (event === null) throw new Error("Event not found");
+  return event;
+}
+
+/** Owners archive an event before the 30-day retention clock begins. */
+export const archive = mutation({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    const event = await requireOwnedEvent(ctx, eventId);
+    if (event.archivedAt === undefined) {
+      await ctx.db.patch(eventId, { archivedAt: Date.now() });
+    }
+  },
+});
+
+/** Restores an archived event without changing its event-local rows. */
+export const restore = mutation({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    const event = await requireOwnedEvent(ctx, eventId);
+    if (event.archivedAt !== undefined) {
+      await ctx.db.patch(eventId, { archivedAt: undefined });
+    }
+  },
+});
+
+/** Permanently deletes an archived event and its protected evidence. */
+export const permanentlyDelete = mutation({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    const event = await requireOwnedEvent(ctx, eventId);
+    if (event.archivedAt === undefined) {
+      throw new Error("Archive the event before permanently deleting it");
+    }
+    await deleteEventRows(ctx, eventId);
+    await ctx.db.delete(eventId);
+  },
+});
+
+/** Internal retention job; scheduled work has no user identity. */
+export const expireArchived = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const cutoff = Date.now() - retentionWindowMs;
+    const events = await ctx.db
+      .query("events")
+      .withIndex("by_archivedAt")
+      .collect();
+    for (const event of events) {
+      if (event.archivedAt !== undefined && event.archivedAt <= cutoff) {
+        await deleteEventRows(ctx, event._id);
+        await ctx.db.delete(event._id);
+      }
+    }
   },
 });
 
@@ -116,4 +406,4 @@ export const get = query({
   },
 });
 
-export { validatedEventInput };
+export { retentionWindowMs, validatedEventInput };

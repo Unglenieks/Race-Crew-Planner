@@ -18,10 +18,12 @@ function NavLink({
   screen,
   eventId,
   isActive,
+  onNavigate,
 }: {
   screen: ScreenDefinition;
   eventId: string;
   isActive: boolean;
+  onNavigate?: () => void;
 }) {
   const Icon = screen.icon;
 
@@ -29,6 +31,7 @@ function NavLink({
     <Link
       href={screenHref(eventId, screen.id)}
       aria-current={isActive ? "page" : undefined}
+      onClick={onNavigate}
       className={`flex min-h-11 items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2 ${
         isActive
           ? "bg-soft text-green-ink"
@@ -41,13 +44,58 @@ function NavLink({
   );
 }
 
-export function Sidebar() {
-  const { event, events, role } = useEventWorkspace();
+/**
+ * Shared navigation so the desktop sidebar and mobile drawer cannot drift in
+ * their visible screens, role checks, or active-route treatment.
+ */
+export function WorkspaceNavigationLinks({
+  onNavigate,
+}: {
+  onNavigate?: () => void;
+}) {
+  const { event, role } = useEventWorkspace();
   const pathname = usePathname();
   const activeScreenId = findScreenByPath(event.id, pathname)?.id;
 
   return (
-    <aside className="sticky top-0 flex h-screen w-[274px] flex-none flex-col overflow-auto border-r border-line bg-side">
+    <nav className="flex-1 px-3" aria-label="Workspace screens">
+      {screenGroups.map((group) => {
+        const groupScreens = group.screenIds
+          .map((id) => getScreen(id))
+          .filter((screen) => roleSatisfies(role, screen.minRole));
+
+        if (groupScreens.length === 0) return null;
+
+        return (
+          <div key={group.label ?? "primary"} className="mb-2">
+            {group.label === null ? null : (
+              <span className="mx-2 mb-1.5 mt-2 block font-mono text-[11px] uppercase tracking-wider text-faint">
+                {group.label}
+              </span>
+            )}
+            <div className="grid gap-0.5">
+              {groupScreens.map((screen) => (
+                <NavLink
+                  key={screen.id}
+                  screen={screen}
+                  eventId={event.id}
+                  isActive={screen.id === activeScreenId}
+                  onNavigate={onNavigate}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
+export function Sidebar() {
+  const { event, events, role } = useEventWorkspace();
+
+  return (
+    <aside className="sticky top-0 hidden h-screen w-[274px] flex-none flex-col overflow-auto border-r border-line bg-side lg:flex">
       <div className="p-4 pb-2">
         <Link
           href="/events"
@@ -80,35 +128,7 @@ export function Sidebar() {
         </Link>
       </div>
 
-      <nav className="flex-1 px-3" aria-label="Workspace screens">
-        {screenGroups.map((group) => {
-          const groupScreens = group.screenIds
-            .map((id) => getScreen(id))
-            .filter((screen) => roleSatisfies(role, screen.minRole));
-
-          if (groupScreens.length === 0) return null;
-
-          return (
-            <div key={group.label ?? "primary"} className="mb-2">
-              {group.label === null ? null : (
-                <span className="mx-2 mb-1.5 mt-2 block font-mono text-[11px] uppercase tracking-wider text-faint">
-                  {group.label}
-                </span>
-              )}
-              <div className="grid gap-0.5">
-                {groupScreens.map((screen) => (
-                  <NavLink
-                    key={screen.id}
-                    screen={screen}
-                    eventId={event.id}
-                    isActive={screen.id === activeScreenId}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </nav>
+      <WorkspaceNavigationLinks />
 
       <div className="mt-auto grid gap-2 border-t border-line p-4 pt-3">
         <ConnectionStatus />

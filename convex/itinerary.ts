@@ -7,6 +7,7 @@ import {
 } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { requireIdentity, requireRole } from "./auth";
+import { isLocationRecord } from "./records";
 
 const itineraryArgs = {
   eventId: v.id("events"),
@@ -16,7 +17,15 @@ const itineraryArgs = {
   recordId: v.optional(v.id("eventRecords")),
   notes: v.optional(v.string()),
   sectionId: v.optional(v.id("planSections")),
-  timeKind: v.optional(v.union(v.literal("exact"), v.literal("approximate"), v.literal("range"), v.literal("allDay"), v.literal("unspecified"))),
+  timeKind: v.optional(
+    v.union(
+      v.literal("exact"),
+      v.literal("approximate"),
+      v.literal("range"),
+      v.literal("allDay"),
+      v.literal("unspecified"),
+    ),
+  ),
 };
 
 type ItineraryInput = {
@@ -24,7 +33,7 @@ type ItineraryInput = {
   scheduledFor: string;
   location?: string;
   notes?: string;
-  sectionId?: any;
+  sectionId?: Id<"planSections">;
   timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
 };
 
@@ -59,10 +68,11 @@ export function validatedItineraryInput({
     );
   }
 
-  if ((timeKind ?? "exact") !== "unspecified" && (
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(scheduledFor) ||
-    Number.isNaN(Date.parse(`${scheduledFor}:00Z`))
-  )) {
+  if (
+    (timeKind ?? "exact") !== "unspecified" &&
+    (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(scheduledFor) ||
+      Number.isNaN(Date.parse(`${scheduledFor}:00Z`)))
+  ) {
     throw new Error("A valid planned date and time is required");
   }
 
@@ -105,7 +115,7 @@ async function requireLocationRecord(
   if (
     record === null ||
     record.eventId !== eventId ||
-    !["venue", "place", "service"].includes(record.type)
+    !(await isLocationRecord(ctx, record))
   ) {
     throw new Error("Location record not found");
   }
@@ -126,6 +136,32 @@ export const list = query({
   },
 });
 
+/** Lists archived movements for the event's recovery inventory. */
+export const listArchived = query({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    await requireEventMembership(ctx, eventId);
+    const items = await ctx.db
+      .query("itineraryItems")
+      .withIndex("by_eventId_scheduledFor", (q) => q.eq("eventId", eventId))
+      .collect();
+    return items.filter((item) => item.archivedAt !== undefined);
+  },
+});
+
+/** Returns one movement after proving it belongs to the caller's event. */
+export const get = query({
+  args: { eventId: v.id("events"), itemId: v.id("itineraryItems") },
+  handler: async (ctx, { eventId, itemId }) => {
+    await requireEventMembership(ctx, eventId);
+    const item = await ctx.db.get(itemId);
+    if (item === null || item.eventId !== eventId) {
+      throw new Error("Movement not found");
+    }
+    return item;
+  },
+});
+
 /** Archives a movement without destroying it, so the caller can undo safely. */
 export const archive = mutation({
   args: { itemId: v.id("itineraryItems"), eventId: v.id("events") },
@@ -139,7 +175,10 @@ export const archive = mutation({
     }
 
     if (existing.archivedAt === undefined) {
-      await ctx.db.patch(itemId, { archivedAt: Date.now(), updatedAt: Date.now() });
+      await ctx.db.patch(itemId, {
+        archivedAt: Date.now(),
+        updatedAt: Date.now(),
+      });
     }
   },
 });
@@ -157,7 +196,10 @@ export const restore = mutation({
     }
 
     if (existing.archivedAt !== undefined) {
-      await ctx.db.patch(itemId, { archivedAt: undefined, updatedAt: Date.now() });
+      await ctx.db.patch(itemId, {
+        archivedAt: undefined,
+        updatedAt: Date.now(),
+      });
     }
   },
 });

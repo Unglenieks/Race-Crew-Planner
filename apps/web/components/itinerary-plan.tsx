@@ -9,6 +9,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import {
   itineraryApi,
@@ -95,6 +96,7 @@ export function ItineraryPlan({
   role: EventRole;
 }) {
   const items = useQuery(itineraryApi.list, { eventId });
+  const archivedItems = useQuery(itineraryApi.listArchived, { eventId });
   const records = useQuery(recordsApi.list, { eventId });
   const createItem = useMutation(itineraryApi.create);
   const updateItem = useMutation(itineraryApi.update);
@@ -217,6 +219,18 @@ export function ItineraryPlan({
     try {
       await restoreItem({ eventId, itemId: undoItem._id });
       setUndoItem(null);
+    } catch {
+      setError("We could not restore this movement. Please try again.");
+    } finally {
+      setIsRestoring(false);
+    }
+  }
+
+  async function restoreArchived(item: ItineraryItem) {
+    setError(null);
+    setIsRestoring(true);
+    try {
+      await restoreItem({ eventId, itemId: item._id });
     } catch {
       setError("We could not restore this movement. Please try again.");
     } finally {
@@ -371,7 +385,12 @@ export function ItineraryPlan({
                         {displayScheduledFor(item.scheduledFor)}
                       </time>
                       <div className="min-w-0">
-                        <p className="font-semibold text-ink">{item.title}</p>
+                        <Link
+                          href={`/events/${eventId}/plan/${item._id}`}
+                          className="font-semibold text-ink underline-offset-4 hover:underline focus-visible:outline-3 focus-visible:outline-focus"
+                        >
+                          {item.title}
+                        </Link>
                         {item.location === undefined ? null : (
                           <p className="mt-1 text-sm text-muted">
                             {item.location}
@@ -392,6 +411,12 @@ export function ItineraryPlan({
                       </div>
                       {canEdit ? (
                         <div className="flex flex-wrap gap-2 sm:justify-end">
+                          <Link
+                            href={`/events/${eventId}/plan/${item._id}`}
+                            className="inline-flex min-h-11 items-center rounded-lg border border-transparent px-2.5 py-1.5 text-xs font-semibold text-ink2 hover:bg-soft focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
+                          >
+                            Open
+                          </Link>
                           <Button
                             type="button"
                             variant="ghost"
@@ -424,6 +449,34 @@ export function ItineraryPlan({
                 </ol>
               )}
             </>
+          )}
+          {archivedItems === undefined || archivedItems.length === 0 ? null : (
+            <div className="grid gap-2 border-t border-line pt-4">
+              <p className="text-sm font-medium text-ink">Archived movements</p>
+              <p className="text-xs text-muted">
+                Restoring a movement returns it to the active plan; it does not
+                send a plan change.
+              </p>
+              {archivedItems.map((item) => (
+                <div
+                  key={item._id}
+                  className="flex flex-wrap items-center justify-between gap-3 text-sm"
+                >
+                  <span>{item.title}</span>
+                  {canEdit ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => void restoreArchived(item)}
+                      disabled={isRestoring}
+                    >
+                      <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                      Restore
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

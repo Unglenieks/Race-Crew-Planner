@@ -12,9 +12,15 @@ export default defineSchema({
   events: defineTable({
     name: v.string(),
     timeZone: v.string(),
+    /** Sample events are owned by their creator and can be removed in one action. */
+    isSample: v.optional(v.boolean()),
+    /** Archived events remain recoverable for the configured retention window. */
+    archivedAt: v.optional(v.number()),
     createdAt: v.number(),
     createdBy: v.string(),
-  }).index("by_createdBy", ["createdBy"]),
+  })
+    .index("by_createdBy", ["createdBy"])
+    .index("by_archivedAt", ["archivedAt"]),
   eventMemberships: defineTable({
     eventId: v.id("events"),
     userId: v.string(),
@@ -34,7 +40,11 @@ export default defineSchema({
     eventId: v.id("events"),
     email: v.string(),
     role: v.union(v.literal("manager"), v.literal("crew")),
-    status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("revoked")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("revoked"),
+    ),
     invitedBy: v.string(),
     createdAt: v.number(),
     acceptedBy: v.optional(v.string()),
@@ -43,6 +53,11 @@ export default defineSchema({
     .index("by_eventId", ["eventId"])
     .index("by_eventId_email", ["eventId", "email"])
     .index("by_email_status", ["email", "status"]),
+  /** Deployment-visible proof that registered scheduled work is running. */
+  schedulerHeartbeats: defineTable({
+    name: v.string(),
+    lastRanAt: v.number(),
+  }).index("by_name", ["name"]),
   itineraryItems: defineTable({
     eventId: v.id("events"),
     title: v.string(),
@@ -52,7 +67,15 @@ export default defineSchema({
     recordId: v.optional(v.id("eventRecords")),
     notes: v.optional(v.string()),
     sectionId: v.optional(v.id("planSections")),
-    timeKind: v.optional(v.union(v.literal("exact"), v.literal("approximate"), v.literal("range"), v.literal("allDay"), v.literal("unspecified"))),
+    timeKind: v.optional(
+      v.union(
+        v.literal("exact"),
+        v.literal("approximate"),
+        v.literal("range"),
+        v.literal("allDay"),
+        v.literal("unspecified"),
+      ),
+    ),
     /** Archive is reversible so a movement can be restored from its undo action. */
     archivedAt: v.optional(v.number()),
     createdAt: v.number(),
@@ -63,30 +86,125 @@ export default defineSchema({
   eventRecords: defineTable({
     eventId: v.id("events"),
     name: v.string(),
-    type: v.union(
-      v.literal("venue"),
-      v.literal("place"),
-      v.literal("service"),
-      v.literal("vehicle"),
-      v.literal("equipment"),
-      v.literal("organization"),
-      v.literal("person"),
-    ),
+    /** Legacy display type. New configured types are identified by recordTypeId. */
+    type: v.string(),
+    recordTypeId: v.optional(v.id("eventRecordTypes")),
     address: v.optional(v.string()),
     notes: v.optional(v.string()),
+    latitude: v.optional(v.number()),
+    longitude: v.optional(v.number()),
+    accessNotes: v.optional(v.string()),
+    hours: v.optional(v.string()),
+    contactDetail: v.optional(v.string()),
+    /** Values for event-configured directory fields, keyed by the stable field key. */
+    fieldValues: v.optional(v.record(v.string(), v.string())),
+    confirmationStatus: v.optional(
+      v.union(v.literal("unconfirmed"), v.literal("confirmed")),
+    ),
+    confirmationSource: v.optional(v.string()),
+    verifiedAt: v.optional(v.number()),
+    verifiedBy: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_eventId", ["eventId"])
     .index("by_eventId_name", ["eventId", "name"]),
+  /**
+   * Evidence binaries live in Convex storage; this table holds only the
+   * authorized event/record relationship and safe display metadata.
+   */
+  eventFiles: defineTable({
+    eventId: v.id("events"),
+    recordId: v.optional(v.id("eventRecords")),
+    workItemId: v.optional(v.id("workItems")),
+    itineraryItemId: v.optional(v.id("itineraryItems")),
+    storageId: v.id("_storage"),
+    name: v.string(),
+    contentType: v.string(),
+    size: v.number(),
+    uploadedBy: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_eventId_createdAt", ["eventId", "createdAt"])
+    .index("by_eventId_recordId", ["eventId", "recordId"])
+    .index("by_eventId_workItemId", ["eventId", "workItemId"])
+    .index("by_eventId_itineraryItemId", ["eventId", "itineraryItemId"]),
+  eventRecordFields: defineTable({
+    eventId: v.id("events"),
+    /** Stable key means renaming a field never loses its existing values. */
+    key: v.string(),
+    label: v.string(),
+    type: v.union(v.literal("text"), v.literal("select")),
+    options: v.optional(v.array(v.string())),
+    order: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_eventId_order", ["eventId", "order"])
+    .index("by_eventId_key", ["eventId", "key"]),
+  eventRecordTypes: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    /** Lets a custom vocabulary participate safely in venue and travel flows. */
+    isLocation: v.boolean(),
+    archivedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_eventId_name", ["eventId", "name"]),
+  eventRecordCategories: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    color: v.string(),
+    order: v.number(),
+    archivedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_eventId_order", ["eventId", "order"]),
+  eventRecordCategoryAssignments: defineTable({
+    eventId: v.id("events"),
+    recordId: v.id("eventRecords"),
+    categoryId: v.id("eventRecordCategories"),
+    createdAt: v.number(),
+  })
+    .index("by_recordId", ["recordId"])
+    .index("by_categoryId", ["categoryId"])
+    .index("by_eventId_recordId", ["eventId", "recordId"]),
+  travelContexts: defineTable({
+    eventId: v.id("events"),
+    fromRecordId: v.id("eventRecords"),
+    toRecordId: v.id("eventRecords"),
+    estimate: v.string(),
+    calculation: v.optional(v.string()),
+    routeNote: v.optional(v.string()),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_fromRecordId", ["fromRecordId"])
+    .index("by_toRecordId", ["toRecordId"]),
   workItems: defineTable({
     eventId: v.id("events"),
     title: v.string(),
     notes: v.optional(v.string()),
-    status: v.union(v.literal("open"), v.literal("completed")),
-    priority: v.optional(v.union(v.literal("low"), v.literal("normal"), v.literal("high"))),
+    status: v.union(
+      v.literal("open"),
+      v.literal("inProgress"),
+      v.literal("blocked"),
+      v.literal("completed"),
+    ),
+    priority: v.optional(
+      v.union(v.literal("low"), v.literal("normal"), v.literal("high")),
+    ),
     dueContext: v.optional(v.string()),
     assigneeId: v.optional(v.string()),
+    recordId: v.optional(v.id("eventRecords")),
+    itineraryItemId: v.optional(v.id("itineraryItems")),
     completedAt: v.optional(v.number()),
     completedBy: v.optional(v.string()),
     createdAt: v.number(),
@@ -94,6 +212,40 @@ export default defineSchema({
   })
     .index("by_eventId", ["eventId"])
     .index("by_eventId_createdAt", ["eventId", "createdAt"]),
+  workTemplates: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    items: v.array(
+      v.object({
+        title: v.string(),
+        notes: v.optional(v.string()),
+        priority: v.union(
+          v.literal("low"),
+          v.literal("normal"),
+          v.literal("high"),
+        ),
+        dueContext: v.optional(v.string()),
+      }),
+    ),
+    archivedAt: v.optional(v.number()),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_eventId", ["eventId"]),
+  workItemComments: defineTable({
+    eventId: v.id("events"),
+    workItemId: v.id("workItems"),
+    body: v.string(),
+    authorId: v.string(),
+    createdAt: v.number(),
+  }).index("by_workItemId_createdAt", ["workItemId", "createdAt"]),
+  /** Idempotency ledger for replayable offline work completions. */
+  offlineOperations: defineTable({
+    eventId: v.id("events"),
+    operationId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+  }).index("by_eventId_operationId", ["eventId", "operationId"]),
   planChanges: defineTable({
     eventId: v.id("events"),
     itineraryItemId: v.id("itineraryItems"),
@@ -131,16 +283,48 @@ export default defineSchema({
     .index("by_changeId", ["changeId"])
     .index("by_changeId_userId", ["changeId", "userId"])
     .index("by_userId_state", ["userId", "state"]),
+  /** A durable, authorized snapshot of a plan brief that was exported. */
+  planExports: defineTable({
+    eventId: v.id("events"),
+    /** Undefined means the export included every active movement. */
+    filterDay: v.optional(v.string()),
+    timeZone: v.string(),
+    items: v.array(
+      v.object({
+        itineraryItemId: v.id("itineraryItems"),
+        title: v.string(),
+        scheduledFor: v.string(),
+        location: v.optional(v.string()),
+      }),
+    ),
+    generatedAt: v.number(),
+    generatedBy: v.string(),
+  }).index("by_eventId_generatedAt", ["eventId", "generatedAt"]),
   formTemplates: defineTable({
     eventId: v.id("events"),
     name: v.string(),
     version: v.number(),
+    rootTemplateId: v.optional(v.id("formTemplates")),
+    isCurrent: v.optional(v.boolean()),
     fields: v.array(
       v.object({
         id: v.string(),
         label: v.string(),
-        type: v.union(v.literal("text"), v.literal("boolean")),
+        type: v.union(
+          v.literal("text"),
+          v.literal("number"),
+          v.literal("date"),
+          v.literal("select"),
+          v.literal("multiSelect"),
+          v.literal("boolean"),
+          v.literal("person"),
+          v.literal("recordLink"),
+          v.literal("file"),
+          v.literal("photo"),
+        ),
         required: v.boolean(),
+        instructions: v.optional(v.string()),
+        options: v.optional(v.array(v.string())),
       }),
     ),
     createdBy: v.string(),
@@ -155,8 +339,21 @@ export default defineSchema({
       v.object({
         id: v.string(),
         label: v.string(),
-        type: v.union(v.literal("text"), v.literal("boolean")),
+        type: v.union(
+          v.literal("text"),
+          v.literal("number"),
+          v.literal("date"),
+          v.literal("select"),
+          v.literal("multiSelect"),
+          v.literal("boolean"),
+          v.literal("person"),
+          v.literal("recordLink"),
+          v.literal("file"),
+          v.literal("photo"),
+        ),
         required: v.boolean(),
+        instructions: v.optional(v.string()),
+        options: v.optional(v.array(v.string())),
       }),
     ),
     answers: v.any(),

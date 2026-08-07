@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, Circle, LoaderCircle, Pencil, RotateCcw } from "lucide-react";
+import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -15,9 +16,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/data-display";
 import { Input } from "@/components/ui/input";
+import { queueWorkCompletion } from "@/lib/offline-queue";
 
 type WorkFilter = "open" | "completed" | "all";
 type Priority = "low" | "normal" | "high";
+
+/**
+ * Labels the two statuses that are neither untouched nor finished. `open` needs
+ * no label because it is the resting state, and `completed` already reads from
+ * the checkbox and strikethrough.
+ */
+function inProgressOrBlockedLabel(status: WorkItem["status"]) {
+  if (status === "inProgress") return "In progress";
+  if (status === "blocked") return "Blocked";
+  return null;
+}
+
 type Draft = {
   title: string;
   notes: string;
@@ -73,14 +87,17 @@ export function WorkChecklist({
   const [error, setError] = useState<string | null>(null);
 
   const openCount = useMemo(
-    () => (items ?? []).filter((item) => item.status === "open").length,
+    () => (items ?? []).filter((item) => item.status !== "completed").length,
     [items],
   );
   const completedCount = (items?.length ?? 0) - openCount;
   const visibleItems = useMemo(
     () =>
       (items ?? []).filter(
-        (item) => filter === "all" || item.status === filter,
+        (item) =>
+          filter === "all" ||
+          (filter === "open" && item.status !== "completed") ||
+          item.status === filter,
       ),
     [filter, items],
   );
@@ -130,6 +147,20 @@ export function WorkChecklist({
     setError(null);
     setPendingItemId(item._id);
     try {
+      if (!navigator.onLine) {
+        await queueWorkCompletion({
+          eventId,
+          label: `${completed ? "Complete" : "Reopen"} ${item.title}`,
+          payload: {
+            itemId: item._id,
+            completed,
+            expectedUpdatedAt: item.updatedAt,
+            serverStatusAtQueue: item.status,
+          },
+        });
+        setUndoCompletion({ item, completed });
+        return true;
+      }
       await setCompletion({ eventId, itemId: item._id, completed });
       setUndoCompletion({ item, completed });
       return true;
@@ -226,7 +257,9 @@ export function WorkChecklist({
               >
                 {(
                   [
-                    ["open", `Open (${openCount})`],
+                    // "Unfinished" rather than "Open": this bucket also holds
+                    // in-progress and blocked items.
+                    ["open", `Unfinished (${openCount})`],
                     ["completed", `Completed (${completedCount})`],
                     ["all", `All (${items.length})`],
                   ] as const
@@ -292,15 +325,16 @@ export function WorkChecklist({
                           </span>
                         </Button>
                         <div className="min-w-0 flex-1">
-                          <p
+                          <Link
+                            href={`/events/${eventId}/work/${item._id}`}
                             className={
                               isCompleted
-                                ? "font-semibold text-muted line-through"
-                                : "font-semibold text-ink"
+                                ? "font-semibold text-muted line-through hover:underline"
+                                : "font-semibold text-ink hover:underline"
                             }
                           >
                             {item.title}
-                          </p>
+                          </Link>
                           {item.notes === undefined ? null : (
                             <p className="mt-1 text-sm leading-relaxed text-muted">
                               {item.notes}
@@ -309,16 +343,24 @@ export function WorkChecklist({
                           <WorkItemDetails item={item} assignees={assignees} />
                         </div>
                         {canManage ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Edit ${item.title}`}
-                            onClick={() => beginEditing(item)}
-                          >
-                            <Pencil className="h-4 w-4" aria-hidden="true" />
-                            Edit
-                          </Button>
+                          <div className="flex shrink-0 flex-wrap gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              aria-label={`Edit ${item.title}`}
+                              onClick={() => beginEditing(item)}
+                            >
+                              <Pencil className="h-4 w-4" aria-hidden="true" />
+                              Edit
+                            </Button>
+                            <Link
+                              href={`/events/${eventId}/work/${item._id}`}
+                              className="inline-flex min-h-9 items-center rounded-lg px-3 text-sm font-medium text-muted hover:bg-soft hover:text-ink focus:outline-none focus:ring-2 focus:ring-ink"
+                            >
+                              Open
+                            </Link>
+                          </div>
                         ) : null}
                       </li>
                     );
@@ -495,6 +537,9 @@ function WorkItemDetails({
     (person) => person.userId === item.assigneeId,
   );
   const details = [
+    // Without this, `inProgress` and `blocked` items are indistinguishable from
+    // untouched ones anywhere except the detail screen.
+    inProgressOrBlockedLabel(item.status),
     item.priority && item.priority !== "normal"
       ? `${item.priority} priority`
       : null,

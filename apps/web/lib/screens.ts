@@ -2,12 +2,15 @@ import {
   BellRing,
   ClipboardList,
   FileText,
+  FolderOpen,
+  CloudOff,
   LayoutDashboard,
   ListTree,
   MapPin,
   MessageSquare,
   Printer,
   Route,
+  Rows3,
   Send,
   Users,
   type LucideIcon,
@@ -32,7 +35,10 @@ export type ScreenId =
   | "plan-publish"
   | "plan-export"
   | "work"
+  | "work-templates"
   | "records"
+  | "files"
+  | "offline"
   | "forms"
   | "activity"
   | "people";
@@ -127,12 +133,39 @@ export const screens: ScreenDefinition[] = [
     minRole: "crew",
   },
   {
+    id: "work-templates",
+    segment: "work/templates",
+    label: "Checklist templates",
+    shortLabel: "Templates",
+    description: "Create, apply, and archive repeatable event work.",
+    icon: Rows3,
+    minRole: "manager",
+  },
+  {
     id: "records",
     segment: "records",
     label: "Records & venues",
     shortLabel: "Records",
     description: "Places, services, vehicles, equipment, and organisations.",
     icon: MapPin,
+    minRole: "crew",
+  },
+  {
+    id: "files",
+    segment: "files",
+    label: "Files & sources",
+    shortLabel: "Files",
+    description: "Attach and retrieve event evidence and record files.",
+    icon: FolderOpen,
+    minRole: "crew",
+  },
+  {
+    id: "offline",
+    segment: "offline",
+    label: "Offline manager",
+    shortLabel: "Offline",
+    description: "Connection status and durable queued changes.",
+    icon: CloudOff,
     minRole: "crew",
   },
   {
@@ -176,10 +209,13 @@ export const screenGroups: ScreenGroup[] = [
     label: "Plan",
     screenIds: ["plan", "plan-sections", "plan-publish", "plan-export"],
   },
-  { label: "Work", screenIds: ["work"] },
-  { label: "Records", screenIds: ["records"] },
+  {
+    label: "Work",
+    screenIds: ["work", "work-templates"],
+  },
+  { label: "Records", screenIds: ["records", "files"] },
   { label: "Forms", screenIds: ["forms"] },
-  { label: "Trust & setup", screenIds: ["activity", "people"] },
+  { label: "Trust & setup", screenIds: ["activity", "offline", "people"] },
 ];
 
 const screensById = new Map(screens.map((screen) => [screen.id, screen]));

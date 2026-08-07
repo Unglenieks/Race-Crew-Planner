@@ -4,6 +4,10 @@
 
 Ship one TypeScript web application using Next.js App Router, Tailwind CSS, shadcn/ui, Clerk, PostHog, and self-hosted Convex. Prefer a straightforward T3-style codebase: strict types, small modules, server-first defaults, Zod validation at boundaries, and repository-owned UI components.
 
+## Scope of this document
+
+The work packages below are the foundation and delivery concerns, and they are complete. Remaining **product** work is planned in [docs/product-plan.md](product-plan.md), which is ordered by dependency and anchored to the UX spec's delivery tiers.
+
 ## Work packages
 
 | Order | PR-sized package | Done when |

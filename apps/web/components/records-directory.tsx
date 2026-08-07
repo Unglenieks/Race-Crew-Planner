@@ -1,6 +1,15 @@
 "use client";
 
-import { LoaderCircle, Pencil, Search } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  LayoutList,
+  LoaderCircle,
+  Pencil,
+  Search,
+  Table2,
+} from "lucide-react";
+import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -8,6 +17,7 @@ import {
   recordTypes,
   type EventRecord,
   type EventRole,
+  type RecordField,
 } from "@/lib/events-api";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
@@ -18,24 +28,32 @@ import { Input } from "@/components/ui/input";
 
 type Draft = {
   name: string;
-  type: EventRecord["type"];
+  type: (typeof recordTypes)[number];
+  recordTypeId?: string;
   address: string;
   notes: string;
+  fieldValues: Record<string, string>;
 };
 
 const emptyDraft: Draft = {
   name: "",
   type: "venue",
+  recordTypeId: undefined,
   address: "",
   notes: "",
+  fieldValues: {},
 };
 
 function recordToDraft(record: EventRecord): Draft {
   return {
     name: record.name,
-    type: record.type,
+    type: recordTypes.includes(record.type as (typeof recordTypes)[number])
+      ? (record.type as (typeof recordTypes)[number])
+      : "venue",
+    recordTypeId: record.recordTypeId,
     address: record.address ?? "",
     notes: record.notes ?? "",
+    fieldValues: record.fieldValues ?? {},
   };
 }
 
@@ -43,8 +61,10 @@ function isSameDraft(left: Draft, right: Draft) {
   return (
     left.name === right.name &&
     left.type === right.type &&
+    left.recordTypeId === right.recordTypeId &&
     left.address === right.address &&
-    left.notes === right.notes
+    left.notes === right.notes &&
+    JSON.stringify(left.fieldValues) === JSON.stringify(right.fieldValues)
   );
 }
 
@@ -60,10 +80,23 @@ export function RecordsDirectory({
   role: EventRole;
 }) {
   const records = useQuery(recordsApi.list, { eventId });
+  const configuredTypes = useQuery(recordsApi.listTypes, { eventId });
+  const fields = useQuery(recordsApi.listFields, { eventId });
   const createRecord = useMutation(recordsApi.create);
   const updateRecord = useMutation(recordsApi.update);
+  const createField = useMutation(recordsApi.createField);
+  const updateField = useMutation(recordsApi.updateField);
+  const reorderFields = useMutation(recordsApi.reorderFields);
   const canManage = role === "owner" || role === "manager";
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<"list" | "table">("list");
+  const [filterField, setFilterField] = useState("");
+  const [filterValue, setFilterValue] = useState("");
+  const [newFieldLabel, setNewFieldLabel] = useState("");
+  const [newFieldType, setNewFieldType] = useState<"text" | "select">("text");
+  const [newFieldOptions, setNewFieldOptions] = useState("");
+  const [editingField, setEditingField] = useState<RecordField | null>(null);
+  const [fieldError, setFieldError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [editingRecord, setEditingRecord] = useState<EventRecord | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -73,12 +106,20 @@ export function RecordsDirectory({
     const query = search.trim().toLocaleLowerCase();
     return (records ?? []).filter((record) => {
       const haystack = [record.name, record.type, record.address, record.notes]
+        .concat(Object.values(record.fieldValues ?? {}))
         .filter((value): value is string => value !== undefined)
         .join(" ")
         .toLocaleLowerCase();
-      return query.length === 0 || haystack.includes(query);
+      const matchesSearch = query.length === 0 || haystack.includes(query);
+      const matchesField =
+        filterField.length === 0 ||
+        filterValue.length === 0 ||
+        (record.fieldValues?.[filterField] ?? "")
+          .toLocaleLowerCase()
+          .includes(filterValue.toLocaleLowerCase());
+      return matchesSearch && matchesField;
     });
-  }, [records, search]);
+  }, [filterField, filterValue, records, search]);
   const initialDraft =
     editingRecord === null ? emptyDraft : recordToDraft(editingRecord);
   const hasUnsavedChanges = !isSameDraft(draft, initialDraft);
@@ -105,16 +146,86 @@ export function RecordsDirectory({
       type: draft.type,
       address: draft.address || undefined,
       notes: draft.notes || undefined,
+      fieldValues: draft.fieldValues,
     };
 
     try {
-      if (editingRecord === null) await createRecord(input);
-      else await updateRecord({ ...input, recordId: editingRecord._id });
+      if (editingRecord === null)
+        await createRecord({ ...input, recordTypeId: draft.recordTypeId });
+      else
+        await updateRecord({
+          ...input,
+          recordId: editingRecord._id,
+          // The form always represents the operator's full intent, so an empty
+          // selection is an explicit clear rather than "leave unchanged".
+          recordTypeId: draft.recordTypeId ?? null,
+        });
       cancelEditing();
     } catch {
       setError("We could not save this record. Your changes were not saved.");
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function submitField(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFieldError(null);
+    const options = newFieldOptions
+      .split(",")
+      .map((option) => option.trim())
+      .filter(Boolean);
+    try {
+      await createField({
+        eventId,
+        label: newFieldLabel,
+        type: newFieldType,
+        ...(newFieldType === "select" ? { options } : {}),
+      });
+      setNewFieldLabel("");
+      setNewFieldOptions("");
+      setNewFieldType("text");
+    } catch {
+      setFieldError(
+        "We could not add this field. Check its name and options, then try again.",
+      );
+    }
+  }
+
+  async function moveField(field: RecordField, direction: -1 | 1) {
+    if (fields === undefined) return;
+    const index = fields.findIndex((candidate) => candidate._id === field._id);
+    const next = index + direction;
+    if (next < 0 || next >= fields.length) return;
+    const order = fields.map((candidate) => candidate._id);
+    [order[index], order[next]] = [order[next], order[index]];
+    try {
+      await reorderFields({ eventId, fieldIds: order });
+    } catch {
+      setFieldError(
+        "We could not reorder fields. Their current order was kept.",
+      );
+    }
+  }
+
+  async function saveField(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (editingField === null) return;
+    setFieldError(null);
+    try {
+      await updateField({
+        eventId,
+        fieldId: editingField._id,
+        label: editingField.label,
+        ...(editingField.type === "select"
+          ? { options: editingField.options ?? [] }
+          : {}),
+      });
+      setEditingField(null);
+    } catch {
+      setFieldError(
+        "We could not update this field. Your saved configuration was not changed.",
+      );
     }
   }
 
@@ -129,9 +240,23 @@ export function RecordsDirectory({
                 Shared operational places, services, equipment, and people.
               </p>
             </div>
-            <Badge variant={canManage ? "success" : "neutral"}>
-              {canManage ? "Can manage" : "View only"}
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                className="text-sm font-semibold text-green-ink underline underline-offset-4"
+                href={`/events/${eventId}/records/types`}
+              >
+                Types & categories
+              </Link>
+              <Link
+                className="text-sm font-semibold text-green-ink underline underline-offset-4"
+                href={`/events/${eventId}/records/travel`}
+              >
+                Travel context
+              </Link>
+              <Badge variant={canManage ? "success" : "neutral"}>
+                {canManage ? "Can manage" : "View only"}
+              </Badge>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -174,6 +299,83 @@ export function RecordsDirectory({
                   placeholder="Search names, types, addresses, or notes"
                 />
               </div>
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="grid gap-1">
+                  <label
+                    className="text-xs font-medium text-muted"
+                    htmlFor="record-field-filter"
+                  >
+                    Filter by field
+                  </label>
+                  <select
+                    id="record-field-filter"
+                    value={filterField}
+                    onChange={(event) => {
+                      setFilterField(event.target.value);
+                      setFilterValue("");
+                    }}
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm text-ink"
+                  >
+                    <option value="">All fields</option>
+                    {(fields ?? []).map((field) => (
+                      <option key={field._id} value={field.key}>
+                        {field.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {filterField.length === 0 ? null : (
+                  <div className="grid gap-1">
+                    <label
+                      className="text-xs font-medium text-muted"
+                      htmlFor="record-filter-value"
+                    >
+                      Contains
+                    </label>
+                    <Input
+                      id="record-filter-value"
+                      value={filterValue}
+                      onChange={(event) => setFilterValue(event.target.value)}
+                      placeholder="Filter value"
+                    />
+                  </div>
+                )}
+                <div
+                  className="ml-auto flex gap-1"
+                  role="group"
+                  aria-label="Directory view"
+                >
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={view === "list" ? "primary" : "ghost"}
+                    onClick={() => setView("list")}
+                  >
+                    <LayoutList className="h-4 w-4" aria-hidden="true" /> List
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={view === "table" ? "primary" : "ghost"}
+                    onClick={() => setView("table")}
+                  >
+                    <Table2 className="h-4 w-4" aria-hidden="true" /> Table
+                  </Button>
+                </div>
+                {filterField.length === 0 && search.length === 0 ? null : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      setSearch("");
+                      setFilterField("");
+                      setFilterValue("");
+                    }}
+                  >
+                    Reset filters
+                  </Button>
+                )}
+              </div>
               <p className="text-xs text-muted" aria-live="polite">
                 Showing {visibleRecords.length} of {records.length} record
                 {records.length === 1 ? "" : "s"}.
@@ -192,6 +394,62 @@ export function RecordsDirectory({
                     </Button>
                   }
                 />
+              ) : view === "table" ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="border-b border-line text-xs text-muted">
+                      <tr>
+                        <th className="p-2">Name</th>
+                        <th className="p-2">Type</th>
+                        {(fields ?? []).map((field) => (
+                          <th className="p-2" key={field._id}>
+                            {field.label}
+                          </th>
+                        ))}
+                        <th className="p-2">
+                          <span className="sr-only">Actions</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleRecords.map((record) => (
+                        <tr key={record._id} className="border-b border-line">
+                          <td className="p-2">
+                            <Link
+                              className="font-semibold text-ink underline-offset-4 hover:underline"
+                              href={`/events/${eventId}/records/${record._id}`}
+                            >
+                              {record.name}
+                            </Link>
+                          </td>
+                          <td className="p-2">{labelForType(record.type)}</td>
+                          {(fields ?? []).map((field) => (
+                            <td className="p-2" key={field._id}>
+                              {record.fieldValues?.[field.key] ?? "—"}
+                            </td>
+                          ))}
+                          <td className="p-2">
+                            {canManage ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                aria-label={`Edit ${record.name}`}
+                                onClick={() => beginEditing(record)}
+                              >
+                                <Pencil
+                                  className="h-4 w-4"
+                                  aria-hidden="true"
+                                />
+                                Edit
+                              </Button>
+                            ) : null}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
                 <ol className="divide-y divide-line">
                   {visibleRecords.map((record) => (
@@ -201,9 +459,12 @@ export function RecordsDirectory({
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold text-ink">
+                          <Link
+                            className="font-semibold text-ink underline-offset-4 hover:underline"
+                            href={`/events/${eventId}/records/${record._id}`}
+                          >
                             {record.name}
-                          </p>
+                          </Link>
                           <Badge variant="neutral">
                             {labelForType(record.type)}
                           </Badge>
@@ -218,6 +479,19 @@ export function RecordsDirectory({
                             {record.notes}
                           </p>
                         )}
+                        {(fields ?? [])
+                          .filter((field) => record.fieldValues?.[field.key])
+                          .map((field) => (
+                            <p
+                              className="mt-1 text-sm text-muted"
+                              key={field._id}
+                            >
+                              <span className="font-medium text-ink">
+                                {field.label}:
+                              </span>{" "}
+                              {record.fieldValues?.[field.key]}
+                            </p>
+                          ))}
                       </div>
                       {canManage ? (
                         <Button
@@ -239,6 +513,198 @@ export function RecordsDirectory({
           )}
         </CardContent>
       </Card>
+
+      {canManage ? (
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle>Directory fields</CardTitle>
+              <p className="mt-1 text-sm text-muted">
+                These fields belong to every record in this event. Renaming a
+                field keeps its existing values.
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            {fieldError === null ? null : (
+              <Banner
+                variant="danger"
+                label="Field configuration failed"
+                role="alert"
+              >
+                {fieldError}
+              </Banner>
+            )}
+            <ol className="grid gap-2">
+              {(fields ?? []).map((field, index) => (
+                <li
+                  className="flex flex-wrap items-center gap-2 rounded-lg border border-line p-3"
+                  key={field._id}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-ink">{field.label}</p>
+                    <p className="text-xs text-muted">
+                      {field.type === "select"
+                        ? `Select: ${(field.options ?? []).join(", ")}`
+                        : "Text"}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={index === 0}
+                    aria-label={`Move ${field.label} up`}
+                    onClick={() => moveField(field, -1)}
+                  >
+                    <ArrowUp className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={index === (fields ?? []).length - 1}
+                    aria-label={`Move ${field.label} down`}
+                    onClick={() => moveField(field, 1)}
+                  >
+                    <ArrowDown className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setEditingField(field)}
+                  >
+                    Rename
+                  </Button>
+                </li>
+              ))}
+            </ol>
+            <form
+              className="grid gap-3 rounded-lg border border-line p-3"
+              onSubmit={submitField}
+            >
+              <p className="font-medium text-ink">Add field</p>
+              <div className="grid gap-1.5">
+                <label
+                  className="text-sm font-medium text-ink"
+                  htmlFor="new-record-field"
+                >
+                  Field name
+                </label>
+                <Input
+                  id="new-record-field"
+                  value={newFieldLabel}
+                  onChange={(event) => setNewFieldLabel(event.target.value)}
+                  maxLength={80}
+                  required
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <label
+                  className="text-sm font-medium text-ink"
+                  htmlFor="new-record-field-type"
+                >
+                  Field type
+                </label>
+                <select
+                  id="new-record-field-type"
+                  value={newFieldType}
+                  onChange={(event) =>
+                    setNewFieldType(event.target.value as "text" | "select")
+                  }
+                  className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink"
+                >
+                  <option value="text">Text</option>
+                  <option value="select">Select</option>
+                </select>
+              </div>
+              {newFieldType !== "select" ? null : (
+                <div className="grid gap-1.5">
+                  <label
+                    className="text-sm font-medium text-ink"
+                    htmlFor="new-record-field-options"
+                  >
+                    Options
+                  </label>
+                  <Input
+                    id="new-record-field-options"
+                    value={newFieldOptions}
+                    onChange={(event) => setNewFieldOptions(event.target.value)}
+                    placeholder="Comma-separated options"
+                    required
+                  />
+                </div>
+              )}
+              <Button type="submit" className="w-fit">
+                Add field
+              </Button>
+            </form>
+            {editingField === null ? null : (
+              <form
+                className="grid gap-3 rounded-lg border border-line p-3"
+                onSubmit={saveField}
+              >
+                <p className="font-medium text-ink">Edit field</p>
+                <div className="grid gap-1.5">
+                  <label
+                    className="text-sm font-medium text-ink"
+                    htmlFor="edit-record-field"
+                  >
+                    Field name
+                  </label>
+                  <Input
+                    id="edit-record-field"
+                    value={editingField.label}
+                    onChange={(event) =>
+                      setEditingField((field) =>
+                        field === null
+                          ? null
+                          : { ...field, label: event.target.value },
+                      )
+                    }
+                    maxLength={80}
+                    required
+                  />
+                </div>
+                {editingField.type === "select" ? (
+                  <div className="grid gap-1.5">
+                    <label
+                      className="text-sm font-medium text-ink"
+                      htmlFor="edit-record-field-options"
+                    >
+                      Options
+                    </label>
+                    <Input
+                      id="edit-record-field-options"
+                      value={(editingField.options ?? []).join(", ")}
+                      onChange={(event) =>
+                        setEditingField((field) =>
+                          field === null
+                            ? null
+                            : {
+                                ...field,
+                                options: event.target.value
+                                  .split(",")
+                                  .map((option) => option.trim())
+                                  .filter(Boolean),
+                              },
+                        )
+                      }
+                      required
+                    />
+                  </div>
+                ) : null}
+                <div className="flex gap-2">
+                  <Button type="submit">Save field</Button>
+                  <Button type="button" onClick={() => setEditingField(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {canManage ? (
         <Card>
@@ -290,7 +756,7 @@ export function RecordsDirectory({
                   onChange={(event) =>
                     setDraft((current) => ({
                       ...current,
-                      type: event.target.value as EventRecord["type"],
+                      type: event.target.value as (typeof recordTypes)[number],
                     }))
                   }
                   className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink shadow-sm outline-none focus:border-ink focus:ring-2 focus:ring-ink"
@@ -302,6 +768,85 @@ export function RecordsDirectory({
                   ))}
                 </select>
               </div>
+              {configuredTypes === undefined ? null : (
+                <div className="grid gap-1.5">
+                  <label
+                    className="text-sm font-medium text-ink"
+                    htmlFor="record-configured-type"
+                  >
+                    Team type <span className="text-muted">(optional)</span>
+                  </label>
+                  <select
+                    id="record-configured-type"
+                    value={draft.recordTypeId ?? ""}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        recordTypeId: event.target.value || undefined,
+                      }))
+                    }
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink shadow-sm outline-none focus:border-ink focus:ring-2 focus:ring-ink"
+                  >
+                    <option value="">Use the built-in type</option>
+                    {configuredTypes
+                      .filter((type) => type.archivedAt === undefined)
+                      .map((type) => (
+                        <option key={type._id} value={type._id}>
+                          {type.name}
+                          {type.isLocation ? " · location" : ""}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+              {(fields ?? []).map((field) => (
+                <div className="grid gap-1.5" key={field._id}>
+                  <label
+                    className="text-sm font-medium text-ink"
+                    htmlFor={`record-field-${field.key}`}
+                  >
+                    {field.label} <span className="text-muted">(optional)</span>
+                  </label>
+                  {field.type === "select" ? (
+                    <select
+                      id={`record-field-${field.key}`}
+                      value={draft.fieldValues[field.key] ?? ""}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          fieldValues: {
+                            ...current.fieldValues,
+                            [field.key]: event.target.value,
+                          },
+                        }))
+                      }
+                      className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink shadow-sm outline-none focus:border-ink focus:ring-2 focus:ring-ink"
+                    >
+                      <option value="">No selection</option>
+                      {(field.options ?? []).map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      id={`record-field-${field.key}`}
+                      value={draft.fieldValues[field.key] ?? ""}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          fieldValues: {
+                            ...current.fieldValues,
+                            [field.key]: event.target.value,
+                          },
+                        }))
+                      }
+                      maxLength={500}
+                    />
+                  )}
+                </div>
+              ))}
               <div className="grid gap-1.5">
                 <label
                   className="text-sm font-medium text-ink"

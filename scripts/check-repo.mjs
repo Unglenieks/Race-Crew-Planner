@@ -14,13 +14,22 @@ const required = [
 
 const missing = required.filter((path) => !existsSync(resolve(root, path)));
 if (missing.length > 0) {
-  throw new Error(`Required repository files are missing: ${missing.join(", ")}`);
+  throw new Error(
+    `Required repository files are missing: ${missing.join(", ")}`,
+  );
 }
 
-const links = [...readFileSync(resolve(root, "README.md"), "utf8").matchAll(/\[[^\]]+\]\(([^)#]+)(?:#[^)]+)?\)/g)];
+const links = [
+  ...readFileSync(resolve(root, "README.md"), "utf8").matchAll(
+    /\[[^\]]+\]\(([^)#]+)(?:#[^)]+)?\)/g,
+  ),
+];
 const broken = links
   .map((match) => match[1])
-  .filter((target) => !target.startsWith("http") && !existsSync(resolve(root, target)));
+  .filter(
+    (target) =>
+      !target.startsWith("http") && !existsSync(resolve(root, target)),
+  );
 
 if (broken.length > 0) {
   throw new Error(`README has broken local links: ${broken.join(", ")}`);
