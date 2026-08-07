@@ -208,6 +208,16 @@ export type EventSource = {
   authorId: string;
   createdAt: number;
 };
+export type EventFile = {
+  _id: string;
+  recordId?: string;
+  name: string;
+  contentType: string;
+  size: number;
+  uploadedBy: string;
+  createdAt: number;
+  url: string | null;
+};
 export type PlanSection = {
   _id: string;
   name: string;
@@ -424,6 +434,27 @@ export const recordsApi = {
     },
     string | null
   >("records:saveTravel"),
+};
+
+export const filesApi = {
+  generateUploadUrl: makeFunctionReference<
+    "mutation",
+    { eventId: string },
+    string
+  >("files:generateUploadUrl"),
+  save: makeFunctionReference<
+    "mutation",
+    { eventId: string; recordId?: string; storageId: string; name: string },
+    string
+  >("files:save"),
+  list: makeFunctionReference<"query", { eventId: string }, EventFile[]>(
+    "files:list",
+  ),
+  remove: makeFunctionReference<
+    "mutation",
+    { eventId: string; fileId: string },
+    null
+  >("files:remove"),
 };
 
 export const workApi = {

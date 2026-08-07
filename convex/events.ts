@@ -181,6 +181,7 @@ export const createSample = mutation({
 });
 
 const eventTables = [
+  "eventFiles",
   "eventRecordCategoryAssignments",
   "travelContexts",
   "workItemComments",
