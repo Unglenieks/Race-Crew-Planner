@@ -18,6 +18,10 @@ const field = v.object({
     v.literal("select"),
     v.literal("multiSelect"),
     v.literal("boolean"),
+    v.literal("person"),
+    v.literal("recordLink"),
+    v.literal("file"),
+    v.literal("photo"),
   ),
   required: v.boolean(),
   instructions: v.optional(v.string()),
@@ -27,7 +31,17 @@ const field = v.object({
 export type FormField = {
   id: string;
   label: string;
-  type: "text" | "number" | "date" | "select" | "multiSelect" | "boolean";
+  type:
+    | "text"
+    | "number"
+    | "date"
+    | "select"
+    | "multiSelect"
+    | "boolean"
+    | "person"
+    | "recordLink"
+    | "file"
+    | "photo";
   required: boolean;
   instructions?: string;
   options?: string[];
@@ -115,6 +129,14 @@ function invalidMessage(type: FormField["type"]) {
       return "Choose one of the listed options.";
     case "multiSelect":
       return "Choose one or more listed options.";
+    case "person":
+      return "Choose a person in this event.";
+    case "recordLink":
+      return "Choose a record in this event.";
+    case "file":
+      return "Choose stored evidence in this event.";
+    case "photo":
+      return "Choose a stored photo in this event.";
   }
 }
 
@@ -141,6 +163,11 @@ function isValidAnswer(item: FormField, value: unknown) {
             typeof option === "string" && item.options?.includes(option),
         )
       );
+    case "person":
+    case "recordLink":
+    case "file":
+    case "photo":
+      return typeof value === "string" && value.length > 0;
   }
 }
 
@@ -211,6 +238,57 @@ async function requireMembership(
     .unique();
   if (membership === null) throw new Error("Forbidden");
   return { identity, membership };
+}
+
+/**
+ * Link answers are strings at the form boundary, so resolve them here instead
+ * of trusting a client-provided identifier. This keeps the event boundary in
+ * Convex even when a draft is saved from a stale browser tab.
+ */
+async function validateReferenceAnswers(
+  ctx: MutationCtx,
+  eventId: Id<"events">,
+  fields: FormField[],
+  answers: Answers,
+) {
+  for (const field of fields) {
+    const value = answers[field.id];
+    if (!hasAnswer(value) || typeof value !== "string") continue;
+    if (field.type === "person") {
+      const member = await ctx.db
+        .query("eventMemberships")
+        .withIndex("by_eventId_userId", (index) =>
+          index.eq("eventId", eventId).eq("userId", value),
+        )
+        .unique();
+      if (member === null)
+        throw new Error(`Choose a person in this event for ${field.label}`);
+    }
+    if (field.type === "recordLink") {
+      const records = await ctx.db
+        .query("eventRecords")
+        .withIndex("by_eventId", (index) => index.eq("eventId", eventId))
+        .collect();
+      if (!records.some((record) => record._id === value))
+        throw new Error(`Choose a record in this event for ${field.label}`);
+    }
+    if (field.type === "file" || field.type === "photo") {
+      const files = await ctx.db
+        .query("eventFiles")
+        .withIndex("by_eventId_createdAt", (index) =>
+          index.eq("eventId", eventId),
+        )
+        .collect();
+      const file = files.find((candidate) => candidate._id === value);
+      if (
+        file === undefined ||
+        (field.type === "photo" && !file.contentType.startsWith("image/"))
+      )
+        throw new Error(
+          `Choose ${field.type === "photo" ? "a photo" : "stored evidence"} in this event for ${field.label}`,
+        );
+    }
+  }
 }
 
 /**
@@ -348,6 +426,12 @@ export const saveDraft = mutation({
           )
           .join(", ")}`,
       );
+    await validateReferenceAnswers(
+      ctx,
+      eventId,
+      template.fields,
+      answers as Answers,
+    );
     const now = Date.now();
     if (submissionId === undefined)
       return ctx.db.insert("formSubmissions", {

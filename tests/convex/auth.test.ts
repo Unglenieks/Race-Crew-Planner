@@ -1709,6 +1709,27 @@ describe("regressions found reviewing the outage integration", () => {
     });
   });
 
+  it("accepts only identifier-shaped link answers in the form schema", () => {
+    const fields = validateFields([
+      { id: "crew", label: "Crew member", type: "person", required: true },
+      { id: "venue", label: "Venue", type: "recordLink", required: true },
+      { id: "photo", label: "Damage photo", type: "photo", required: false },
+      {
+        id: "evidence",
+        label: "Supporting evidence",
+        type: "file",
+        required: false,
+      },
+    ]);
+    expect(
+      codedIssues(fields, { crew: "user_1", venue: "eventRecords:one" }),
+    ).toEqual({});
+    expect(codedIssues(fields, { crew: false, venue: 4 })).toMatchObject({
+      crew: { code: "invalid" },
+      venue: { code: "invalid" },
+    });
+  });
+
   it("saves an incomplete draft but refuses a malformed one", async () => {
     const template = {
       _id: "formTemplates:one",
