@@ -6,6 +6,7 @@ import {
   LoaderCircle,
   Minus,
   Plus,
+  RotateCcw,
 } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
@@ -41,9 +42,13 @@ function details(item: WorkTemplateItem) {
 
 export function WorkTemplates({ eventId }: { eventId: string }) {
   const templates = useQuery(workTemplatesApi.list, { eventId });
+  const archivedTemplates = useQuery(workTemplatesApi.listArchived, {
+    eventId,
+  });
   const create = useMutation(workTemplatesApi.create);
   const apply = useMutation(workTemplatesApi.apply);
   const archive = useMutation(workTemplatesApi.archive);
+  const restore = useMutation(workTemplatesApi.restore);
   const [name, setName] = useState("");
   const [items, setItems] = useState<DraftItem[]>([firstItem]);
   const [nextItemId, setNextItemId] = useState(2);
@@ -133,6 +138,20 @@ export function WorkTemplates({ eventId }: { eventId: string }) {
       setArchiveTarget(null);
     } catch {
       setError("The template could not be archived. Please try again.");
+    } finally {
+      setPendingTemplateId(null);
+    }
+  }
+
+  async function restoreTemplate(template: WorkTemplate) {
+    setError(null);
+    setMessage(null);
+    setPendingTemplateId(template._id);
+    try {
+      await restore({ eventId, templateId: template._id });
+      setMessage(`${template.name} was restored and is available to apply.`);
+    } catch {
+      setError("The template could not be restored. Please try again.");
     } finally {
       setPendingTemplateId(null);
     }
@@ -273,6 +292,30 @@ export function WorkTemplates({ eventId }: { eventId: string }) {
                 </li>
               ))}
             </ol>
+          )}
+          {archivedTemplates === undefined ||
+          archivedTemplates.length === 0 ? null : (
+            <div className="grid gap-2 border-t border-line pt-4">
+              <p className="text-sm font-medium text-ink">Archived templates</p>
+              {archivedTemplates.map((template) => (
+                <div
+                  key={template._id}
+                  className="flex items-center justify-between gap-3 text-sm"
+                >
+                  <span>
+                    {template.name} · existing work items remain unchanged
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => void restoreTemplate(template)}
+                    disabled={pendingTemplateId !== null}
+                  >
+                    <RotateCcw className="h-4 w-4" aria-hidden="true" /> Restore
+                  </Button>
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

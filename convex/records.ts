@@ -532,6 +532,19 @@ export const archiveType = mutation({
   },
 });
 
+/** Restores an event-local record type without changing records that use it. */
+export const restoreType = mutation({
+  args: { eventId: v.id("events"), typeId: v.id("eventRecordTypes") },
+  handler: async (ctx, args) => {
+    await manager(ctx, args.eventId);
+    const type = await ctx.db.get(args.typeId);
+    if (type === null || type.eventId !== args.eventId)
+      throw new Error("Record type not found");
+    if (type.archivedAt !== undefined)
+      await ctx.db.patch(args.typeId, { archivedAt: undefined, updatedAt: Date.now() });
+  },
+});
+
 export const listCategories = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, args) => {
@@ -559,6 +572,28 @@ export const createCategory = mutation({
       createdAt: now,
       updatedAt: now,
     });
+  },
+});
+export const archiveCategory = mutation({
+  args: { eventId: v.id("events"), categoryId: v.id("eventRecordCategories") },
+  handler: async (ctx, args) => {
+    await manager(ctx, args.eventId);
+    const category = await ctx.db.get(args.categoryId);
+    if (category === null || category.eventId !== args.eventId)
+      throw new Error("Category not found");
+    if (category.archivedAt === undefined)
+      await ctx.db.patch(args.categoryId, { archivedAt: Date.now(), updatedAt: Date.now() });
+  },
+});
+export const restoreCategory = mutation({
+  args: { eventId: v.id("events"), categoryId: v.id("eventRecordCategories") },
+  handler: async (ctx, args) => {
+    await manager(ctx, args.eventId);
+    const category = await ctx.db.get(args.categoryId);
+    if (category === null || category.eventId !== args.eventId)
+      throw new Error("Category not found");
+    if (category.archivedAt !== undefined)
+      await ctx.db.patch(args.categoryId, { archivedAt: undefined, updatedAt: Date.now() });
   },
 });
 export const assignCategory = mutation({

@@ -303,6 +303,9 @@ export function TypesCategoriesScreen() {
   const createType = useMutation(recordsApi.createType);
   const createCategory = useMutation(recordsApi.createCategory);
   const archiveType = useMutation(recordsApi.archiveType);
+  const restoreType = useMutation(recordsApi.restoreType);
+  const archiveCategory = useMutation(recordsApi.archiveCategory);
+  const restoreCategory = useMutation(recordsApi.restoreCategory);
   const [error, setError] = useState<string | null>(null);
   async function addType(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -399,6 +402,18 @@ export function TypesCategoriesScreen() {
                       >
                         Archive
                       </Button>
+                    ) : canManage(role) ? (
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          void restoreType({
+                            eventId: event.id,
+                            typeId: type._id,
+                          })
+                        }
+                      >
+                        Restore
+                      </Button>
                     ) : null}
                   </li>
                 ))}
@@ -436,9 +451,39 @@ export function TypesCategoriesScreen() {
             ) : (
               <ul className="grid gap-2">
                 {categories.map((category) => (
-                  <li key={category._id} className="text-sm">
-                    {category.name}
-                    {category.archivedAt ? " · archived" : ""}
+                  <li
+                    key={category._id}
+                    className="flex items-center justify-between gap-3 text-sm"
+                  >
+                    <span>
+                      {category.name}
+                      {category.archivedAt ? " · archived" : ""}
+                    </span>
+                    {canManage(role) && !category.archivedAt ? (
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          void archiveCategory({
+                            eventId: event.id,
+                            categoryId: category._id,
+                          })
+                        }
+                      >
+                        Archive
+                      </Button>
+                    ) : canManage(role) ? (
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          void restoreCategory({
+                            eventId: event.id,
+                            categoryId: category._id,
+                          })
+                        }
+                      >
+                        Restore
+                      </Button>
+                    ) : null}
                   </li>
                 ))}
               </ul>

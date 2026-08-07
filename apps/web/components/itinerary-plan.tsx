@@ -96,6 +96,7 @@ export function ItineraryPlan({
   role: EventRole;
 }) {
   const items = useQuery(itineraryApi.list, { eventId });
+  const archivedItems = useQuery(itineraryApi.listArchived, { eventId });
   const records = useQuery(recordsApi.list, { eventId });
   const createItem = useMutation(itineraryApi.create);
   const updateItem = useMutation(itineraryApi.update);
@@ -218,6 +219,18 @@ export function ItineraryPlan({
     try {
       await restoreItem({ eventId, itemId: undoItem._id });
       setUndoItem(null);
+    } catch {
+      setError("We could not restore this movement. Please try again.");
+    } finally {
+      setIsRestoring(false);
+    }
+  }
+
+  async function restoreArchived(item: ItineraryItem) {
+    setError(null);
+    setIsRestoring(true);
+    try {
+      await restoreItem({ eventId, itemId: item._id });
     } catch {
       setError("We could not restore this movement. Please try again.");
     } finally {
@@ -436,6 +449,34 @@ export function ItineraryPlan({
                 </ol>
               )}
             </>
+          )}
+          {archivedItems === undefined || archivedItems.length === 0 ? null : (
+            <div className="grid gap-2 border-t border-line pt-4">
+              <p className="text-sm font-medium text-ink">Archived movements</p>
+              <p className="text-xs text-muted">
+                Restoring a movement returns it to the active plan; it does not
+                send a plan change.
+              </p>
+              {archivedItems.map((item) => (
+                <div
+                  key={item._id}
+                  className="flex flex-wrap items-center justify-between gap-3 text-sm"
+                >
+                  <span>{item.title}</span>
+                  {canEdit ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => void restoreArchived(item)}
+                      disabled={isRestoring}
+                    >
+                      <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                      Restore
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
