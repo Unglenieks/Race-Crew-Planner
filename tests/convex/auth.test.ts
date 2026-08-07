@@ -19,6 +19,7 @@ import {
   archive as archiveItineraryItem,
   get as getItineraryItem,
   list as listItineraryItems,
+  listArchived as listArchivedItineraryItems,
   restore as restoreItineraryItem,
   update as updateItineraryItem,
   validatedItineraryInput,
@@ -39,14 +40,19 @@ import {
 import {
   apply as applyWorkTemplate,
   create as createWorkTemplate,
+  restore as restoreWorkTemplate,
   validatedItems as validatedTemplateItems,
   validatedName as validatedTemplateName,
 } from "../../convex/workTemplates";
 import {
   create as createRecord,
+  archiveCategory,
+  archiveType,
   createField as createRecordField,
   get as getRecord,
   mergeCategory,
+  restoreCategory,
+  restoreType,
   resolvedCoordinates,
   saveTravel,
   saveVenueDetails,
@@ -76,7 +82,8 @@ const owner: ApplicationRole = "owner";
 
 describe("Convex authorization helpers", () => {
   it("stores only an allowed uploaded file against a record in the same event", async () => {
-    const inserts: Array<{ table: string; value: Record<string, unknown> }> = [];
+    const inserts: Array<{ table: string; value: Record<string, unknown> }> =
+      [];
     await saveFile._handler(
       {
         auth: {
@@ -170,7 +177,8 @@ describe("Convex authorization helpers", () => {
   });
 
   it("creates a representative, owner-owned sample event", async () => {
-    const inserts: Array<{ table: string; value: Record<string, unknown> }> = [];
+    const inserts: Array<{ table: string; value: Record<string, unknown> }> =
+      [];
     const eventId = await createSample._handler(
       {
         auth: {
@@ -190,16 +198,24 @@ describe("Convex authorization helpers", () => {
       {},
     );
     expect(eventId).toBe("events:1");
-    expect(inserts.find((insert) => insert.table === "events")?.value).toMatchObject({
+    expect(
+      inserts.find((insert) => insert.table === "events")?.value,
+    ).toMatchObject({
       isSample: true,
       createdBy: "owner",
     });
-    expect(inserts.find((insert) => insert.table === "eventRecordFields")?.value).toMatchObject({
+    expect(
+      inserts.find((insert) => insert.table === "eventRecordFields")?.value,
+    ).toMatchObject({
       key: "readiness",
       type: "select",
     });
-    expect(inserts.filter((insert) => insert.table === "eventRecords")).toHaveLength(2);
-    expect(inserts.some((insert) => insert.table === "itineraryItems")).toBe(true);
+    expect(
+      inserts.filter((insert) => insert.table === "eventRecords"),
+    ).toHaveLength(2);
+    expect(inserts.some((insert) => insert.table === "itineraryItems")).toBe(
+      true,
+    );
     expect(inserts.some((insert) => insert.table === "workItems")).toBe(true);
   });
 
@@ -936,6 +952,39 @@ describe("Convex authorization helpers", () => {
     ).rejects.toThrow("Movement not found");
   });
 
+  it("keeps the active plan separate from its recovery inventory", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          subject: "member",
+          issuer: "issuer",
+          tokenIdentifier: "issuer|member",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            unique: async () => ({ role: "crew" }),
+            collect: async () => [
+              { title: "Active" },
+              { title: "Archived", archivedAt: 1 },
+            ],
+          }),
+        }),
+      },
+    };
+    await expect(
+      listItineraryItems._handler(context as never, {
+        eventId: "events:one" as never,
+      }),
+    ).resolves.toEqual([{ title: "Active" }]);
+    await expect(
+      listArchivedItineraryItems._handler(context as never, {
+        eventId: "events:one" as never,
+      }),
+    ).resolves.toEqual([{ title: "Archived", archivedAt: 1 }]);
+  });
+
   it("lets crew complete work but not create it", async () => {
     const patches: Array<Record<string, unknown>> = [];
     const context = {
@@ -1208,6 +1257,34 @@ describe("Convex authorization helpers", () => {
         templateId: "workTemplates:one" as never,
       }),
     ).rejects.toThrow("Template not found");
+  });
+
+  it("restores only an archived template in the selected event", async () => {
+    const patches: Array<Record<string, unknown>> = [];
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|manager",
+          subject: "manager",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "manager" }) }),
+        }),
+        get: async () => ({ eventId: "events:one", archivedAt: 1 }),
+        patch: async (_id: string, value: Record<string, unknown>) =>
+          patches.push(value),
+      },
+    };
+    await restoreWorkTemplate._handler(context as never, {
+      eventId: "events:one" as never,
+      templateId: "workTemplates:one" as never,
+    });
+    expect(patches).toContainEqual(
+      expect.objectContaining({ archivedAt: undefined }),
+    );
   });
 
   it("allows only managers to change records in their event", async () => {
@@ -1564,6 +1641,47 @@ describe("regressions found reviewing the outage integration", () => {
       id: "eventRecordCategories:source",
       value: expect.objectContaining({ archivedAt: expect.any(Number) }),
     });
+  });
+
+  it("archives and restores record vocabulary only inside its event", async () => {
+    const patches: Array<Record<string, unknown>> = [];
+    const context = managerContext({
+      get: async () => ({ eventId: "events:one", archivedAt: 1 }),
+      patch: async (_id: string, value: Record<string, unknown>) =>
+        patches.push(value),
+    });
+    await restoreType._handler(context as never, {
+      eventId: "events:one" as never,
+      typeId: "eventRecordTypes:one" as never,
+    });
+    await restoreCategory._handler(context as never, {
+      eventId: "events:one" as never,
+      categoryId: "eventRecordCategories:one" as never,
+    });
+    await archiveType._handler(
+      {
+        ...context,
+        db: { ...context.db, get: async () => ({ eventId: "events:one" }) },
+      } as never,
+      {
+        eventId: "events:one" as never,
+        typeId: "eventRecordTypes:one" as never,
+      },
+    );
+    await archiveCategory._handler(
+      {
+        ...context,
+        db: { ...context.db, get: async () => ({ eventId: "events:one" }) },
+      } as never,
+      {
+        eventId: "events:one" as never,
+        categoryId: "eventRecordCategories:one" as never,
+      },
+    );
+    expect(patches.some((value) => value.archivedAt === undefined)).toBe(true);
+    expect(patches.some((value) => typeof value.archivedAt === "number")).toBe(
+      true,
+    );
   });
 
   it("separates incomplete answers from malformed ones by code", () => {

@@ -131,6 +131,7 @@ export type WorkTemplate = {
   items: WorkTemplateItem[];
   createdAt: number;
   updatedAt: number;
+  archivedAt?: number;
 };
 
 export type EventContact = {
@@ -279,6 +280,11 @@ export const itineraryApi = {
   list: makeFunctionReference<"query", { eventId: string }, ItineraryItem[]>(
     "itinerary:list",
   ),
+  listArchived: makeFunctionReference<
+    "query",
+    { eventId: string },
+    ItineraryItem[]
+  >("itinerary:listArchived"),
   get: makeFunctionReference<
     "query",
     { eventId: string; itemId: string },
@@ -418,6 +424,11 @@ export const recordsApi = {
     { eventId: string; typeId: string },
     null
   >("records:archiveType"),
+  restoreType: makeFunctionReference<
+    "mutation",
+    { eventId: string; typeId: string },
+    null
+  >("records:restoreType"),
   listCategories: makeFunctionReference<
     "query",
     { eventId: string },
@@ -428,6 +439,16 @@ export const recordsApi = {
     { eventId: string; name: string; color: string },
     string
   >("records:createCategory"),
+  archiveCategory: makeFunctionReference<
+    "mutation",
+    { eventId: string; categoryId: string },
+    null
+  >("records:archiveCategory"),
+  restoreCategory: makeFunctionReference<
+    "mutation",
+    { eventId: string; categoryId: string },
+    null
+  >("records:restoreCategory"),
   assignCategory: makeFunctionReference<
     "mutation",
     { eventId: string; recordId: string; categoryId: string },
@@ -568,6 +589,11 @@ export const workTemplatesApi = {
   list: makeFunctionReference<"query", { eventId: string }, WorkTemplate[]>(
     "workTemplates:list",
   ),
+  listArchived: makeFunctionReference<
+    "query",
+    { eventId: string },
+    WorkTemplate[]
+  >("workTemplates:listArchived"),
   create: makeFunctionReference<
     "mutation",
     { eventId: string; name: string; items: WorkTemplateItem[] },
@@ -583,6 +609,11 @@ export const workTemplatesApi = {
     { eventId: string; templateId: string },
     null
   >("workTemplates:archive"),
+  restore: makeFunctionReference<
+    "mutation",
+    { eventId: string; templateId: string },
+    null
+  >("workTemplates:restore"),
 };
 
 export const invitationsApi = {

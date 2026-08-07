@@ -84,6 +84,19 @@ export const list = query({
   },
 });
 
+/** Lists archived templates separately so the active picker stays truthful. */
+export const listArchived = query({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    await requireEventMembership(ctx, eventId);
+    const templates = await ctx.db
+      .query("workTemplates")
+      .withIndex("by_eventId", (index) => index.eq("eventId", eventId))
+      .collect();
+    return templates.filter((template) => template.archivedAt !== undefined);
+  },
+});
+
 /** Owners and managers create reusable, event-local checklist templates. */
 export const create = mutation({
   args: {
@@ -149,6 +162,20 @@ export const archive = mutation({
       archivedAt: Date.now(),
       updatedAt: Date.now(),
     });
+  },
+});
+
+/** Restores a template to the active apply list. Existing work is unchanged. */
+export const restore = mutation({
+  args: { eventId: v.id("events"), templateId: v.id("workTemplates") },
+  handler: async (ctx, { eventId, templateId }) => {
+    const { membership } = await requireEventMembership(ctx, eventId);
+    requireRole(membership.role, ["owner", "manager"]);
+    const template = await ctx.db.get(templateId);
+    if (template === null || template.eventId !== eventId)
+      throw new Error("Template not found");
+    if (template.archivedAt !== undefined)
+      await ctx.db.patch(templateId, { archivedAt: undefined, updatedAt: Date.now() });
   },
 });
 

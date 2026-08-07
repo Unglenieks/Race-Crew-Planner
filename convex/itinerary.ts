@@ -136,6 +136,19 @@ export const list = query({
   },
 });
 
+/** Lists archived movements for the event's recovery inventory. */
+export const listArchived = query({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    await requireEventMembership(ctx, eventId);
+    const items = await ctx.db
+      .query("itineraryItems")
+      .withIndex("by_eventId_scheduledFor", (q) => q.eq("eventId", eventId))
+      .collect();
+    return items.filter((item) => item.archivedAt !== undefined);
+  },
+});
+
 /** Returns one movement after proving it belongs to the caller's event. */
 export const get = query({
   args: { eventId: v.id("events"), itemId: v.id("itineraryItems") },
