@@ -275,6 +275,43 @@ export const setCompletion = mutation({
   },
 });
 
+/**
+ * Replays a locally persisted completion exactly once. Authorization is checked
+ * on every replay; the operation id is only an idempotency key, never a grant.
+ */
+export const setCompletionOffline = mutation({
+  args: {
+    eventId: v.id("events"),
+    itemId: v.id("workItems"),
+    completed: v.boolean(),
+    operationId: v.string(),
+  },
+  handler: async (ctx, { eventId, itemId, completed, operationId }) => {
+    const { identity } = await requireEventMembership(ctx, eventId);
+    const existing = await ctx.db
+      .query("offlineOperations")
+      .withIndex("by_eventId_operationId", (q) =>
+        q.eq("eventId", eventId).eq("operationId", operationId),
+      )
+      .unique();
+    if (existing !== null) return { replayed: true };
+    await requireWorkItem(ctx, eventId, itemId);
+    await ctx.db.patch(itemId, {
+      status: completed ? "completed" : "open",
+      completedAt: completed ? Date.now() : undefined,
+      completedBy: completed ? identity.subject : undefined,
+      updatedAt: Date.now(),
+    });
+    await ctx.db.insert("offlineOperations", {
+      eventId,
+      operationId,
+      createdBy: identity.subject,
+      createdAt: Date.now(),
+    });
+    return { replayed: false };
+  },
+});
+
 function commentBody(body: string) {
   const normalized = body.trim();
   if (normalized.length === 0 || normalized.length > 1000) {

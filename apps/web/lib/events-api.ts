@@ -502,6 +502,16 @@ export const workApi = {
     { eventId: string; itemId: string; completed: boolean },
     null
   >("work:setCompletion"),
+  setCompletionOffline: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      itemId: string;
+      completed: boolean;
+      operationId: string;
+    },
+    { replayed: boolean }
+  >("work:setCompletionOffline"),
   listAssignees: makeFunctionReference<
     "query",
     { eventId: string },

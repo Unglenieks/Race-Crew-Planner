@@ -231,6 +231,13 @@ export default defineSchema({
     authorId: v.string(),
     createdAt: v.number(),
   }).index("by_workItemId_createdAt", ["workItemId", "createdAt"]),
+  /** Idempotency ledger for replayable offline work completions. */
+  offlineOperations: defineTable({
+    eventId: v.id("events"),
+    operationId: v.string(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+  }).index("by_eventId_operationId", ["eventId", "operationId"]),
   planChanges: defineTable({
     eventId: v.id("events"),
     itineraryItemId: v.id("itineraryItems"),
