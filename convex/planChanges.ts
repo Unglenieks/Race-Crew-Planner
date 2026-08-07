@@ -135,10 +135,10 @@ export const publish = mutation({
       scheduledFor: item.scheduledFor,
       location: item.location,
       notes: item.notes,
-      previousTitle: prior?.title,
-      previousScheduledFor: prior?.scheduledFor,
-      previousLocation: prior?.location,
-      previousNotes: prior?.notes,
+      previousTitle: item.lastChangedTitle ?? prior?.title,
+      previousScheduledFor: item.lastChangedScheduledFor ?? prior?.scheduledFor,
+      previousLocation: item.lastChangedLocation ?? prior?.location,
+      previousNotes: item.lastChangedNotes ?? prior?.notes,
       reason: normalizedReason(reason),
       severity,
       publishedBy: identity.subject,
@@ -153,6 +153,15 @@ export const publish = mutation({
         sentAt: now,
       });
     }
+    // A later publication of the same unchanged instruction should compare
+    // against the previous publication, not keep presenting this edit again.
+    await ctx.db.patch(itemId, {
+      lastChangedTitle: undefined,
+      lastChangedScheduledFor: undefined,
+      lastChangedLocation: undefined,
+      lastChangedNotes: undefined,
+      lastChangedAt: undefined,
+    });
     return changeId;
   },
 });

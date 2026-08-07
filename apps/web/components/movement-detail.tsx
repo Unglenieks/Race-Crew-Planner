@@ -2,16 +2,16 @@
 
 import { Archive, ChevronLeft, LoaderCircle, Save } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Banner } from "@/components/ui/banner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PlanChangeDelivery } from "@/components/plan-change-delivery";
 import {
   itineraryApi,
-  planChangesApi,
   recordsApi,
   type EventRole,
   type ItineraryItem,
@@ -46,14 +46,6 @@ function toDraft(item: ItineraryItem): Draft {
   };
 }
 
-function changeSummary(change: { recipients: Array<{ state: string }> }) {
-  const recipients = change.recipients;
-  const acknowledged = recipients.filter((item) =>
-    ["acknowledged", "acknowledgedElsewhere"].includes(item.state),
-  ).length;
-  return { acknowledged, unreached: recipients.length - acknowledged };
-}
-
 export function MovementDetail({
   eventId,
   itemId,
@@ -64,10 +56,12 @@ export function MovementDetail({
   role: EventRole;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isEditing = searchParams.get("edit") === "1";
+  const isPublishing = searchParams.get("publish") === "1";
   const item = useQuery(itineraryApi.get, { eventId, itemId });
   const records = useQuery(recordsApi.list, { eventId });
   const recordTypes = useQuery(recordsApi.listTypes, { eventId });
-  const changes = useQuery(planChangesApi.listForMovement, { eventId, itemId });
   const update = useMutation(itineraryApi.update);
   const archive = useMutation(itineraryApi.archive);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -86,8 +80,7 @@ export function MovementDetail({
   if (
     item === undefined ||
     records === undefined ||
-    recordTypes === undefined ||
-    changes === undefined
+    recordTypes === undefined
   ) {
     return (
       <p className="flex items-center text-sm text-muted" role="status">
@@ -133,6 +126,9 @@ export function MovementDetail({
     if (currentDraft === null) return;
     setError(null);
     setIsSaving(true);
+    const publishAfterSave =
+      ((event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null)
+        ?.value === "publish";
     try {
       await update({
         eventId,
@@ -145,6 +141,9 @@ export function MovementDetail({
         timeKind: currentDraft.timeKind,
       });
       setDraft(null);
+      router.replace(
+        `/events/${eventId}/plan/${itemId}${publishAfterSave ? "?publish=1" : ""}`,
+      );
     } catch {
       setError("We could not save this movement. Your changes were not saved.");
     } finally {
@@ -205,7 +204,7 @@ export function MovementDetail({
               {error}
             </Banner>
           )}
-          {canEdit && currentDraft !== null ? (
+          {canEdit && isEditing && currentDraft !== null ? (
             <form className="mt-4 grid gap-4" onSubmit={save}>
               <label className="grid gap-1.5 text-sm font-medium text-ink">
                 Description
@@ -289,7 +288,13 @@ export function MovementDetail({
                 />
               </label>
               <div className="flex flex-wrap gap-2">
-                <Button type="submit" variant="primary" disabled={isSaving}>
+                <Button
+                  type="submit"
+                  name="intent"
+                  value="save"
+                  variant="primary"
+                  disabled={isSaving}
+                >
                   {isSaving ? (
                     <LoaderCircle className="h-4 w-4 animate-spin" />
                   ) : (
@@ -297,6 +302,21 @@ export function MovementDetail({
                   )}{" "}
                   Save movement
                 </Button>
+                <Button
+                  type="submit"
+                  name="intent"
+                  value="publish"
+                  variant="secondary"
+                  disabled={isSaving}
+                >
+                  Save & publish change
+                </Button>
+                <Link
+                  href={`/events/${eventId}/plan/${itemId}`}
+                  className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-muted hover:bg-soft hover:text-ink focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
+                >
+                  Cancel
+                </Link>
                 <Button
                   type="button"
                   variant="danger"
@@ -337,46 +357,33 @@ export function MovementDetail({
           )}
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Published delivery</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          {changes.length === 0 ? (
+      {canEdit && !isEditing ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Manage movement</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3">
             <p className="text-sm text-muted">
-              No change to this movement has been published yet.
+              Review the current instruction before changing it. Publish only
+              after a saved change needs crew acknowledgement.
             </p>
-          ) : (
-            changes.map((change) => {
-              const { acknowledged, unreached } = changeSummary(change);
-              return (
-                <div
-                  key={change._id}
-                  className="border-b border-line pb-4 last:border-0 last:pb-0"
-                >
-                  <p className="font-semibold text-ink">{change.reason}</p>
-                  <p className="mt-1 text-xs text-muted">
-                    {change.severity === "critical" ? "Critical" : "Routine"} ·
-                    published {new Date(change.publishedAt).toLocaleString()}
-                  </p>
-                  <p className="mt-3 text-sm text-muted">
-                    <strong className="text-ink">{acknowledged}</strong>{" "}
-                    acknowledged ·{" "}
-                    <strong className="text-ink">{unreached}</strong> awaiting
-                    acknowledgement
-                  </p>
-                </div>
-              );
-            })
-          )}
-          <Link
-            href={`/events/${eventId}/plan/publish`}
-            className="text-sm font-semibold text-green-ink underline underline-offset-4"
-          >
-            Publish a change
-          </Link>
-        </CardContent>
-      </Card>
+            <Link
+              href={`/events/${eventId}/plan/${itemId}?edit=1`}
+              className="w-fit text-sm font-semibold text-green-ink underline underline-offset-4"
+            >
+              Edit movement
+            </Link>
+          </CardContent>
+        </Card>
+      ) : null}
+      {canEdit && isPublishing ? (
+        <PlanChangeDelivery
+          eventId={eventId}
+          role={role}
+          items={[item]}
+          movementId={itemId}
+        />
+      ) : null}
     </section>
   );
 }

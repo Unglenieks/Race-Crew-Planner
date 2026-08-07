@@ -3,7 +3,6 @@
 import {
   CalendarPlus,
   LoaderCircle,
-  Pencil,
   RotateCcw,
   Search,
   Trash2,
@@ -64,26 +63,6 @@ function displayDay(day: string) {
   }).format(new Date(Date.UTC(year, month - 1, date)));
 }
 
-function itemToDraft(item: ItineraryItem): Draft {
-  return {
-    title: item.title,
-    scheduledFor: item.scheduledFor,
-    location: item.location ?? "",
-    recordId: item.recordId ?? "",
-    notes: item.notes ?? "",
-  };
-}
-
-function isSameDraft(left: Draft, right: Draft) {
-  return (
-    left.title === right.title &&
-    left.scheduledFor === right.scheduledFor &&
-    left.location === right.location &&
-    left.recordId === right.recordId &&
-    left.notes === right.notes
-  );
-}
-
 export function ItineraryPlan({
   eventId,
   eventName,
@@ -99,12 +78,10 @@ export function ItineraryPlan({
   const archivedItems = useQuery(itineraryApi.listArchived, { eventId });
   const records = useQuery(recordsApi.list, { eventId });
   const createItem = useMutation(itineraryApi.create);
-  const updateItem = useMutation(itineraryApi.update);
   const archiveItem = useMutation(itineraryApi.archive);
   const restoreItem = useMutation(itineraryApi.restore);
   const canEdit = role === "owner" || role === "manager";
   const [draft, setDraft] = useState<Draft>(emptyDraft);
-  const [editingItem, setEditingItem] = useState<ItineraryItem | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -143,24 +120,8 @@ export function ItineraryPlan({
       return matchesDay && (query.length === 0 || haystack.includes(query));
     });
   }, [items, search, selectedDay]);
-  const initialDraft =
-    editingItem === null ? emptyDraft : itemToDraft(editingItem);
-  const hasUnsavedChanges = !isSameDraft(draft, initialDraft);
-
   function updateDraft(field: keyof Draft, value: string) {
     setDraft((current) => ({ ...current, [field]: value }));
-  }
-
-  function beginEditing(item: ItineraryItem) {
-    setEditingItem(item);
-    setDraft(itemToDraft(item));
-    setError(null);
-  }
-
-  function cancelEditing() {
-    setEditingItem(null);
-    setDraft(emptyDraft);
-    setError(null);
   }
 
   function clearFilters() {
@@ -183,12 +144,8 @@ export function ItineraryPlan({
     };
 
     try {
-      if (editingItem === null) {
-        await createItem(input);
-      } else {
-        await updateItem({ ...input, itemId: editingItem._id });
-      }
-      cancelEditing();
+      await createItem(input);
+      setDraft(emptyDraft);
     } catch {
       setError(
         "We could not save this movement. Your changes were not saved; please try again.",
@@ -203,7 +160,6 @@ export function ItineraryPlan({
     setIsArchiving(item._id);
     try {
       await archiveItem({ eventId, itemId: item._id });
-      if (editingItem?._id === item._id) cancelEditing();
       setUndoItem(item);
     } catch {
       setError("We could not archive this movement. It is still in the plan.");
@@ -415,18 +371,8 @@ export function ItineraryPlan({
                             href={`/events/${eventId}/plan/${item._id}`}
                             className="inline-flex min-h-11 items-center rounded-lg border border-transparent px-2.5 py-1.5 text-xs font-semibold text-ink2 hover:bg-soft focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
                           >
-                            Open
+                            Open details
                           </Link>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Edit ${item.title}`}
-                            onClick={() => beginEditing(item)}
-                          >
-                            <Pencil className="h-4 w-4" aria-hidden="true" />
-                            Edit
-                          </Button>
                           <Button
                             type="button"
                             variant="danger"
@@ -485,14 +431,11 @@ export function ItineraryPlan({
         <Card>
           <CardHeader>
             <div>
-              <CardTitle>
-                {editingItem === null ? "Add movement" : "Edit movement"}
-              </CardTitle>
-              {hasUnsavedChanges ? (
-                <p className="mt-1 text-sm text-warning-tx" role="status">
-                  Draft changes are local to this form and have not been shared.
-                </p>
-              ) : null}
+              <CardTitle>Add movement</CardTitle>
+              <p className="mt-1 text-sm text-muted">
+                Open an existing movement to review its details or make a
+                change.
+              </p>
             </div>
           </CardHeader>
           <CardContent>
@@ -599,17 +542,8 @@ export function ItineraryPlan({
                   ) : (
                     <CalendarPlus className="h-4 w-4" aria-hidden="true" />
                   )}
-                  {editingItem === null ? "Add movement" : "Save movement"}
+                  Add movement
                 </Button>
-                {editingItem === null ? null : (
-                  <Button
-                    type="button"
-                    onClick={cancelEditing}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                )}
               </div>
             </form>
           </CardContent>

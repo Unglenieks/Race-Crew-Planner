@@ -241,6 +241,11 @@ export const update = mutation({
     await ctx.db.patch(args.itemId, {
       ...validatedItineraryInput(args),
       recordId: args.recordId,
+      lastChangedTitle: existing.title,
+      lastChangedScheduledFor: existing.scheduledFor,
+      lastChangedLocation: existing.location,
+      lastChangedNotes: existing.notes,
+      lastChangedAt: Date.now(),
       updatedAt: Date.now(),
     });
   },

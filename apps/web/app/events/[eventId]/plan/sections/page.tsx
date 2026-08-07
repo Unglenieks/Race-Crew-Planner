@@ -1,8 +1,10 @@
-import type { Metadata } from "next";
-import { PlanSectionsScreen } from "@/components/screens/plan-sections-screen";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Plan sections · Race Planner" };
-
-export default function Page() {
-  return <PlanSectionsScreen />;
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ eventId: string }>;
+}) {
+  const { eventId } = await params;
+  redirect(`/events/${eventId}/plan`);
 }

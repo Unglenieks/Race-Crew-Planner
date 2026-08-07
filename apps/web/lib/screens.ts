@@ -5,13 +5,11 @@ import {
   FolderOpen,
   CloudOff,
   LayoutDashboard,
-  ListTree,
   MapPin,
   MessageSquare,
   Printer,
   Route,
   Rows3,
-  Send,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -31,8 +29,6 @@ export type ScreenId =
   | "today"
   | "attention"
   | "plan"
-  | "plan-sections"
-  | "plan-publish"
   | "plan-export"
   | "work"
   | "work-templates"
@@ -95,24 +91,6 @@ export const screens: ScreenDefinition[] = [
     description: "The shared schedule of movements for this event.",
     icon: Route,
     minRole: "crew",
-  },
-  {
-    id: "plan-sections",
-    segment: "plan/sections",
-    label: "Plan sections",
-    shortLabel: "Plan sections",
-    description: "Group the plan into days, sessions, and legs.",
-    icon: ListTree,
-    minRole: "crew",
-  },
-  {
-    id: "plan-publish",
-    segment: "plan/publish",
-    label: "Publish change",
-    shortLabel: "Publish change",
-    description: "Publish a plan change and see who has received it.",
-    icon: Send,
-    minRole: "manager",
   },
   {
     id: "plan-export",
@@ -207,7 +185,7 @@ export const screenGroups: ScreenGroup[] = [
   { label: null, screenIds: ["today", "attention"] },
   {
     label: "Plan",
-    screenIds: ["plan", "plan-sections", "plan-publish", "plan-export"],
+    screenIds: ["plan", "plan-export"],
   },
   {
     label: "Work",

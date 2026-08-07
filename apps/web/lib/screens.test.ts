@@ -20,7 +20,12 @@ const workspaceRoot = join(__dirname, "..", "app", "events", "[eventId]");
  * new unregistered screen still fails the test, and removing a route from the
  * registry still requires a conscious entry here.
  */
-const nonNavigableSegments = new Set(["records/types", "records/travel"]);
+const nonNavigableSegments = new Set([
+  "plan/publish",
+  "plan/sections",
+  "records/types",
+  "records/travel",
+]);
 
 /** Every static `page.tsx` under the workspace route, as a path segment. */
 function routeSegments(dir: string, prefix = ""): string[] {
@@ -83,11 +88,11 @@ describe("screen registry", () => {
     expect(new Set(grouped).size).toBe(grouped.length);
   });
 
-  it("resolves the longest matching path so nested screens win", () => {
-    const sections = findScreenByPath("e1", screenHref("e1", "plan-sections"));
+  it("resolves registered nested screens to their parent screen", () => {
+    const sections = findScreenByPath("e1", "/events/e1/plan/sections");
     const plan = findScreenByPath("e1", screenHref("e1", "plan"));
 
-    expect(sections?.id).toBe("plan-sections");
+    expect(sections?.id).toBe("plan");
     expect(plan?.id).toBe("plan");
   });
 
@@ -96,18 +101,13 @@ describe("screen registry", () => {
     expect(findScreenByPath("e1", "/events/e2/today")).toBeNull();
   });
 
-  it("hides owner-only screens from lower roles", () => {
+  it("keeps restricted navigation out of lower roles", () => {
     const crewIds = visibleScreens("crew").map((screen) => screen.id);
     const ownerIds = visibleScreens("owner").map((screen) => screen.id);
 
     expect(crewIds).not.toContain("people");
-    expect(crewIds).not.toContain("plan-publish");
     expect(crewIds).not.toContain("work-templates");
     expect(ownerIds).toContain("people");
-    expect(ownerIds).toContain("plan-publish");
-    expect(visibleScreens("manager").map((s) => s.id)).toContain(
-      "plan-publish",
-    );
     expect(visibleScreens("manager").map((s) => s.id)).toContain(
       "work-templates",
     );
