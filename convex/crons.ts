@@ -11,4 +11,11 @@ crons.interval(
   { name: "scheduler-primitive" },
 );
 
+crons.daily(
+  "expire archived events after retention window",
+  { hourUTC: 3, minuteUTC: 0 },
+  internal.events.expireArchived,
+  {},
+);
+
 export default crons;

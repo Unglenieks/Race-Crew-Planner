@@ -14,9 +14,13 @@ export default defineSchema({
     timeZone: v.string(),
     /** Sample events are owned by their creator and can be removed in one action. */
     isSample: v.optional(v.boolean()),
+    /** Archived events remain recoverable for the configured retention window. */
+    archivedAt: v.optional(v.number()),
     createdAt: v.number(),
     createdBy: v.string(),
-  }).index("by_createdBy", ["createdBy"]),
+  })
+    .index("by_createdBy", ["createdBy"])
+    .index("by_archivedAt", ["archivedAt"]),
   eventMemberships: defineTable({
     eventId: v.id("events"),
     userId: v.string(),

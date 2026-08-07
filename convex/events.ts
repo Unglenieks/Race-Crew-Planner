@@ -1,6 +1,11 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx } from "./_generated/server";
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+} from "./_generated/server";
 import { requireIdentity, requireRole } from "./auth";
 
 const eventArgs = {
@@ -181,7 +186,6 @@ export const createSample = mutation({
 });
 
 const eventTables = [
-  "eventFiles",
   "eventRecordCategoryAssignments",
   "travelContexts",
   "workItemComments",
@@ -204,10 +208,22 @@ const eventTables = [
   "eventMemberships",
 ] as const;
 
+const retentionWindowMs = 30 * 24 * 60 * 60 * 1000;
+
 async function deleteEventRows(
   ctx: MutationCtx,
   eventId: Id<"events">,
 ) {
+  const files = await ctx.db
+    .query("eventFiles")
+    .filter((q) => q.eq(q.field("eventId"), eventId))
+    .collect();
+  await Promise.all(
+    files.map(async (file) => {
+      await ctx.storage.delete(file.storageId);
+      await ctx.db.delete(file._id);
+    }),
+  );
   for (const table of eventTables) {
     const rows = await ctx.db
       .query(table)
@@ -250,7 +266,7 @@ export const list = query({
     const events = await Promise.all(
       memberships.map(async (membership) => {
         const event = await ctx.db.get(membership.eventId);
-        return event === null
+        return event === null || event.archivedAt !== undefined
           ? null
           : {
               id: event._id,
@@ -263,6 +279,105 @@ export const list = query({
     );
 
     return events.filter((event) => event !== null);
+  },
+});
+
+/** Lists archived events only for their owners, with their restore deadline. */
+export const listArchived = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await requireIdentity(ctx);
+    const memberships = await ctx.db
+      .query("eventMemberships")
+      .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
+      .collect();
+    const events = await Promise.all(
+      memberships
+        .filter((membership) => membership.role === "owner")
+        .map(async (membership) => {
+          const event = await ctx.db.get(membership.eventId);
+          return event === null || event.archivedAt === undefined
+            ? null
+            : {
+                id: event._id,
+                name: event.name,
+                timeZone: event.timeZone,
+                archivedAt: event.archivedAt,
+                purgeAt: event.archivedAt + retentionWindowMs,
+              };
+        }),
+    );
+    return events.filter((event) => event !== null);
+  },
+});
+
+async function requireOwnedEvent(
+  ctx: MutationCtx,
+  eventId: Id<"events">,
+) {
+  const identity = await requireIdentity(ctx);
+  const membership = await ctx.db
+    .query("eventMemberships")
+    .withIndex("by_eventId_userId", (q) =>
+      q.eq("eventId", eventId).eq("userId", identity.subject),
+    )
+    .unique();
+  requireRole(membership?.role, ["owner"]);
+  const event = await ctx.db.get(eventId);
+  if (event === null) throw new Error("Event not found");
+  return event;
+}
+
+/** Owners archive an event before the 30-day retention clock begins. */
+export const archive = mutation({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    const event = await requireOwnedEvent(ctx, eventId);
+    if (event.archivedAt === undefined) {
+      await ctx.db.patch(eventId, { archivedAt: Date.now() });
+    }
+  },
+});
+
+/** Restores an archived event without changing its event-local rows. */
+export const restore = mutation({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    const event = await requireOwnedEvent(ctx, eventId);
+    if (event.archivedAt !== undefined) {
+      await ctx.db.patch(eventId, { archivedAt: undefined });
+    }
+  },
+});
+
+/** Permanently deletes an archived event and its protected evidence. */
+export const permanentlyDelete = mutation({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    const event = await requireOwnedEvent(ctx, eventId);
+    if (event.archivedAt === undefined) {
+      throw new Error("Archive the event before permanently deleting it");
+    }
+    await deleteEventRows(ctx, eventId);
+    await ctx.db.delete(eventId);
+  },
+});
+
+/** Internal retention job; scheduled work has no user identity. */
+export const expireArchived = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const cutoff = Date.now() - retentionWindowMs;
+    const events = await ctx.db
+      .query("events")
+      .withIndex("by_archivedAt")
+      .collect();
+    for (const event of events) {
+      if (event.archivedAt !== undefined && event.archivedAt <= cutoff) {
+        await deleteEventRows(ctx, event._id);
+        await ctx.db.delete(event._id);
+      }
+    }
   },
 });
 
@@ -296,4 +411,4 @@ export const get = query({
   },
 });
 
-export { validatedEventInput };
+export { retentionWindowMs, validatedEventInput };
