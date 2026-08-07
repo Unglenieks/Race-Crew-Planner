@@ -127,6 +127,7 @@ export const publish = mutation({
       )
       .collect();
     const prior = priorPublications.at(-1);
+    const hasLastChangedSnapshot = item.lastChangedAt !== undefined;
     const now = Date.now();
     const changeId = await ctx.db.insert("planChanges", {
       eventId,
@@ -135,10 +136,18 @@ export const publish = mutation({
       scheduledFor: item.scheduledFor,
       location: item.location,
       notes: item.notes,
-      previousTitle: prior?.title,
-      previousScheduledFor: prior?.scheduledFor,
-      previousLocation: prior?.location,
-      previousNotes: prior?.notes,
+      previousTitle: hasLastChangedSnapshot
+        ? item.lastChangedTitle
+        : prior?.title,
+      previousScheduledFor: hasLastChangedSnapshot
+        ? item.lastChangedScheduledFor
+        : prior?.scheduledFor,
+      previousLocation: hasLastChangedSnapshot
+        ? item.lastChangedLocation
+        : prior?.location,
+      previousNotes: hasLastChangedSnapshot
+        ? item.lastChangedNotes
+        : prior?.notes,
       reason: normalizedReason(reason),
       severity,
       publishedBy: identity.subject,
@@ -153,6 +162,15 @@ export const publish = mutation({
         sentAt: now,
       });
     }
+    // A later publication of the same unchanged instruction should compare
+    // against the previous publication, not keep presenting this edit again.
+    await ctx.db.patch(itemId, {
+      lastChangedTitle: undefined,
+      lastChangedScheduledFor: undefined,
+      lastChangedLocation: undefined,
+      lastChangedNotes: undefined,
+      lastChangedAt: undefined,
+    });
     return changeId;
   },
 });

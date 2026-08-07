@@ -98,15 +98,19 @@ function ChangeStatus({
 function PublisherDelivery({
   eventId,
   items,
+  movementId,
 }: {
   eventId: string;
   items: ItineraryItem[];
+  movementId?: string;
 }) {
   const recipients = useQuery(planChangesApi.recipients, { eventId });
   const changes = useQuery(planChangesApi.listForPublisher, { eventId });
   const publish = useMutation(planChangesApi.publish);
   const acknowledgeElsewhere = useMutation(planChangesApi.acknowledgeElsewhere);
-  const [itemId, setItemId] = useState("");
+  const [itemId, setItemId] = useState(
+    movementId ?? (items.length === 1 ? (items[0]?._id ?? "") : ""),
+  );
   const [reason, setReason] = useState("");
   const [severity, setSeverity] = useState<"routine" | "critical">("routine");
   const [recipientIds, setRecipientIds] = useState<string[] | null>(null);
@@ -125,6 +129,10 @@ function PublisherDelivery({
 
   const selectedRecipientIds =
     recipientIds ?? recipients?.map((recipient) => recipient.userId) ?? [];
+  const visibleChanges =
+    movementId === undefined
+      ? changes
+      : changes?.filter((change) => change.itineraryItemId === movementId);
 
   async function onPublish(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -187,30 +195,37 @@ function PublisherDelivery({
           </p>
         ) : (
           <form className="grid gap-4" onSubmit={onPublish}>
-            <div className="grid gap-1.5">
-              <label
-                className="text-sm font-medium text-ink"
-                htmlFor="published-movement"
-              >
-                Movement
-              </label>
-              <select
-                id="published-movement"
-                value={itemId}
-                onChange={(event) => setItemId(event.target.value)}
-                required
-                className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm text-ink outline-none focus:border-ink focus:ring-2 focus:ring-ink"
-              >
-                <option value="" disabled>
-                  Select the changed movement
-                </option>
-                {items.map((item) => (
-                  <option key={item._id} value={item._id}>
-                    {item.scheduledFor} · {item.title}
+            {movementId === undefined ? (
+              <div className="grid gap-1.5">
+                <label
+                  className="text-sm font-medium text-ink"
+                  htmlFor="published-movement"
+                >
+                  Movement
+                </label>
+                <select
+                  id="published-movement"
+                  value={itemId}
+                  onChange={(event) => setItemId(event.target.value)}
+                  required
+                  className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm text-ink outline-none focus:border-ink focus:ring-2 focus:ring-ink"
+                >
+                  <option value="" disabled>
+                    Select the changed movement
                   </option>
-                ))}
-              </select>
-            </div>
+                  {items.map((item) => (
+                    <option key={item._id} value={item._id}>
+                      {item.scheduledFor} · {item.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <p className="rounded-lg border border-line bg-topbg px-3 py-2 text-sm text-muted">
+                Publishing the saved change to{" "}
+                <strong className="text-ink">{items[0]?.title}</strong>.
+              </p>
+            )}
             <div className="grid gap-1.5">
               <label
                 className="text-sm font-medium text-ink"
@@ -292,13 +307,14 @@ function PublisherDelivery({
             </Button>
           </form>
         )}
-        {changes === undefined ? null : changes.length === 0 ? null : (
+        {visibleChanges === undefined ? null : visibleChanges.length ===
+          0 ? null : (
           <div className="grid gap-2">
             <h3 className="text-sm font-semibold text-ink">
               Published changes
             </h3>
             <ol>
-              {changes.map((change) => (
+              {visibleChanges.map((change) => (
                 <ChangeStatus
                   key={change._id}
                   change={change}
@@ -392,13 +408,19 @@ export function PlanChangeDelivery({
   eventId,
   role,
   items,
+  movementId,
 }: {
   eventId: string;
   role: EventRole;
   items: ItineraryItem[];
+  movementId?: string;
 }) {
   return role === "owner" || role === "manager" ? (
-    <PublisherDelivery eventId={eventId} items={items} />
+    <PublisherDelivery
+      eventId={eventId}
+      items={items}
+      movementId={movementId}
+    />
   ) : (
     <RecipientDelivery eventId={eventId} />
   );
