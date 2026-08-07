@@ -3,11 +3,13 @@
 import { useAuth } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import {
+  Archive,
   CalendarPlus,
   ChevronRight,
   LoaderCircle,
   Sparkles,
   Trash2,
+  Undo2,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -17,7 +19,12 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Input } from "@/components/ui/input";
-import { eventsApi, invitationsApi, type EventSummary } from "@/lib/events-api";
+import {
+  eventsApi,
+  invitationsApi,
+  type ArchivedEventSummary,
+  type EventSummary,
+} from "@/lib/events-api";
 import { defaultScreenId, screenHref } from "@/lib/screens";
 import {
   eventTimeZones,
@@ -34,10 +41,14 @@ function EventList({
   events,
   onRemoveSample,
   removingSampleId,
+  onArchive,
+  archivingEventId,
 }: {
   events: EventSummary[];
   onRemoveSample: (event: EventSummary) => void;
   removingSampleId: string | null;
+  onArchive: (event: EventSummary) => void;
+  archivingEventId: string | null;
 }) {
   return (
     <div className="grid gap-2" aria-label="Your events">
@@ -82,9 +93,75 @@ function EventList({
               Remove sample
             </Button>
           ) : null}
+          {!event.isSample && event.role === "owner" ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-auto shrink-0"
+              disabled={archivingEventId === event.id}
+              onClick={() => onArchive(event)}
+            >
+              <Archive className="h-4 w-4" aria-hidden="true" />
+              Archive
+            </Button>
+          ) : null}
         </div>
       ))}
     </div>
+  );
+}
+
+function ArchivedEventList({
+  events,
+  onRestore,
+  onDelete,
+  pendingEventId,
+}: {
+  events: ArchivedEventSummary[];
+  onRestore: (event: ArchivedEventSummary) => void;
+  onDelete: (event: ArchivedEventSummary) => void;
+  pendingEventId: string | null;
+}) {
+  if (events.length === 0) return null;
+  return (
+    <section className="mt-6 grid gap-2" aria-label="Archived events">
+      <h2 className="text-sm font-semibold text-ink">Archived events</h2>
+      <p className="text-xs text-muted">
+        Archived events can be restored until their stated deletion date.
+      </p>
+      {events.map((event) => (
+        <div
+          key={event.id}
+          className="flex items-center gap-2 rounded-lg border border-line bg-card p-3"
+        >
+          <span className="min-w-0 flex-1 text-sm text-ink">
+            <b className="block truncate">{event.name}</b>
+            <span className="text-xs text-muted">
+              Permanently deleted after{" "}
+              {new Date(event.purgeAt).toLocaleDateString()}.
+            </span>
+          </span>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={pendingEventId === event.id}
+            onClick={() => onRestore(event)}
+          >
+            <Undo2 className="h-4 w-4" aria-hidden="true" /> Restore
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={pendingEventId === event.id}
+            onClick={() => onDelete(event)}
+          >
+            <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete
+          </Button>
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -197,10 +274,20 @@ function ConnectedEventSwitcher() {
   const claimInvitations = useMutation(invitationsApi.claim);
   const createSample = useMutation(eventsApi.createSample);
   const removeSample = useMutation(eventsApi.removeSample);
+  const archiveEvent = useMutation(eventsApi.archive);
+  const restoreEvent = useMutation(eventsApi.restore);
+  const permanentlyDeleteEvent = useMutation(eventsApi.permanentlyDelete);
+  const archivedEvents = useQuery(
+    eventsApi.listArchived,
+    isSignedIn ? {} : "skip",
+  );
   const router = useRouter();
   const [sampleError, setSampleError] = useState<string | null>(null);
   const [creatingSample, setCreatingSample] = useState(false);
   const [removingSampleId, setRemovingSampleId] = useState<string | null>(null);
+  const [pendingLifecycleEventId, setPendingLifecycleEventId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -275,6 +362,39 @@ function ConnectedEventSwitcher() {
     }
   }
 
+  async function archive(event: EventSummary) {
+    if (
+      !window.confirm(`Archive ${event.name}? It can be restored for 30 days.`)
+    )
+      return;
+    setPendingLifecycleEventId(event.id);
+    try {
+      await archiveEvent({ eventId: event.id });
+    } finally {
+      setPendingLifecycleEventId(null);
+    }
+  }
+
+  async function restore(event: ArchivedEventSummary) {
+    setPendingLifecycleEventId(event.id);
+    try {
+      await restoreEvent({ eventId: event.id });
+    } finally {
+      setPendingLifecycleEventId(null);
+    }
+  }
+
+  async function permanentlyDelete(event: ArchivedEventSummary) {
+    const impact = `Permanently delete ${event.name}? This cannot be undone and removes the event, its memberships, records, work, plan, forms, and attached evidence.`;
+    if (!window.confirm(impact)) return;
+    setPendingLifecycleEventId(event.id);
+    try {
+      await permanentlyDeleteEvent({ eventId: event.id });
+    } finally {
+      setPendingLifecycleEventId(null);
+    }
+  }
+
   if (signedInEvents.length === 0) {
     return (
       <Card>
@@ -335,7 +455,17 @@ function ConnectedEventSwitcher() {
             events={signedInEvents}
             onRemoveSample={removeSampleEvent}
             removingSampleId={removingSampleId}
+            onArchive={archive}
+            archivingEventId={pendingLifecycleEventId}
           />
+          {archivedEvents === undefined ? null : (
+            <ArchivedEventList
+              events={archivedEvents}
+              onRestore={restore}
+              onDelete={permanentlyDelete}
+              pendingEventId={pendingLifecycleEventId}
+            />
+          )}
           {sampleError === null ? null : (
             <p
               className="mt-3 rounded-md border border-danger-ln bg-danger-bg px-3 py-2 text-sm text-danger-tx"

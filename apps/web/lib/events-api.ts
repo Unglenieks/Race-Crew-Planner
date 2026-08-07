@@ -10,6 +10,14 @@ export type EventSummary = {
   isSample?: boolean;
 };
 
+export type ArchivedEventSummary = {
+  id: string;
+  name: string;
+  timeZone: string;
+  archivedAt: number;
+  purgeAt: number;
+};
+
 export type ItineraryItem = {
   _id: string;
   title: string;
@@ -245,6 +253,22 @@ export const eventsApi = {
   removeSample: makeFunctionReference<"mutation", { eventId: string }, null>(
     "events:removeSample",
   ),
+  listArchived: makeFunctionReference<
+    "query",
+    Record<string, never>,
+    ArchivedEventSummary[]
+  >("events:listArchived"),
+  archive: makeFunctionReference<"mutation", { eventId: string }, null>(
+    "events:archive",
+  ),
+  restore: makeFunctionReference<"mutation", { eventId: string }, null>(
+    "events:restore",
+  ),
+  permanentlyDelete: makeFunctionReference<
+    "mutation",
+    { eventId: string },
+    null
+  >("events:permanentlyDelete"),
   list: makeFunctionReference<"query", Record<string, never>, EventSummary[]>(
     "events:list",
   ),
