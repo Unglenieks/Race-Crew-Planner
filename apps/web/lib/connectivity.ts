@@ -16,7 +16,7 @@ export function connectionStateDescription(state: ConnectionState) {
     case "online":
       return "Current data can be requested from the event service.";
     case "offline":
-      return "Already-loaded information may remain visible, but changes cannot be saved or queued.";
+      return "Already-loaded information may remain visible. Changes need a connection unless a screen explicitly confirms it has queued them.";
     default:
       return "Checking whether the event service can be reached.";
   }

@@ -3,6 +3,7 @@ import {
   ClipboardList,
   FileText,
   FolderOpen,
+  CloudOff,
   LayoutDashboard,
   ListTree,
   MapPin,
@@ -37,6 +38,7 @@ export type ScreenId =
   | "work-templates"
   | "records"
   | "files"
+  | "offline"
   | "forms"
   | "activity"
   | "people";
@@ -158,6 +160,15 @@ export const screens: ScreenDefinition[] = [
     minRole: "crew",
   },
   {
+    id: "offline",
+    segment: "offline",
+    label: "Offline manager",
+    shortLabel: "Offline",
+    description: "Connection status and durable queued changes.",
+    icon: CloudOff,
+    minRole: "crew",
+  },
+  {
     id: "forms",
     segment: "forms",
     label: "Forms & inspections",
@@ -204,7 +215,7 @@ export const screenGroups: ScreenGroup[] = [
   },
   { label: "Records", screenIds: ["records", "files"] },
   { label: "Forms", screenIds: ["forms"] },
-  { label: "Trust & setup", screenIds: ["activity", "people"] },
+  { label: "Trust & setup", screenIds: ["activity", "offline", "people"] },
 ];
 
 const screensById = new Map(screens.map((screen) => [screen.id, screen]));
