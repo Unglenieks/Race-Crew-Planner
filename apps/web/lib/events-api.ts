@@ -171,7 +171,17 @@ export type PublishedPlanChange = {
 export type FormField = {
   id: string;
   label: string;
-  type: "text" | "number" | "date" | "select" | "multiSelect" | "boolean";
+  type:
+    | "text"
+    | "number"
+    | "date"
+    | "select"
+    | "multiSelect"
+    | "boolean"
+    | "person"
+    | "recordLink"
+    | "file"
+    | "photo";
   required: boolean;
   instructions?: string;
   options?: string[];

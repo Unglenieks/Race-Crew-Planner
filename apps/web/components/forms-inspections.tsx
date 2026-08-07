@@ -15,6 +15,9 @@ import { FormEvent, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   formsApi,
+  filesApi,
+  recordsApi,
+  workApi,
   type FormField,
   type FormSubmission,
   type FormTemplate,
@@ -31,6 +34,10 @@ const fieldTypes: Array<{ value: FormField["type"]; label: string }> = [
   { value: "select", label: "Choose one" },
   { value: "multiSelect", label: "Choose many" },
   { value: "boolean", label: "Yes / no" },
+  { value: "person", label: "Event person" },
+  { value: "recordLink", label: "Event record" },
+  { value: "file", label: "Stored evidence" },
+  { value: "photo", label: "Stored photo" },
 ];
 const starterFields: FormField[] = [
   { id: "item", label: "Item inspected", type: "text", required: true },
@@ -307,6 +314,9 @@ function SubmissionForm({
 }) {
   const saveDraft = useMutation(formsApi.saveDraft);
   const submit = useMutation(formsApi.submit);
+  const people = useQuery(workApi.listAssignees, { eventId });
+  const records = useQuery(recordsApi.list, { eventId });
+  const files = useQuery(filesApi.list, { eventId });
   const [answers, setAnswers] = useState<Record<string, unknown>>(
     draft?.answers ?? {},
   );
@@ -467,6 +477,78 @@ function SubmissionForm({
                   <option value="">Choose an answer</option>
                   <option value="true">Yes</option>
                   <option value="false">No</option>
+                </select>
+              ) : null}
+              {field.type === "person" ? (
+                <select
+                  ref={(element) => {
+                    fields.current[field.id] = element;
+                  }}
+                  id={`form-${template._id}-${field.id}`}
+                  value={String(answers[field.id] ?? "")}
+                  onChange={(event) =>
+                    setAnswer(field.id, event.target.value || undefined)
+                  }
+                  aria-invalid={Boolean(fieldErrors[field.id])}
+                  className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                >
+                  <option value="">Choose a person</option>
+                  {(people ?? []).map((person) => (
+                    <option key={person.userId} value={person.userId}>
+                      {person.name ?? person.userId} · {person.role}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              {field.type === "recordLink" ? (
+                <select
+                  ref={(element) => {
+                    fields.current[field.id] = element;
+                  }}
+                  id={`form-${template._id}-${field.id}`}
+                  value={String(answers[field.id] ?? "")}
+                  onChange={(event) =>
+                    setAnswer(field.id, event.target.value || undefined)
+                  }
+                  aria-invalid={Boolean(fieldErrors[field.id])}
+                  className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                >
+                  <option value="">Choose a record</option>
+                  {(records ?? []).map((record) => (
+                    <option key={record._id} value={record._id}>
+                      {record.name} · {record.type}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              {field.type === "file" || field.type === "photo" ? (
+                <select
+                  ref={(element) => {
+                    fields.current[field.id] = element;
+                  }}
+                  id={`form-${template._id}-${field.id}`}
+                  value={String(answers[field.id] ?? "")}
+                  onChange={(event) =>
+                    setAnswer(field.id, event.target.value || undefined)
+                  }
+                  aria-invalid={Boolean(fieldErrors[field.id])}
+                  className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                >
+                  <option value="">
+                    Choose stored{" "}
+                    {field.type === "photo" ? "photo" : "evidence"}
+                  </option>
+                  {(files ?? [])
+                    .filter(
+                      (file) =>
+                        field.type !== "photo" ||
+                        file.contentType.startsWith("image/"),
+                    )
+                    .map((file) => (
+                      <option key={file._id} value={file._id}>
+                        {file.name}
+                      </option>
+                    ))}
                 </select>
               ) : null}
               {field.type === "select" ? (
