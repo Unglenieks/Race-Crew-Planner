@@ -16,6 +16,7 @@ import type * as forms from "../forms.js";
 import type * as invitations from "../invitations.js";
 import type * as itinerary from "../itinerary.js";
 import type * as planChanges from "../planChanges.js";
+import type * as planExports from "../planExports.js";
 import type * as planSections from "../planSections.js";
 import type * as records from "../records.js";
 import type * as scheduler from "../scheduler.js";
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   invitations: typeof invitations;
   itinerary: typeof itinerary;
   planChanges: typeof planChanges;
+  planExports: typeof planExports;
   planSections: typeof planSections;
   records: typeof records;
   scheduler: typeof scheduler;

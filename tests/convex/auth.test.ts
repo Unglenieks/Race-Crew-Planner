@@ -77,10 +77,122 @@ import {
 import { safeUrl, text } from "../../convex/activity";
 import { recordHeartbeat } from "../../convex/scheduler";
 import { remove as removeFile, save as saveFile } from "../../convex/files";
+import {
+  create as createPlanExport,
+  sameItems,
+  validatedFilterDay,
+} from "../../convex/planExports";
 
 const owner: ApplicationRole = "owner";
 
 describe("Convex authorization helpers", () => {
+  it("captures only the caller's active, filtered plan snapshot for export", async () => {
+    const inserts: Array<{ table: string; value: Record<string, unknown> }> = [];
+    let queryCount = 0;
+    await createPlanExport._handler(
+      {
+        auth: {
+          getUserIdentity: async () => ({
+            tokenIdentifier: "issuer|crew",
+            subject: "crew",
+            issuer: "issuer",
+          }),
+        },
+        db: {
+          query: () => ({
+            withIndex: () => ({
+              unique: async () => ({ role: "crew" }),
+              collect: async () => {
+                queryCount += 1;
+                return queryCount === 1
+                  ? [
+                      {
+                        _id: "itineraryItems:included",
+                        title: "Start",
+                        scheduledFor: "2026-08-10T08:00",
+                      },
+                      {
+                        _id: "itineraryItems:archived",
+                        title: "Old start",
+                        scheduledFor: "2026-08-10T07:00",
+                        archivedAt: 1,
+                      },
+                      {
+                        _id: "itineraryItems:other-day",
+                        title: "Finish",
+                        scheduledFor: "2026-08-11T16:00",
+                      },
+                    ]
+                  : [];
+              },
+            }),
+          }),
+          get: async () => ({ timeZone: "America/Chicago" }),
+          insert: async (table: string, value: Record<string, unknown>) => {
+            inserts.push({ table, value });
+            return "planExports:one";
+          },
+        },
+      } as never,
+      { eventId: "events:one" as never, filterDay: "2026-08-10" },
+    );
+    expect(inserts).toEqual([
+      {
+        table: "planExports",
+        value: expect.objectContaining({
+          eventId: "events:one",
+          generatedBy: "crew",
+          filterDay: "2026-08-10",
+          items: [
+            expect.objectContaining({
+              itineraryItemId: "itineraryItems:included",
+              title: "Start",
+            }),
+          ],
+        }),
+      },
+    ]);
+  });
+
+  it("rejects export requests from non-members and detects changed snapshots", async () => {
+    await expect(
+      createPlanExport._handler(
+        {
+          auth: {
+            getUserIdentity: async () => ({
+              tokenIdentifier: "issuer|outsider",
+              subject: "outsider",
+              issuer: "issuer",
+            }),
+          },
+          db: {
+            query: () => ({ withIndex: () => ({ unique: async () => null }) }),
+          },
+        } as never,
+        { eventId: "events:one" as never },
+      ),
+    ).rejects.toThrow("Forbidden");
+    expect(() => validatedFilterDay("today")).toThrow("calendar date");
+    expect(
+      sameItems(
+        [
+          {
+            itineraryItemId: "itineraryItems:one" as never,
+            title: "Call",
+            scheduledFor: "2026-08-10T08:00",
+          },
+        ],
+        [
+          {
+            itineraryItemId: "itineraryItems:one" as never,
+            title: "Changed call",
+            scheduledFor: "2026-08-10T08:00",
+          },
+        ],
+      ),
+    ).toBe(false);
+  });
+
   it("stores only an allowed uploaded file against a record in the same event", async () => {
     const inserts: Array<{ table: string; value: Record<string, unknown> }> =
       [];

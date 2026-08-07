@@ -283,6 +283,23 @@ export default defineSchema({
     .index("by_changeId", ["changeId"])
     .index("by_changeId_userId", ["changeId", "userId"])
     .index("by_userId_state", ["userId", "state"]),
+  /** A durable, authorized snapshot of a plan brief that was exported. */
+  planExports: defineTable({
+    eventId: v.id("events"),
+    /** Undefined means the export included every active movement. */
+    filterDay: v.optional(v.string()),
+    timeZone: v.string(),
+    items: v.array(
+      v.object({
+        itineraryItemId: v.id("itineraryItems"),
+        title: v.string(),
+        scheduledFor: v.string(),
+        location: v.optional(v.string()),
+      }),
+    ),
+    generatedAt: v.number(),
+    generatedBy: v.string(),
+  }).index("by_eventId_generatedAt", ["eventId", "generatedAt"]),
   formTemplates: defineTable({
     eventId: v.id("events"),
     name: v.string(),

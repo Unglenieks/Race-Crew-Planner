@@ -246,6 +246,19 @@ export type PlanSection = {
   kind: "day" | "session" | "leg";
   order: number;
 };
+export type PlanExport = {
+  _id: string;
+  filterDay?: string;
+  timeZone: string;
+  items: Array<{
+    itineraryItemId: string;
+    title: string;
+    scheduledFor: string;
+    location?: string;
+  }>;
+  generatedAt: number;
+  isSuperseded?: boolean;
+};
 
 /**
  * Typed references for the event feature while the environment-owned Convex
@@ -769,4 +782,15 @@ export const planSectionsApi = {
     { eventId: string; name: string; kind: "day" | "session" | "leg" },
     string
   >("planSections:create"),
+};
+
+export const planExportsApi = {
+  create: makeFunctionReference<
+    "mutation",
+    { eventId: string; filterDay?: string },
+    Omit<PlanExport, "isSuperseded">
+  >("planExports:create"),
+  list: makeFunctionReference<"query", { eventId: string }, PlanExport[]>(
+    "planExports:list",
+  ),
 };
