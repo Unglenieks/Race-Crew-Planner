@@ -1,6 +1,11 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import {
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import { requireIdentity, requireRole } from "./auth";
 
 const maximumFileSize = 10 * 1024 * 1024;
@@ -56,15 +61,34 @@ export const save = mutation({
   args: {
     eventId: v.id("events"),
     recordId: v.optional(v.id("eventRecords")),
+    workItemId: v.optional(v.id("workItems")),
+    itineraryItemId: v.optional(v.id("itineraryItems")),
     storageId: v.id("_storage"),
     name: v.string(),
   },
   handler: async (ctx, args) => {
     const { identity } = await member(ctx, args.eventId);
+    const targets = [
+      args.recordId,
+      args.workItemId,
+      args.itineraryItemId,
+    ].filter((value) => value !== undefined);
+    if (targets.length > 1)
+      throw new Error("A file can have only one direct evidence target");
     if (args.recordId !== undefined) {
       const record = await ctx.db.get(args.recordId);
       if (record === null || record.eventId !== args.eventId)
         throw new Error("Record not found");
+    }
+    if (args.workItemId !== undefined) {
+      const workItem = await ctx.db.get(args.workItemId);
+      if (workItem === null || workItem.eventId !== args.eventId)
+        throw new Error("Work item not found");
+    }
+    if (args.itineraryItemId !== undefined) {
+      const movement = await ctx.db.get(args.itineraryItemId);
+      if (movement === null || movement.eventId !== args.eventId)
+        throw new Error("Movement not found");
     }
     const metadata = await ctx.db.system.get("_storage", args.storageId);
     if (metadata === null) throw new Error("Uploaded file not found");
@@ -73,6 +97,10 @@ export const save = mutation({
     return await ctx.db.insert("eventFiles", {
       eventId: args.eventId,
       ...(args.recordId === undefined ? {} : { recordId: args.recordId }),
+      ...(args.workItemId === undefined ? {} : { workItemId: args.workItemId }),
+      ...(args.itineraryItemId === undefined
+        ? {}
+        : { itineraryItemId: args.itineraryItemId }),
       storageId: args.storageId,
       name: safeName(args.name),
       contentType,
@@ -107,7 +135,8 @@ export const remove = mutation({
     const { membership } = await member(ctx, eventId);
     requireRole(membership.role, ["owner", "manager"]);
     const file = await ctx.db.get(fileId);
-    if (file === null || file.eventId !== eventId) throw new Error("File not found");
+    if (file === null || file.eventId !== eventId)
+      throw new Error("File not found");
     await ctx.storage.delete(file.storageId);
     await ctx.db.delete(fileId);
   },

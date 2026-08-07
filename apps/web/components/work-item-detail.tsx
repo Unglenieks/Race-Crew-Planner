@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   itineraryApi,
+  filesApi,
   recordsApi,
   workApi,
   type EventRole,
@@ -70,6 +71,7 @@ export function WorkItemDetail({
   const records = useQuery(recordsApi.list, { eventId });
   const movements = useQuery(itineraryApi.list, { eventId });
   const comments = useQuery(workApi.listComments, { eventId, itemId });
+  const files = useQuery(filesApi.list, { eventId });
   const update = useMutation(workApi.update);
   const setCompletion = useMutation(workApi.setCompletion);
   const addComment = useMutation(workApi.addComment);
@@ -95,7 +97,8 @@ export function WorkItemDetail({
     assignees === undefined ||
     records === undefined ||
     movements === undefined ||
-    comments === undefined
+    comments === undefined ||
+    files === undefined
   ) {
     return (
       <p className="flex items-center text-sm text-muted" role="status">
@@ -240,6 +243,35 @@ export function WorkItemDetail({
             )}
             {item.status === "completed" ? "Reopen work item" : "Mark complete"}
           </Button>
+          {files.filter((file) => file.workItemId === itemId).length ===
+          0 ? null : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Evidence</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="grid gap-2 text-sm">
+                  {files
+                    .filter((file) => file.workItemId === itemId)
+                    .map((file) => (
+                      <li key={file._id}>
+                        <a
+                          className="underline"
+                          href={file.url ?? undefined}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {file.name}
+                        </a>{" "}
+                        <span className="text-muted">
+                          uploaded {dateTime(file.createdAt)}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
           {canManage && currentDraft !== null ? (
             <form className="grid gap-4" onSubmit={save}>
               <label className="grid gap-1.5 text-sm font-medium text-ink">

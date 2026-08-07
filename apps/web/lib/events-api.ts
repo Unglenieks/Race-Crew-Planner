@@ -211,6 +211,8 @@ export type EventSource = {
 export type EventFile = {
   _id: string;
   recordId?: string;
+  workItemId?: string;
+  itineraryItemId?: string;
   name: string;
   contentType: string;
   size: number;
@@ -444,7 +446,14 @@ export const filesApi = {
   >("files:generateUploadUrl"),
   save: makeFunctionReference<
     "mutation",
-    { eventId: string; recordId?: string; storageId: string; name: string },
+    {
+      eventId: string;
+      recordId?: string;
+      workItemId?: string;
+      itineraryItemId?: string;
+      storageId: string;
+      name: string;
+    },
     string
   >("files:save"),
   list: makeFunctionReference<"query", { eventId: string }, EventFile[]>(
