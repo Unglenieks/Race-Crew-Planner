@@ -9,7 +9,7 @@
     "lint": "pnpm --filter @race-planner/web lint",
     "typecheck": "pnpm --filter @race-planner/web typecheck",
     "test": "pnpm --filter @race-planner/web test && vitest run tests/convex",
-    "format:check": "pnpm --filter @race-planner/web format:check",
+    "format:check": "pnpm --filter @race-planner/web exec prettier --check . ../../convex ../../tests ../../scripts",
     "convex:typecheck": "tsc --noEmit --project convex/tsconfig.json",
     "convex:codegen": "convex codegen --typecheck enable",
     "convex:deploy": "convex deploy -y --typecheck enable",

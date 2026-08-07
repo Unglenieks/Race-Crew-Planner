@@ -74,10 +74,14 @@ function fieldKey(label: string) {
   return key;
 }
 
-function validatedFieldOptions(type: (typeof recordFieldTypes)[number], options?: string[]) {
+function validatedFieldOptions(
+  type: (typeof recordFieldTypes)[number],
+  options?: string[],
+) {
   if (type === "text") return undefined;
-  const normalized = [...new Set((options ?? []).map((option) => option.trim()))]
-    .filter(Boolean);
+  const normalized = [
+    ...new Set((options ?? []).map((option) => option.trim())),
+  ].filter(Boolean);
   if (normalized.length === 0 || normalized.length > 20)
     throw new Error("A select field needs between 1 and 20 options");
   if (normalized.some((option) => option.length > 80))
@@ -270,7 +274,8 @@ export const createField = mutation({
         q.eq("eventId", args.eventId).eq("key", key),
       )
       .unique();
-    if (existing !== null) throw new Error("A field with this name already exists");
+    if (existing !== null)
+      throw new Error("A field with this name already exists");
     const fields = await ctx.db
       .query("eventRecordFields")
       .withIndex("by_eventId", (q) => q.eq("eventId", args.eventId))
@@ -299,7 +304,8 @@ export const updateField = mutation({
   handler: async (ctx, args) => {
     await manager(ctx, args.eventId);
     const field = await ctx.db.get(args.fieldId);
-    if (field === null || field.eventId !== args.eventId) throw new Error("Field not found");
+    if (field === null || field.eventId !== args.eventId)
+      throw new Error("Field not found");
     await ctx.db.patch(args.fieldId, {
       label: requiredText(args.label, 80, "Field label"),
       options: validatedFieldOptions(field.type, args.options),
@@ -309,7 +315,10 @@ export const updateField = mutation({
 });
 
 export const reorderFields = mutation({
-  args: { eventId: v.id("events"), fieldIds: v.array(v.id("eventRecordFields")) },
+  args: {
+    eventId: v.id("events"),
+    fieldIds: v.array(v.id("eventRecordFields")),
+  },
   handler: async (ctx, args) => {
     await manager(ctx, args.eventId);
     const fields = await ctx.db
@@ -541,7 +550,10 @@ export const restoreType = mutation({
     if (type === null || type.eventId !== args.eventId)
       throw new Error("Record type not found");
     if (type.archivedAt !== undefined)
-      await ctx.db.patch(args.typeId, { archivedAt: undefined, updatedAt: Date.now() });
+      await ctx.db.patch(args.typeId, {
+        archivedAt: undefined,
+        updatedAt: Date.now(),
+      });
   },
 });
 
@@ -582,7 +594,10 @@ export const archiveCategory = mutation({
     if (category === null || category.eventId !== args.eventId)
       throw new Error("Category not found");
     if (category.archivedAt === undefined)
-      await ctx.db.patch(args.categoryId, { archivedAt: Date.now(), updatedAt: Date.now() });
+      await ctx.db.patch(args.categoryId, {
+        archivedAt: Date.now(),
+        updatedAt: Date.now(),
+      });
   },
 });
 export const restoreCategory = mutation({
@@ -593,7 +608,10 @@ export const restoreCategory = mutation({
     if (category === null || category.eventId !== args.eventId)
       throw new Error("Category not found");
     if (category.archivedAt !== undefined)
-      await ctx.db.patch(args.categoryId, { archivedAt: undefined, updatedAt: Date.now() });
+      await ctx.db.patch(args.categoryId, {
+        archivedAt: undefined,
+        updatedAt: Date.now(),
+      });
   },
 });
 export const assignCategory = mutation({

@@ -1,8 +1,8 @@
 # Race Crew Planner
 
-Race Crew Planner is software for planning and coordinating race crews. It is
-being established as a TypeScript, Next.js, shadcn/ui, Clerk, PostHog, and
-self-hosted Convex application.
+Race Crew Planner is a TypeScript application for planning and coordinating race
+crews. It uses Next.js, local shadcn/ui components, Clerk, consented PostHog,
+and self-hosted Convex.
 
 ## Hosted service and self-hosting
 
@@ -37,15 +37,24 @@ domains, accounts, data, and operational responsibility.
 - [Delivery and PR policy](docs/delivery.md) — branch promotion, checks, review, and merging.
 - [HTML reference material](docs/html/) — the supplied UX/demo material and project scaffold visual.
 
-## Current bootstrap status
+## Current application status
 
-The repository structure and operating rules are in place. The application dependencies and external environment resources are intentionally not provisioned by this bootstrap: they must be created through reviewed PRs using the plans above.
+The workspace includes event membership and roles, movement planning and change
+acknowledgements, work checklists, records and venues, versioned forms, file
+evidence, a sample first-run event, archive/restore for events, and printable
+or CSV plan briefs. The offline package deliberately supports only explicitly
+queued work-completion changes; it does not make a fresh browser load available
+without a connection.
 
-## Local setup (once the foundation PR is merged)
+Read the [product plan](docs/product-plan.md) for the verified capability list,
+current limitations, and the remaining delivery order. Environment provisioning
+and production readiness still follow the reviewed runbooks in `docs/`.
+
+## Local setup
 
 ```bash
 corepack enable
-pnpm install
+pnpm install --frozen-lockfile
 pnpm --filter @race-planner/web dev
 ```
 

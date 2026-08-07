@@ -87,7 +87,8 @@ const owner: ApplicationRole = "owner";
 
 describe("Convex authorization helpers", () => {
   it("captures only the caller's active, filtered plan snapshot for export", async () => {
-    const inserts: Array<{ table: string; value: Record<string, unknown> }> = [];
+    const inserts: Array<{ table: string; value: Record<string, unknown> }> =
+      [];
     let queryCount = 0;
     await createPlanExport._handler(
       {

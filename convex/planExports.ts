@@ -72,7 +72,9 @@ async function currentItems(
 ) {
   const items = await ctx.db
     .query("itineraryItems")
-    .withIndex("by_eventId_scheduledFor", (index) => index.eq("eventId", eventId))
+    .withIndex("by_eventId_scheduledFor", (index) =>
+      index.eq("eventId", eventId),
+    )
     .collect();
   return items
     .filter(
@@ -103,7 +105,13 @@ export const create = mutation({
       generatedAt,
       generatedBy: identity.subject,
     });
-    return { _id: exportId, filterDay, timeZone: event.timeZone, items, generatedAt };
+    return {
+      _id: exportId,
+      filterDay,
+      timeZone: event.timeZone,
+      items,
+      generatedAt,
+    };
   },
 });
 
@@ -114,7 +122,9 @@ export const list = query({
     await requireEventMembership(ctx, eventId);
     const exports = await ctx.db
       .query("planExports")
-      .withIndex("by_eventId_generatedAt", (index) => index.eq("eventId", eventId))
+      .withIndex("by_eventId_generatedAt", (index) =>
+        index.eq("eventId", eventId),
+      )
       .collect();
     return await Promise.all(
       exports.reverse().map(async (record) => ({

@@ -175,7 +175,10 @@ export const restore = mutation({
     if (template === null || template.eventId !== eventId)
       throw new Error("Template not found");
     if (template.archivedAt !== undefined)
-      await ctx.db.patch(templateId, { archivedAt: undefined, updatedAt: Date.now() });
+      await ctx.db.patch(templateId, {
+        archivedAt: undefined,
+        updatedAt: Date.now(),
+      });
   },
 });
 

@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { EventWorkspaceProvider } from "@/components/workspace/event-workspace";
 import { OfflineSync } from "@/components/offline-sync";
+import { MobileWorkspaceNavigation } from "@/components/workspace/mobile-workspace-navigation";
 import { WorkspaceTopbar } from "@/components/workspace/workspace-topbar";
 import { eventsApi, invitationsApi } from "@/lib/events-api";
 import { findScreenByPath, roleSatisfies } from "@/lib/screens";
@@ -125,10 +126,11 @@ function ConnectedShell({
         </a>
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
+          <MobileWorkspaceNavigation />
           {screen === null ? null : <WorkspaceTopbar screen={screen} />}
           <main
             id="workspace-content"
-            className="mx-auto w-full max-w-[1220px] flex-1 px-7 py-7 pb-24"
+            className="mx-auto w-full max-w-[1220px] flex-1 px-4 py-5 pb-24 sm:px-7 sm:py-7"
           >
             {screen !== null && !roleSatisfies(event.role, screen.minRole) ? (
               <Card>

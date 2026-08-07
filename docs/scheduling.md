@@ -14,6 +14,15 @@ job, not product behaviour. After a development deployment, inspect that row
 in the Convex dashboard and confirm `lastRanAt` advances. The cron registration
 and execution history are also visible in the Convex dashboard.
 
+The `expire archived events after retention window` cron runs daily at 03:00
+UTC. It invokes the internal `events.expireArchived` handler, which deletes an
+event only after its 30-day archive window and removes that event's protected
+rows and files. After deploying the integration candidate to development,
+inspect the cron registration and one successful execution before treating event
+retention as operationally proven. Do not manufacture an expired event in a
+shared environment merely to test it; use an isolated non-production fixture or
+the Convex execution tools with reviewed test data.
+
 Do not catch and hide scheduled-job failures. Let Convex record the failure in
 its logs/execution history; operators investigate there, correct the job or its
 configuration, redeploy, and verify that the heartbeat (or the affected job)

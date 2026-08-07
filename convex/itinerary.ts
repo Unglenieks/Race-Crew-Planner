@@ -33,7 +33,7 @@ type ItineraryInput = {
   scheduledFor: string;
   location?: string;
   notes?: string;
-  sectionId?: any;
+  sectionId?: Id<"planSections">;
   timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
 };
 

@@ -210,10 +210,7 @@ const eventTables = [
 
 const retentionWindowMs = 30 * 24 * 60 * 60 * 1000;
 
-async function deleteEventRows(
-  ctx: MutationCtx,
-  eventId: Id<"events">,
-) {
+async function deleteEventRows(ctx: MutationCtx, eventId: Id<"events">) {
   const files = await ctx.db
     .query("eventFiles")
     .filter((q) => q.eq(q.field("eventId"), eventId))
@@ -239,7 +236,8 @@ export const removeSample = mutation({
   handler: async (ctx, { eventId }) => {
     const identity = await requireIdentity(ctx);
     const event = await ctx.db.get(eventId);
-    if (event === null || !event.isSample) throw new Error("Sample event not found");
+    if (event === null || !event.isSample)
+      throw new Error("Sample event not found");
     if (event.createdBy !== identity.subject) throw new Error("Forbidden");
     const membership = await ctx.db
       .query("eventMemberships")
@@ -311,10 +309,7 @@ export const listArchived = query({
   },
 });
 
-async function requireOwnedEvent(
-  ctx: MutationCtx,
-  eventId: Id<"events">,
-) {
+async function requireOwnedEvent(ctx: MutationCtx, eventId: Id<"events">) {
   const identity = await requireIdentity(ctx);
   const membership = await ctx.db
     .query("eventMemberships")

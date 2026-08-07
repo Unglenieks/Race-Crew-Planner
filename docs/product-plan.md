@@ -27,9 +27,10 @@ movement plan with sections and publish/acknowledge delivery tracking, work
 checklists with templates and item detail, records directory with configurable
 types, categories, venue detail and travel context, versioned forms with
 structured field validation, activity and comments with text sources, people and
-permissions, print export, and an online/offline status badge.
+permissions, file evidence, print and CSV export, event archive/restore, and a
+bounded browser-backed offline package with queued work completion.
 
-21 Convex tables. 18 workspace routes. 13 registry screens.
+26 Convex tables. 20 workspace routes. 14 registry screens.
 
 ## Prerequisites — build these first
 
@@ -38,29 +39,29 @@ avoids three ad-hoc versions.
 
 ### P1 · Component test infrastructure
 
-**Why first.** There is no jsdom or React Testing Library setup, so none of the
-~3,000 lines of workspace React has a component test. The three worst defects
-found reviewing the integration branch were all component-level and none were
-reachable by the current suite: a form handler that reported failure after a
-successful write, a builder that could publish one template's schema onto
-another, and a success banner used for error messages.
+**Current state.** jsdom and React Testing Library are configured and run in
+CI. The suite covers representative mutation failure, role-gating, first-run,
+file upload, export, responsive navigation, and offline-conflict interactions.
+The largest screens still need coverage whenever their workflows change; a
+passing infrastructure check is not a substitute for a user-flow test.
 
 **Scope.** Add jsdom and RTL, one example test per interaction pattern already
 in the codebase (form submit, mutation error banner, role-gated control), and a
 short convention note.
 
-**Not in scope.** Backfilling coverage for every existing component. Establish
-the harness; backfill arrives with each slice below.
+**Not in scope.** Backfilling coverage for every existing component in one
+formatting-only sweep. New or changed interactions add their own regression
+coverage.
 
-**Exit criteria.** A failing component test blocks CI. Every slice below adds
-component tests for its own screens.
+**Exit criteria.** A failing component test blocks CI. **Code complete;** every
+subsequent interaction change adds its own coverage.
 
 ### P2 · Scheduler primitive
 
-**Current state.** `convex/crons.ts` registers an internal heartbeat proving job
-and `docs/scheduling.md` defines the recurring/deferred work convention.
-Retention expiry (S5) and change escalation (S8) still need their own jobs, but
-they now share this reviewed boundary rather than inventing one.
+**Current state.** `convex/crons.ts` registers an internal heartbeat and the
+daily event-retention expiry job. `docs/scheduling.md` defines the
+recurring/deferred work convention. Change escalation (S8) still needs its own
+job, but it now shares this reviewed boundary rather than inventing one.
 
 **Scope.** One reviewed pattern for scheduled and deferred Convex work:
 where cron definitions live, how a scheduled function proves authorization
@@ -126,108 +127,74 @@ PR.**
 **Tier.** Build first for navigation presence (§02 lists Files in primary
 navigation); the capture surface itself spans Build first and Build next.
 
-**Current state.** Convex file storage is not used at all: no `ctx.storage`, no
-upload path, no attachment table, no file input. The only related feature is
-`eventSources`, which stores a title, an optional URL, and a text excerpt.
+**Current state.** The files library uses Convex storage and an `eventFiles`
+table. Members can upload an event, record, work-item, or movement attachment;
+managers and owners can remove one, and all members can retrieve authorized
+files. The UI accepts PDF, image, and text files up to 10 MB and keeps failed
+uploads visibly failed.
 
-**This slice needs a reviewed storage design before implementation.** It must not
-imply that uploads or offline writes are safe until queuing and conflict
-handling exist (see S4). Specifically, the design has to settle: where binaries
-live and whether Convex file storage or the already-documented object storage is
-authoritative; size and type limits; who may read an attachment, given that
-authorization is a Convex concern; what happens to attachments when their parent
-record is archived (S5); and whether file text is searchable, since §02 says
-search covers file text.
+**Not in scope.** Offline upload, full-text extraction, search across file
+contents, and replacing Convex storage with another object-storage authority.
+The offline package deliberately excludes signed URLs and files.
 
-Note that infrastructure for this is already _documented but unused_:
-`docs/railway.md` provisions an `rcp-files` service and defines
-`S3_STORAGE_FILES_BUCKET` and siblings. The design should reconcile with what is
-already described rather than start clean.
+**Remaining design decision.** `docs/railway.md` still describes an `rcp-files`
+object-storage service. Keep Convex storage authoritative unless a new reviewed
+decision demonstrates a need to migrate; do not introduce a second source of
+truth by accident.
 
-**Scope after that design lands.** Attach files and photos to events and
-records, alongside the existing link and excerpt sources; a library view; and
-capture states that tell the truth about whether an upload has completed.
-
-**Not in scope.** Offline capture and queued upload. That is S4, and until it
-exists the UI must not suggest a capture will survive a lost connection. The
-spec is explicit that "evidence is usually captured once, in conditions that
-cannot be recreated", which is exactly why an honest failure state matters more
-than an optimistic one.
-
-**Prerequisites.** P1, and its own storage design decision recorded under
-`docs/decisions/`.
-
-**Exit criteria.** A file can be attached, listed, and retrieved with
-authorization enforced in Convex; a failed upload is reported as failed and
-never as stored.
+**Exit criteria.** **Basic library code complete.** Any expansion must preserve
+Convex-side authorization and state honestly whether the upload finished.
 
 ### S4 · Offline manager
 
-**Tier.** Build first for _offline status_, which already exists. The manager
-itself is the unbuilt part.
+**Current state, and an important distinction.** The status badge is done, and
+the Offline manager now stores an event plan/checklist package in IndexedDB.
+Work completions survive a reload, replay in order with a server-side idempotency
+key, expose last successful sync, and show the operator the current server state
+when a replay needs a decision. Storage read/write failures are visible rather
+than reported as success.
 
-**Current state, and an important distinction.** The status badge is done
-(`apps/web/components/connection-status.tsx`). Nothing else from §11 exists: no
-service worker, no manifest, no `apps/web/public/`, no IndexedDB, no queued
-change store, no conflict comparison, no last-sync time, no package size.
+**Current limitation.** There is no service worker, manifest, or offline page
+shell. A saved package is not an installable or launchable offline application;
+the browser still needs a connection for a fresh app load. Files and all changes
+other than explicit work completion remain online-only.
 
-**There is a deliberate tripwire here.** `apps/web/lib/connectivity.ts`
-currently tells the user that changes "cannot be saved or queued", and
-`connectivity.test.ts` locks that promise in with a test named "does not
-describe an unavailable connection as queued or synchronized". Any queueing work
-must consciously retire that test. Do not weaken the message before the
-behaviour is real — Guardrail F requires "offline ready" to reflect verified
-state.
-
-**This slice needs a reviewed caching and queuing design before
-implementation**, covering: what is downloaded and how a package is scoped;
-where queued writes are stored and how they survive a reload; how conflicts are
-detected and presented, given that the spec requires showing "Record changed or
-archived by someone else"; ordering guarantees for a replayed queue against
-Convex mutations; and how storage exhaustion is reported.
-
-**Scope after that design lands.** Offline manager screen, download packages,
-queued change count and inspection, conflict resolution, and last successful
-sync — all surfaced in the shell on every screen size as §02 requires.
+**Scope next.** Decide whether the product needs a real offline application:
+which pages and assets are cached, how a package opens without a network, queue
+support beyond work completion, storage exhaustion recovery, and conflict
+comparison for each mutation type.
 
 **Not in scope.** Reaching a person with no connection at all. That is spec open
 question 01 and is unresolved; it may be a pre-departure briefing checkpoint or
 accepted voice fallback.
 
-**Prerequisites.** P1, its own caching/queuing design decision, and S3 if
-offline evidence capture is in the first cut.
-
-**Exit criteria.** A queued change survives a reload, replays in order, and a
-conflict is shown with both versions. The shell reports real queue depth and a
-real last-sync time.
+**Exit criteria.** The implemented queue is safe and truthful. A full offline
+experience remains blocked on its own reviewed caching/queuing design.
 
 ### S5 · Archive, restore, retention, and permanent deletion
 
 **Tier.** Build next, but it is a prerequisite for honest behaviour in S1 and S3,
 so it should not slip far.
 
-**Current state — this is less generalization and more first-time build.**
-Archive support today is per-screen and inconsistent:
+**Current state — event lifecycle is implemented; general lifecycle is not.**
+An owner can archive an event, restore it during a 30-day window, or permanently
+delete it after acknowledging the impact. A daily internal Convex job expires
+events after that window. The scheduler still needs development-deployment proof
+before this is considered operationally complete. Other archive support remains
+per-screen and inconsistent:
 
 | Entity                  | `archivedAt` | Archive                                  | Restore                                  |
 | ----------------------- | ------------ | ---------------------------------------- | ---------------------------------------- |
-| `itineraryItems`        | yes          | yes                                      | **yes — the only restore in the system** |
-| `eventRecordTypes`      | yes          | yes                                      | no                                       |
-| `eventRecordCategories` | yes          | only as a side effect of `mergeCategory` | no                                       |
-| `workTemplates`         | yes          | yes                                      | no                                       |
-| the other 17 tables     | no           | no                                       | no                                       |
+| `events`                | yes          | yes                                      | yes — 30-day retention                  |
+| `itineraryItems`        | yes          | yes                                      | yes                                      |
+| `eventRecordTypes`      | yes          | yes                                      | yes                                      |
+| `eventRecordCategories` | yes          | yes                                      | yes                                      |
+| `workTemplates`         | yes          | yes                                      | yes                                      |
+| most other tables       | no           | no                                       | no                                       |
 
-Also: `events` has no `archivedAt` at all, though the spec requires archiving an
-event with a 30-day restore window. The word "retention" appears zero times in
-`convex/` or `apps/web/` — the retention window is currently fiction. And there
-is no permanent-delete mutation for any primary entity; the only two
-`ctx.db.delete` calls in the codebase act on a membership row and a join row.
-
-**Scope.** A generalized archive registry that the other slices consume rather
-than reimplementing per screen: consistent `archivedAt` semantics, restore for
-everything archivable, a real retention window with scheduled expiry, impact
-disclosures for irreversible actions as Guardrail A requires, and owner-only
-permanent deletion.
+**Scope.** Generalize the remaining per-screen archive behaviour: consistent
+`archivedAt` semantics, impact disclosures for irreversible actions, and a
+clear retention/deletion policy for each primary entity.
 
 **Not in scope.** Inventing per-screen archive behaviour. Existing per-entity
 archive paths should be migrated onto the registry, and `mergeCategory`'s
@@ -236,10 +203,9 @@ side-effect archive replaced with a standalone one.
 **Prerequisites.** P1, P2 for retention expiry. S3 must define what archiving a
 record does to its attachments.
 
-**Exit criteria.** Every archivable entity archives and restores through one
-path; the retention window is enforced by a scheduled job rather than described
-in copy; permanent deletion states which records, users, and views are affected
-and is owner-gated.
+**Exit criteria.** Every intended archivable entity uses a documented path; the
+event retention job has been observed in development; permanent deletion states
+which records, users, and views are affected and is owner-gated.
 
 ### S6 · Richer form field types and conditional logic
 
@@ -310,17 +276,15 @@ schedule, and the product never claims to have notified someone it has not.
 
 Small, independent, and safe to interleave.
 
-- `pnpm format:check` covers only `apps/web`; `convex/` and `tests/` have no
-  formatting gate.
 - `records.mergeCategory` is correct but has no UI. Either surface it or remove
   it — an unreachable mutation is dead surface.
 - `eventRecords.latitude` and `longitude` are validated and safe but have no UI
   and no writer.
-- `apps/web/README.md` still says PostHog is deferred; analytics is wired.
 - Reopening a completed work item resets it to `open`, because the previous
   status is not stored. Either store it or accept and document the behaviour.
-- Integration branch PRs #41–#47 are all ancestors of the integration branch and
-  should be closed with a pointer to it. #45 targets #43's branch.
+- Historical PRs #41–#62 are ancestors of the integration candidate and should
+  be closed with a pointer to the merged integration PR rather than merged one
+  by one.
 
 ## Deliberately not planned
 

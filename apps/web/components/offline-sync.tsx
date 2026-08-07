@@ -16,41 +16,70 @@ export function OfflineSync({ eventId }: { eventId: string }) {
   const replayCompletion = useMutation(workApi.setCompletionOffline);
   const [lastSuccessfulSyncAt, setLastSuccessfulSyncAt] = useState<number>();
   useEffect(() => {
-    void getOfflinePackage(eventId).then((value) =>
-      setLastSuccessfulSyncAt(value?.lastSuccessfulSyncAt),
-    );
+    let cancelled = false;
+    void getOfflinePackage(eventId)
+      .then((value) => {
+        if (!cancelled) setLastSuccessfulSyncAt(value?.lastSuccessfulSyncAt);
+      })
+      .catch(() => undefined);
+
     async function replay() {
       if (!navigator.onLine) return;
-      for (const change of await listQueuedChanges(eventId)) {
+      let changes;
+      try {
+        changes = await listQueuedChanges(eventId);
+      } catch {
+        return;
+      }
+
+      for (const change of changes) {
         if (change.status === "needsResolution") continue;
-        await updateQueuedChange({
-          ...change,
-          status: "syncing",
-          error: undefined,
-        });
         try {
+          await updateQueuedChange({
+            ...change,
+            status: "syncing",
+            error: undefined,
+          });
           await replayCompletion({
             eventId,
             operationId: change.id,
             ...change.payload,
           });
           await removeQueuedChange(change.id);
-          const synced = await markSuccessfulSync(eventId);
-          setLastSuccessfulSyncAt(synced?.lastSuccessfulSyncAt);
         } catch {
-          await updateQueuedChange({
-            ...change,
-            status: "needsResolution",
-            error:
-              "The work item changed or access was lost. Open Offline manager to review it.",
-          });
+          try {
+            await updateQueuedChange({
+              ...change,
+              status: navigator.onLine ? "needsResolution" : "queued",
+              error: navigator.onLine
+                ? "The work item changed or access was lost. Open Offline manager to review it."
+                : "Still offline. This request will retry when the connection returns.",
+            });
+          } catch {
+            return;
+          }
+          continue;
+        }
+
+        try {
+          const synced = await markSuccessfulSync(eventId);
+          if (!cancelled) {
+            setLastSuccessfulSyncAt(synced?.lastSuccessfulSyncAt);
+          }
+        } catch {
+          // The replay already succeeded and its queue row is gone. Do not
+          // recreate it merely because this browser cannot save a timestamp.
+          continue;
         }
       }
     }
     const onOnline = () => void replay();
     void replay();
     window.addEventListener("online", onOnline);
-    return () => window.removeEventListener("online", onOnline);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("online", onOnline);
+    };
   }, [eventId, replayCompletion]);
   if (lastSuccessfulSyncAt === undefined) return null;
   return (
