@@ -70,10 +70,105 @@ import {
 } from "../../convex/forms";
 import { safeUrl, text } from "../../convex/activity";
 import { recordHeartbeat } from "../../convex/scheduler";
+import { remove as removeFile, save as saveFile } from "../../convex/files";
 
 const owner: ApplicationRole = "owner";
 
 describe("Convex authorization helpers", () => {
+  it("stores only an allowed uploaded file against a record in the same event", async () => {
+    const inserts: Array<{ table: string; value: Record<string, unknown> }> = [];
+    await saveFile._handler(
+      {
+        auth: {
+          getUserIdentity: async () => ({
+            tokenIdentifier: "issuer|crew",
+            subject: "crew",
+            issuer: "issuer",
+          }),
+        },
+        db: {
+          query: () => ({
+            withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+          }),
+          get: async () => ({ eventId: "events:one" }),
+          system: {
+            get: async () => ({ contentType: "image/jpeg", size: 1024 }),
+          },
+          insert: async (table: string, value: Record<string, unknown>) => {
+            inserts.push({ table, value });
+            return "eventFiles:one";
+          },
+        },
+      } as never,
+      {
+        eventId: "events:one" as never,
+        recordId: "eventRecords:one" as never,
+        storageId: "_storage:one" as never,
+        name: "service-park.jpg",
+      },
+    );
+    expect(inserts).toEqual([
+      {
+        table: "eventFiles",
+        value: expect.objectContaining({
+          eventId: "events:one",
+          recordId: "eventRecords:one",
+          contentType: "image/jpeg",
+          size: 1024,
+          uploadedBy: "crew",
+        }),
+      },
+    ]);
+  });
+
+  it("rejects a file from another event and limits removal to managers", async () => {
+    await expect(
+      saveFile._handler(
+        {
+          auth: {
+            getUserIdentity: async () => ({
+              tokenIdentifier: "issuer|crew",
+              subject: "crew",
+              issuer: "issuer",
+            }),
+          },
+          db: {
+            query: () => ({
+              withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+            }),
+            get: async () => ({ eventId: "events:other" }),
+          },
+        } as never,
+        {
+          eventId: "events:one" as never,
+          recordId: "eventRecords:other" as never,
+          storageId: "_storage:one" as never,
+          name: "evidence.pdf",
+        },
+      ),
+    ).rejects.toThrow("Record not found");
+
+    await expect(
+      removeFile._handler(
+        {
+          auth: {
+            getUserIdentity: async () => ({
+              tokenIdentifier: "issuer|crew",
+              subject: "crew",
+              issuer: "issuer",
+            }),
+          },
+          db: {
+            query: () => ({
+              withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+            }),
+          },
+        } as never,
+        { eventId: "events:one" as never, fileId: "eventFiles:one" as never },
+      ),
+    ).rejects.toThrow("Forbidden");
+  });
+
   it("creates a representative, owner-owned sample event", async () => {
     const inserts: Array<{ table: string; value: Record<string, unknown> }> = [];
     const eventId = await createSample._handler(

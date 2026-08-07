@@ -2,6 +2,7 @@ import {
   BellRing,
   ClipboardList,
   FileText,
+  FolderOpen,
   LayoutDashboard,
   ListTree,
   MapPin,
@@ -35,6 +36,7 @@ export type ScreenId =
   | "work"
   | "work-templates"
   | "records"
+  | "files"
   | "forms"
   | "activity"
   | "people";
@@ -147,6 +149,15 @@ export const screens: ScreenDefinition[] = [
     minRole: "crew",
   },
   {
+    id: "files",
+    segment: "files",
+    label: "Files & sources",
+    shortLabel: "Files",
+    description: "Attach and retrieve event evidence and record files.",
+    icon: FolderOpen,
+    minRole: "crew",
+  },
+  {
     id: "forms",
     segment: "forms",
     label: "Forms & inspections",
@@ -191,7 +202,7 @@ export const screenGroups: ScreenGroup[] = [
     label: "Work",
     screenIds: ["work", "work-templates"],
   },
-  { label: "Records", screenIds: ["records"] },
+  { label: "Records", screenIds: ["records", "files"] },
   { label: "Forms", screenIds: ["forms"] },
   { label: "Trust & setup", screenIds: ["activity", "people"] },
 ];

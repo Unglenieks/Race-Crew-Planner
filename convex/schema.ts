@@ -105,6 +105,22 @@ export default defineSchema({
   })
     .index("by_eventId", ["eventId"])
     .index("by_eventId_name", ["eventId", "name"]),
+  /**
+   * Evidence binaries live in Convex storage; this table holds only the
+   * authorized event/record relationship and safe display metadata.
+   */
+  eventFiles: defineTable({
+    eventId: v.id("events"),
+    recordId: v.optional(v.id("eventRecords")),
+    storageId: v.id("_storage"),
+    name: v.string(),
+    contentType: v.string(),
+    size: v.number(),
+    uploadedBy: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_eventId_createdAt", ["eventId", "createdAt"])
+    .index("by_eventId_recordId", ["eventId", "recordId"]),
   eventRecordFields: defineTable({
     eventId: v.id("events"),
     /** Stable key means renaming a field never loses its existing values. */
