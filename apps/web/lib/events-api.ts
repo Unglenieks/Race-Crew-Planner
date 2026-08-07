@@ -101,6 +101,7 @@ export type WorkItem = {
   assigneeId?: string;
   recordId?: string;
   itineraryItemId?: string;
+  updatedAt: number;
 };
 
 export type WorkItemComment = {
@@ -542,6 +543,7 @@ export const workApi = {
       itemId: string;
       completed: boolean;
       operationId: string;
+      expectedUpdatedAt: number;
     },
     { replayed: boolean }
   >("work:setCompletionOffline"),

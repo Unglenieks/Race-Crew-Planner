@@ -151,7 +151,12 @@ export function WorkChecklist({
         await queueWorkCompletion({
           eventId,
           label: `${completed ? "Complete" : "Reopen"} ${item.title}`,
-          payload: { itemId: item._id, completed },
+          payload: {
+            itemId: item._id,
+            completed,
+            expectedUpdatedAt: item.updatedAt,
+            serverStatusAtQueue: item.status,
+          },
         });
         setUndoCompletion({ item, completed });
         return true;
