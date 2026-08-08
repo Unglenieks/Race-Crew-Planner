@@ -10,7 +10,11 @@ import {
 import { requireIdentity, requireRole } from "./auth";
 import { resolveUserProfile, syncIdentityProfile } from "./userProfiles";
 
-const invitationRole = v.union(v.literal("manager"), v.literal("crew"));
+const invitationRole = v.union(
+  v.literal("manager"),
+  v.literal("crew"),
+  v.literal("spectator"),
+);
 
 function normalizedEmail(email: string) {
   const value = email.trim().toLowerCase();
@@ -189,11 +193,19 @@ export const removeMember = mutation({
   },
 });
 
-/** Returns active people and pending email invitations only to the event owner. */
+/** Returns the crew roster to crew members; only owners see pending invitations. */
 export const listContacts = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
-    await requireOwner(ctx, eventId);
+    const identity = await requireIdentity(ctx);
+    const caller = await ctx.db
+      .query("eventMemberships")
+      .withIndex("by_eventId_userId", (index) =>
+        index.eq("eventId", eventId).eq("userId", identity.subject),
+      )
+      .unique();
+    if (caller === null || caller.role === "spectator")
+      throw new Error("Forbidden");
     const memberships = await ctx.db
       .query("eventMemberships")
       .withIndex("by_eventId_userId", (index) => index.eq("eventId", eventId))
@@ -213,6 +225,7 @@ export const listContacts = query({
         };
       }),
     );
+    if (caller.role !== "owner" && caller.role !== "manager") return people;
     const invitations = await ctx.db
       .query("eventInvitations")
       .withIndex("by_eventId", (index) => index.eq("eventId", eventId))

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   defaultScreenId,
+  canAccessScreen,
   findScreenByPath,
   getScreen,
   roleSatisfies,
@@ -79,11 +80,14 @@ describe("screen registry", () => {
     }
   });
 
-  it("places every screen in exactly one navigation group", () => {
+  it("places every primary screen in exactly one navigation group", () => {
     const grouped = screenGroups.flatMap((group) => group.screenIds);
 
     expect([...grouped].sort()).toEqual(
-      screens.map((screen) => screen.id).sort(),
+      screens
+        .filter((screen) => !screen.hidden)
+        .map((screen) => screen.id)
+        .sort(),
     );
     expect(new Set(grouped).size).toBe(grouped.length);
   });
@@ -101,16 +105,16 @@ describe("screen registry", () => {
     expect(findScreenByPath("e1", "/events/e2/today")).toBeNull();
   });
 
-  it("keeps restricted navigation out of lower roles", () => {
+  it("keeps crew-only pages out of spectator navigation", () => {
     const crewIds = visibleScreens("crew").map((screen) => screen.id);
-    const ownerIds = visibleScreens("owner").map((screen) => screen.id);
+    const spectatorIds = visibleScreens("spectator").map((screen) => screen.id);
 
-    expect(crewIds).not.toContain("people");
-    expect(crewIds).not.toContain("work-templates");
-    expect(ownerIds).toContain("people");
-    expect(visibleScreens("manager").map((s) => s.id)).toContain(
-      "work-templates",
-    );
+    expect(crewIds).toContain("map");
+    expect(crewIds).toContain("contacts");
+    expect(spectatorIds).toEqual(["today", "event-info", "spectator-info"]);
+    expect(canAccessScreen("spectator", getScreen("map"))).toBe(false);
+    expect(canAccessScreen("spectator", getScreen("schedule"))).toBe(false);
+    expect(canAccessScreen("spectator", getScreen("contacts"))).toBe(false);
   });
 
   it("ranks roles so owners satisfy manager-only screens", () => {
@@ -118,6 +122,7 @@ describe("screen registry", () => {
     expect(roleSatisfies("manager", "manager")).toBe(true);
     expect(roleSatisfies("crew", "manager")).toBe(false);
     expect(roleSatisfies("crew", "crew")).toBe(true);
+    expect(roleSatisfies("spectator", "crew")).toBe(false);
   });
 
   it("lands on a screen every role can open", () => {

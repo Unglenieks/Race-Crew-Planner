@@ -63,7 +63,8 @@ describe("MobileWorkspaceNavigation", () => {
         name: "North Ridge Rally, America/New_York, owner, 1 event. Switch event.",
       }),
     ).toBeTruthy();
-    expect(screen.getByRole("link", { name: /people/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /event info/i })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /people/i })).toBeNull();
     fireEvent.keyDown(document, { key: "Escape" });
 
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());

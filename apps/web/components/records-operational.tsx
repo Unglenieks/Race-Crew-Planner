@@ -60,6 +60,7 @@ export function RecordDetail({ recordId }: { recordId: string }) {
         accessNotes: String(form.get("accessNotes") || "") || undefined,
         hours: String(form.get("hours") || "") || undefined,
         contactDetail: String(form.get("contact") || "") || undefined,
+        spectatorVisible: form.get("spectatorVisible") === "on",
         confirmationStatus: String(form.get("status")) as
           "confirmed" | "unconfirmed",
         confirmationSource: String(form.get("source") || "") || undefined,
@@ -281,6 +282,23 @@ export function RecordDetail({ recordId }: { recordId: string }) {
                     />
                   </label>
                 </div>
+                <label className="flex items-start gap-3 rounded-lg border border-line p-3 text-sm text-ink">
+                  <input
+                    name="spectatorVisible"
+                    type="checkbox"
+                    defaultChecked={record.spectatorVisible === true}
+                    className="mt-1 h-4 w-4 accent-[var(--color-green)]"
+                  />
+                  <span>
+                    <span className="block font-semibold">
+                      Show in spectator info
+                    </span>
+                    <span className="mt-1 block text-muted">
+                      Spectators can see this location, its address, hours, and
+                      navigation link.
+                    </span>
+                  </span>
+                </label>
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className={field}>
                     Confirmation

@@ -24,7 +24,12 @@ export default defineSchema({
   eventMemberships: defineTable({
     eventId: v.id("events"),
     userId: v.string(),
-    role: v.union(v.literal("owner"), v.literal("manager"), v.literal("crew")),
+    role: v.union(
+      v.literal("owner"),
+      v.literal("manager"),
+      v.literal("crew"),
+      v.literal("spectator"),
+    ),
     createdAt: v.number(),
   })
     .index("by_userId", ["userId"])
@@ -40,7 +45,11 @@ export default defineSchema({
   eventInvitations: defineTable({
     eventId: v.id("events"),
     email: v.string(),
-    role: v.union(v.literal("manager"), v.literal("crew")),
+    role: v.union(
+      v.literal("manager"),
+      v.literal("crew"),
+      v.literal("spectator"),
+    ),
     status: v.union(
       v.literal("pending"),
       v.literal("accepted"),
@@ -273,6 +282,8 @@ export default defineSchema({
         ),
       ),
     ),
+    /** Only these location records are returned to spectator-safe map views. */
+    spectatorVisible: v.optional(v.boolean()),
     /** Values for event-configured directory fields, keyed by the stable field key. */
     fieldValues: v.optional(v.record(v.string(), v.string())),
     confirmationStatus: v.optional(

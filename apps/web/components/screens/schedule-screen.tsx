@@ -1,17 +1,18 @@
 "use client";
 
-import { FormsInspections } from "@/components/forms-inspections";
+import { ItineraryPlan } from "@/components/itinerary-plan";
 import { useEventWorkspace } from "@/components/workspace/event-workspace";
 import { WorkspaceScreen } from "@/components/workspace/workspace-screen";
 
-export function FormsScreen() {
+export function ScheduleScreen() {
   const { event, role } = useEventWorkspace();
-
   return (
-    <WorkspaceScreen id="forms">
-      <FormsInspections
+    <WorkspaceScreen id="schedule">
+      <ItineraryPlan
         eventId={event.id}
-        role={role === "spectator" ? "crew" : role}
+        eventName={event.name}
+        timeZone={event.timeZone}
+        role={role}
       />
     </WorkspaceScreen>
   );

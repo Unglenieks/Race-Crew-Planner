@@ -253,7 +253,8 @@ async function requireLogisticsReferences(
 export const list = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
-    await requireEventMembership(ctx, eventId);
+    const { membership } = await requireEventMembership(ctx, eventId);
+    if (membership.role === "spectator") throw new Error("Forbidden");
 
     const items = await ctx.db
       .query("itineraryItems")

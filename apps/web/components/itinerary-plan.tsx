@@ -867,8 +867,13 @@ export function ItineraryPlan({
                           {item.recordId === undefined ? null : (
                             <p className="mt-1 text-xs font-medium text-green-ink">
                               Linked location:{" "}
-                              {recordsById.get(item.recordId)?.name ??
-                                "Unavailable record"}
+                              <Link
+                                className="underline underline-offset-2"
+                                href={`/events/${eventId}/records/${item.recordId}`}
+                              >
+                                {recordsById.get(item.recordId)?.name ??
+                                  "Unavailable record"}
+                              </Link>
                             </p>
                           )}
                           {item.notes === undefined ? null : (

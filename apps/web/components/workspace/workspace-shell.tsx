@@ -15,7 +15,7 @@ import { OfflineSync } from "@/components/offline-sync";
 import { MobileWorkspaceNavigation } from "@/components/workspace/mobile-workspace-navigation";
 import { WorkspaceTopbar } from "@/components/workspace/workspace-topbar";
 import { eventsApi, invitationsApi } from "@/lib/events-api";
-import { findScreenByPath, roleSatisfies } from "@/lib/screens";
+import { canAccessScreen, findScreenByPath } from "@/lib/screens";
 import { claimAuthenticatedInvitations } from "@/lib/invitations-client";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -143,7 +143,7 @@ function ConnectedShell({
             id="workspace-content"
             className="mx-auto w-full max-w-[1220px] flex-1 px-4 py-5 pb-24 sm:px-7 sm:py-7"
           >
-            {screen !== null && !roleSatisfies(event.role, screen.minRole) ? (
+            {screen !== null && !canAccessScreen(event.role, screen) ? (
               <Card>
                 <CardHeader>
                   <CardTitle>You do not have access to this screen</CardTitle>

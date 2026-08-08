@@ -1,6 +1,15 @@
 import { makeFunctionReference } from "convex/server";
 
-export type EventRole = "owner" | "manager" | "crew";
+export type EventRole = "owner" | "manager" | "crew" | "spectator";
+
+export function isCrewChief(role: EventRole) {
+  return role === "owner" || role === "manager";
+}
+
+export function roleLabel(role: EventRole) {
+  if (isCrewChief(role)) return "Crew Chief";
+  return role === "crew" ? "Crew" : "Spectator";
+}
 
 export type EventSummary = {
   id: string;
@@ -89,7 +98,21 @@ export type EventRecord = {
   supportCategories?: Array<
     "fuel" | "grocery" | "parts" | "tire" | "medical" | "towing" | "other"
   >;
+  spectatorVisible?: boolean;
 };
+export type MapLocation = Pick<
+  EventRecord,
+  | "_id"
+  | "name"
+  | "address"
+  | "notes"
+  | "accessNotes"
+  | "hours"
+  | "latitude"
+  | "longitude"
+  | "supportCategories"
+  | "spectatorVisible"
+>;
 export type RecordField = {
   _id: string;
   key: string;
@@ -205,6 +228,17 @@ export type LogisticsOverview = {
     supportCategories: string[];
   }>;
 };
+export type SpectatorEventInfo = {
+  profile: { carNumber?: string; makeModel?: string } | null;
+  legs: Array<{
+    _id: string;
+    name: string;
+    order: number;
+    stageMiles: number;
+    transitMiles: number;
+  }>;
+  weatherForecasts: LogisticsOverview["weatherForecasts"];
+};
 
 export type WorkItem = {
   _id: string;
@@ -233,7 +267,7 @@ export type WorkItemComment = {
 export type WorkAssignee = {
   userId: string;
   name: string;
-  role: "owner" | "manager" | "crew";
+  role: "owner" | "manager" | "crew" | "spectator";
 };
 
 export type WorkTemplateItem = {
@@ -749,6 +783,11 @@ export const logisticsApi = {
     { eventId: string },
     LogisticsOverview
   >("logistics:getOverview"),
+  getSpectatorOverview: makeFunctionReference<
+    "query",
+    { eventId: string },
+    SpectatorEventInfo
+  >("logistics:getSpectatorOverview"),
   saveProfile: makeFunctionReference<
     "mutation",
     {
@@ -872,6 +911,11 @@ export const recordsApi = {
   list: makeFunctionReference<"query", { eventId: string }, EventRecord[]>(
     "records:list",
   ),
+  listMapLocations: makeFunctionReference<
+    "query",
+    { eventId: string },
+    MapLocation[]
+  >("records:listMapLocations"),
   create: makeFunctionReference<
     "mutation",
     {
@@ -883,6 +927,7 @@ export const recordsApi = {
       notes?: string;
       fieldValues?: Record<string, string>;
       supportCategories?: EventRecord["supportCategories"];
+      spectatorVisible?: boolean;
     },
     string
   >("records:create"),
@@ -899,6 +944,7 @@ export const recordsApi = {
       notes?: string;
       fieldValues?: Record<string, string>;
       supportCategories?: EventRecord["supportCategories"];
+      spectatorVisible?: boolean;
     },
     null
   >("records:update"),
@@ -923,6 +969,8 @@ export const recordsApi = {
       accessNotes?: string;
       hours?: string;
       contactDetail?: string;
+      supportCategories?: EventRecord["supportCategories"];
+      spectatorVisible?: boolean;
       confirmationStatus: "unconfirmed" | "confirmed";
       confirmationSource?: string;
     },
@@ -1205,7 +1253,11 @@ export const invitationsApi = {
   >("invitations:revoke"),
   updateMemberRole: makeFunctionReference<
     "mutation",
-    { eventId: string; membershipId: string; role: "manager" | "crew" },
+    {
+      eventId: string;
+      membershipId: string;
+      role: "manager" | "crew" | "spectator";
+    },
     null
   >("invitations:updateMemberRole"),
   removeMember: makeFunctionReference<

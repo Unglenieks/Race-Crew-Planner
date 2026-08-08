@@ -157,7 +157,8 @@ export function calculateFuel(input: {
 export const getOverview = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
-    await member(ctx, eventId);
+    const { membership } = await member(ctx, eventId);
+    if (membership.role === "spectator") throw new Error("Forbidden");
     const [
       profile,
       legs,
@@ -249,6 +250,42 @@ export const getOverview = query({
           address: record.address,
           supportCategories: record.supportCategories ?? [],
         })),
+    };
+  },
+});
+
+/** The only logistics projection that a spectator can request. */
+export const getSpectatorOverview = query({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    const { membership } = await member(ctx, eventId);
+    if (membership.role !== "spectator") throw new Error("Forbidden");
+    const [profile, legs, weatherForecasts] = await Promise.all([
+      ctx.db
+        .query("eventLogisticsProfiles")
+        .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
+        .unique(),
+      ctx.db
+        .query("rallyLegs")
+        .withIndex("by_eventId_order", (q) => q.eq("eventId", eventId))
+        .collect(),
+      ctx.db
+        .query("weatherForecasts")
+        .withIndex("by_eventId_forecastDate", (q) => q.eq("eventId", eventId))
+        .collect(),
+    ]);
+    return {
+      profile: profile
+        ? { carNumber: profile.carNumber, makeModel: profile.makeModel }
+        : null,
+      legs: legs.map((leg) => ({
+        _id: leg._id,
+        name: leg.name,
+        order: leg.order,
+        stageMiles: leg.stageMiles,
+        transitMiles: leg.transitMiles,
+      })),
+      weatherForecasts,
     };
   },
 });

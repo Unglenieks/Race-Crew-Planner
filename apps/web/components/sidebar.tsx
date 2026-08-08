@@ -8,7 +8,7 @@ import { useEventWorkspace } from "@/components/workspace/event-workspace";
 import {
   findScreenByPath,
   getScreen,
-  roleSatisfies,
+  canAccessScreen,
   screenGroups,
   screenHref,
   type ScreenDefinition,
@@ -62,7 +62,7 @@ export function WorkspaceNavigationLinks({
       {screenGroups.map((group) => {
         const groupScreens = group.screenIds
           .map((id) => getScreen(id))
-          .filter((screen) => roleSatisfies(role, screen.minRole));
+          .filter((screen) => canAccessScreen(role, screen));
 
         if (groupScreens.length === 0) return null;
 
@@ -117,7 +117,8 @@ export function Sidebar() {
               {event.name}
             </b>
             <small className="mt-0.5 block text-xs text-muted">
-              {event.timeZone} · {role}
+              {event.timeZone} ·{" "}
+              {role === "owner" || role === "manager" ? "Crew Chief" : role}
               {events.length > 1 ? ` · ${events.length} events` : ""}
             </small>
           </span>
