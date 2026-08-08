@@ -2,6 +2,7 @@
 
 import {
   CalendarPlus,
+  Copy,
   LoaderCircle,
   RotateCcw,
   Search,
@@ -24,6 +25,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/data-display";
 import { Input } from "@/components/ui/input";
 import { formatEventDateTime } from "@/lib/time-zones";
+import {
+  ItineraryStagingGrid,
+  type StagedMovement,
+} from "@/components/itinerary-staging-grid";
 
 type Draft = {
   title: string;
@@ -33,6 +38,10 @@ type Draft = {
   location: string;
   recordId: string;
   notes: string;
+  operationalDay: string;
+  team: string;
+  movementType: string;
+  tags: string;
 };
 
 const emptyDraft: Draft = {
@@ -43,6 +52,10 @@ const emptyDraft: Draft = {
   location: "",
   recordId: "",
   notes: "",
+  operationalDay: "",
+  team: "",
+  movementType: "",
+  tags: "",
 };
 
 function displayScheduledFor(item: ItineraryItem, timeZone: string) {
@@ -80,6 +93,7 @@ export function ItineraryPlan({
   const archivedItems = useQuery(itineraryApi.listArchived, { eventId });
   const records = useQuery(recordsApi.list, { eventId });
   const createItem = useMutation(itineraryApi.create);
+  const createMany = useMutation(itineraryApi.createMany);
   const archiveItem = useMutation(itineraryApi.archive);
   const restoreItem = useMutation(itineraryApi.restore);
   const canEdit = role === "owner" || role === "manager";
@@ -92,12 +106,13 @@ export function ItineraryPlan({
   const [undoItem, setUndoItem] = useState<ItineraryItem | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isCreatorOpen, setIsCreatorOpen] = useState(false);
-  const titleInputRef = useRef<HTMLInputElement>(null);
+  const [isStagingOpen, setIsStagingOpen] = useState(false);
+  const firstInputRef = useRef<HTMLInputElement>(null);
   const hasUnsavedChanges =
     JSON.stringify(draft) !== JSON.stringify(emptyDraft);
 
   useEffect(() => {
-    if (isCreatorOpen) titleInputRef.current?.focus();
+    if (isCreatorOpen) firstInputRef.current?.focus();
   }, [isCreatorOpen]);
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
@@ -162,12 +177,34 @@ export function ItineraryPlan({
       location: draft.location || undefined,
       recordId: draft.recordId || undefined,
       notes: draft.notes || undefined,
+      operationalDay: draft.operationalDay || undefined,
+      team: draft.team || undefined,
+      movementType: draft.movementType || undefined,
+      tags: draft.tags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean),
     };
 
     try {
       await createItem(input);
-      setDraft(emptyDraft);
-      setIsCreatorOpen(false);
+      const continueAdding =
+        (
+          (event.nativeEvent as SubmitEvent)
+            .submitter as HTMLButtonElement | null
+        )?.value === "continue";
+      if (continueAdding) {
+        setDraft((current) => ({
+          ...current,
+          scheduledFor: "",
+          scheduledUntil: "",
+          title: "",
+        }));
+        requestAnimationFrame(() => firstInputRef.current?.focus());
+      } else {
+        setDraft(emptyDraft);
+        setIsCreatorOpen(false);
+      }
     } catch {
       setError(
         "We could not save this movement. Your changes were not saved; please try again.",
@@ -175,6 +212,55 @@ export function ItineraryPlan({
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function saveStagedRows(rows: StagedMovement[]) {
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await createMany({
+        eventId,
+        items: rows.map((row) => ({
+          eventId,
+          title: row.title,
+          scheduledFor: row.scheduledFor,
+          location: row.location || undefined,
+          operationalDay: row.operationalDay || undefined,
+          team: row.team || undefined,
+          movementType: row.movementType || undefined,
+          tags: row.tags
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter(Boolean),
+          timeKind: "exact",
+        })),
+      });
+    } catch {
+      setError(
+        "We could not add the staged movements. Check the rows and try again.",
+      );
+      throw new Error("Staged movements were not saved");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function duplicateItem(item: ItineraryItem) {
+    setDraft({
+      title: item.title,
+      scheduledFor: "",
+      scheduledUntil: "",
+      timeKind: item.timeKind ?? "exact",
+      location: item.location ?? "",
+      recordId: item.recordId ?? "",
+      notes: item.notes ?? "",
+      operationalDay: item.operationalDay ?? "",
+      team: item.team ?? "",
+      movementType: item.movementType ?? "",
+      tags: item.tags?.join(", ") ?? "",
+    });
+    setIsCreatorOpen(true);
+    setIsStagingOpen(false);
   }
 
   async function onArchive(item: ItineraryItem) {
@@ -236,9 +322,27 @@ export function ItineraryPlan({
                 {canEdit ? "Can edit" : "View only"}
               </Badge>
               {canEdit ? (
-                <Button size="sm" onClick={() => setIsCreatorOpen(true)}>
-                  Add movement
-                </Button>
+                <>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setIsCreatorOpen(true);
+                      setIsStagingOpen(false);
+                    }}
+                  >
+                    Add movement
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setIsStagingOpen(true);
+                      setIsCreatorOpen(false);
+                    }}
+                  >
+                    Add many
+                  </Button>
+                </>
               ) : null}
             </div>
           </div>
@@ -417,6 +521,15 @@ export function ItineraryPlan({
                             )}
                             Archive
                           </Button>
+                          <Button
+                            type="button"
+                            variant="soft"
+                            size="sm"
+                            onClick={() => duplicateItem(item)}
+                          >
+                            <Copy className="h-4 w-4" aria-hidden="true" />
+                            Duplicate
+                          </Button>
                         </div>
                       ) : null}
                     </li>
@@ -456,6 +569,26 @@ export function ItineraryPlan({
         </CardContent>
       </Card>
 
+      {canEdit && isStagingOpen ? (
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <div>
+              <CardTitle>Add movements in a spreadsheet</CardTitle>
+              <p className="mt-1 text-sm text-muted">
+                Use the same staging table for typing, row-by-row work, and
+                multi-row spreadsheet paste.
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ItineraryStagingGrid
+              onSave={saveStagedRows}
+              isSaving={isSubmitting}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
       {canEdit && isCreatorOpen ? (
         <Card>
           <CardHeader>
@@ -478,6 +611,7 @@ export function ItineraryPlan({
                 </label>
                 <Input
                   id="movement-time"
+                  ref={firstInputRef}
                   type="datetime-local"
                   value={draft.scheduledFor}
                   onChange={(event) =>
@@ -485,6 +619,51 @@ export function ItineraryPlan({
                   }
                   required
                 />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-sm font-medium text-ink">
+                  Operational day
+                  <Input
+                    value={draft.operationalDay}
+                    onChange={(event) =>
+                      updateDraft("operationalDay", event.target.value)
+                    }
+                    maxLength={80}
+                    placeholder="e.g. Day 2"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium text-ink">
+                  Team
+                  <Input
+                    value={draft.team}
+                    onChange={(event) =>
+                      updateDraft("team", event.target.value)
+                    }
+                    maxLength={80}
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium text-ink">
+                  Movement type
+                  <Input
+                    value={draft.movementType}
+                    onChange={(event) =>
+                      updateDraft("movementType", event.target.value)
+                    }
+                    maxLength={80}
+                    placeholder="e.g. Transit"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium text-ink">
+                  Tags
+                  <Input
+                    value={draft.tags}
+                    onChange={(event) =>
+                      updateDraft("tags", event.target.value)
+                    }
+                    maxLength={400}
+                    placeholder="service, crew"
+                  />
+                </label>
               </div>
               <div className="grid gap-1.5">
                 <label
@@ -563,7 +742,6 @@ export function ItineraryPlan({
                 </label>
                 <Input
                   id="movement-title"
-                  ref={titleInputRef}
                   value={draft.title}
                   onChange={(event) => updateDraft("title", event.target.value)}
                   maxLength={160}
@@ -613,7 +791,16 @@ export function ItineraryPlan({
                   ) : (
                     <CalendarPlus className="h-4 w-4" aria-hidden="true" />
                   )}
-                  Add movement
+                  Add
+                </Button>
+                <Button
+                  type="submit"
+                  name="continue"
+                  value="continue"
+                  variant="secondary"
+                  disabled={isSubmitting}
+                >
+                  Add and continue
                 </Button>
                 <Button
                   type="button"

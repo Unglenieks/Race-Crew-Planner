@@ -26,6 +26,10 @@ export type ItineraryItem = {
   location?: string;
   recordId?: string;
   notes?: string;
+  operationalDay?: string;
+  team?: string;
+  movementType?: string;
+  tags?: string[];
   timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
   archivedAt?: number;
 };
@@ -345,10 +349,35 @@ export const itineraryApi = {
       location?: string;
       recordId?: string;
       notes?: string;
+      operationalDay?: string;
+      team?: string;
+      movementType?: string;
+      tags?: string[];
       timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
     },
     string
   >("itinerary:create"),
+  createMany: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      items: Array<{
+        eventId: string;
+        title: string;
+        scheduledFor: string;
+        scheduledUntil?: string;
+        location?: string;
+        recordId?: string;
+        notes?: string;
+        operationalDay?: string;
+        team?: string;
+        movementType?: string;
+        tags?: string[];
+        timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
+      }>;
+    },
+    string[]
+  >("itinerary:createMany"),
   update: makeFunctionReference<
     "mutation",
     {
@@ -360,6 +389,10 @@ export const itineraryApi = {
       location?: string;
       recordId?: string;
       notes?: string;
+      operationalDay?: string;
+      team?: string;
+      movementType?: string;
+      tags?: string[];
       timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
     },
     null

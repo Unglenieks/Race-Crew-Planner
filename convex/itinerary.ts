@@ -18,6 +18,10 @@ const itineraryArgs = {
   location: v.optional(v.string()),
   recordId: v.optional(v.id("eventRecords")),
   notes: v.optional(v.string()),
+  operationalDay: v.optional(v.string()),
+  team: v.optional(v.string()),
+  movementType: v.optional(v.string()),
+  tags: v.optional(v.array(v.string())),
   sectionId: v.optional(v.id("planSections")),
   timeKind: v.optional(
     v.union(
@@ -36,6 +40,10 @@ type ItineraryInput = {
   scheduledUntil?: string;
   location?: string;
   notes?: string;
+  operationalDay?: string;
+  team?: string;
+  movementType?: string;
+  tags?: string[];
   sectionId?: Id<"planSections">;
   timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
 };
@@ -63,6 +71,10 @@ export function validatedItineraryInput({
   notes,
   sectionId,
   timeKind,
+  operationalDay,
+  team,
+  movementType,
+  tags,
 }: ItineraryInput) {
   const normalizedTitle = title.trim();
 
@@ -99,6 +111,13 @@ export function validatedItineraryInput({
     ...(timeKind === "range" ? { scheduledUntil } : {}),
     location: optionalText(location, 160),
     notes: optionalText(notes, 1000),
+    operationalDay: optionalText(operationalDay, 80),
+    team: optionalText(team, 80),
+    movementType: optionalText(movementType, 80),
+    tags: tags
+      ?.map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0)
+      .slice(0, 20),
     ...(sectionId === undefined ? {} : { sectionId }),
     ...(timeKind === undefined ? {} : { timeKind }),
   };
@@ -275,6 +294,49 @@ export const create = mutation({
       createdAt: now,
     });
     return itemId;
+  },
+});
+
+/** Creates a staged set of movements in one authorized operation. */
+export const createMany = mutation({
+  args: { eventId: v.id("events"), items: v.array(v.object(itineraryArgs)) },
+  handler: async (ctx, { eventId, items }) => {
+    const { identity, membership } = await requireEventMembership(ctx, eventId);
+    requireRole(membership.role, ["owner", "manager"]);
+    if (items.length === 0 || items.length > 100) {
+      throw new Error("Add between 1 and 100 movements at a time");
+    }
+    if (items.some((item) => item.eventId !== eventId)) {
+      throw new Error("All staged movements must belong to the selected event");
+    }
+    const now = Date.now();
+    const ids = [];
+    for (const raw of items) {
+      const item = validatedItineraryInput(raw);
+      await requireLocationRecord(ctx, eventId, raw.recordId);
+      const itemId = await ctx.db.insert("itineraryItems", {
+        eventId,
+        ...item,
+        scheduledUntil:
+          item.timeKind === "range" ? item.scheduledUntil : undefined,
+        recordId: raw.recordId,
+        createdAt: now,
+        updatedAt: now,
+      });
+      ids.push(itemId);
+      await writeAudit(ctx, {
+        eventId,
+        actorId: identity.subject,
+        kind: "movement.created",
+        message: `Created movement: ${item.title}`,
+        objectType: "movement",
+        objectId: itemId,
+        objectLabel: item.title,
+        href: `/events/${eventId}/plan/${itemId}`,
+        createdAt: now,
+      });
+    }
+    return ids;
   },
 });
 

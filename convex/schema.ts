@@ -69,6 +69,11 @@ export default defineSchema({
     location: v.optional(v.string()),
     recordId: v.optional(v.id("eventRecords")),
     notes: v.optional(v.string()),
+    /** Organizer-defined operational grouping, independent of the calendar date. */
+    operationalDay: v.optional(v.string()),
+    team: v.optional(v.string()),
+    movementType: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
     /** Snapshot immediately before the latest edit, used by contextual publish. */
     lastChangedTitle: v.optional(v.string()),
     lastChangedScheduledFor: v.optional(v.string()),

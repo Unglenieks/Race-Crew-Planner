@@ -27,6 +27,10 @@ type Draft = {
   recordId: string;
   notes: string;
   timeKind: NonNullable<ItineraryItem["timeKind"]>;
+  operationalDay: string;
+  team: string;
+  movementType: string;
+  tags: string;
 };
 
 const timeKindLabels: Record<Draft["timeKind"], string> = {
@@ -46,6 +50,10 @@ function toDraft(item: ItineraryItem): Draft {
     recordId: item.recordId ?? "",
     notes: item.notes ?? "",
     timeKind: item.timeKind ?? "exact",
+    operationalDay: item.operationalDay ?? "",
+    team: item.team ?? "",
+    movementType: item.movementType ?? "",
+    tags: item.tags?.join(", ") ?? "",
   };
 }
 
@@ -147,6 +155,13 @@ export function MovementDetail({
         location: currentDraft.location || undefined,
         recordId: currentDraft.recordId || undefined,
         notes: currentDraft.notes || undefined,
+        operationalDay: currentDraft.operationalDay || undefined,
+        team: currentDraft.team || undefined,
+        movementType: currentDraft.movementType || undefined,
+        tags: currentDraft.tags
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean),
         timeKind: currentDraft.timeKind,
       });
       setDraft(null);
@@ -310,6 +325,53 @@ export function MovementDetail({
                   className="min-h-28 rounded-lg border border-line bg-card px-3 py-2 text-sm font-normal text-ink shadow-sm"
                 />
               </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-sm font-medium text-ink">
+                  Operational day
+                  <input
+                    value={currentDraft.operationalDay}
+                    onChange={(event) =>
+                      updateDraft("operationalDay", event.target.value)
+                    }
+                    maxLength={80}
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm font-normal text-ink shadow-sm"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium text-ink">
+                  Team
+                  <input
+                    value={currentDraft.team}
+                    onChange={(event) =>
+                      updateDraft("team", event.target.value)
+                    }
+                    maxLength={80}
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm font-normal text-ink shadow-sm"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium text-ink">
+                  Movement type
+                  <input
+                    value={currentDraft.movementType}
+                    onChange={(event) =>
+                      updateDraft("movementType", event.target.value)
+                    }
+                    maxLength={80}
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm font-normal text-ink shadow-sm"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium text-ink">
+                  Tags
+                  <input
+                    value={currentDraft.tags}
+                    onChange={(event) =>
+                      updateDraft("tags", event.target.value)
+                    }
+                    maxLength={400}
+                    placeholder="service, crew"
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm font-normal text-ink shadow-sm"
+                  />
+                </label>
+              </div>
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="submit"
@@ -385,6 +447,24 @@ export function MovementDetail({
                   {item.notes ?? "No notes"}
                 </dd>
               </div>
+              {item.operationalDay ||
+              item.team ||
+              item.movementType ||
+              item.tags?.length ? (
+                <div>
+                  <dt className="font-semibold text-ink">Operations</dt>
+                  <dd className="mt-1 text-muted">
+                    {[
+                      item.operationalDay,
+                      item.team,
+                      item.movementType,
+                      item.tags?.join(", "),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </dd>
+                </div>
+              ) : null}
             </dl>
           )}
         </CardContent>
