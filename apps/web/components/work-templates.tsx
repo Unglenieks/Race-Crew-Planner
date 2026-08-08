@@ -57,6 +57,7 @@ export function WorkTemplates({ eventId }: { eventId: string }) {
     null,
   );
   const [archiveTarget, setArchiveTarget] = useState<WorkTemplate | null>(null);
+  const [applyTarget, setApplyTarget] = useState<WorkTemplate | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -118,6 +119,7 @@ export function WorkTemplates({ eventId }: { eventId: string }) {
       setMessage(
         `${template.name} added ${ids.length} independent work item${ids.length === 1 ? "" : "s"} to the checklist.`,
       );
+      setApplyTarget(null);
     } catch {
       setError("The template could not be applied. No work items were added.");
     } finally {
@@ -221,6 +223,42 @@ export function WorkTemplates({ eventId }: { eventId: string }) {
               </div>
             </Banner>
           )}
+          {applyTarget === null ? null : (
+            <Banner variant="warning" label="Apply checklist template">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span>
+                  Apply <strong>{applyTarget.name}</strong>? This creates{" "}
+                  {applyTarget.items.length} new checklist item
+                  {applyTarget.items.length === 1 ? "" : "s"}.
+                </span>
+                <span className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setApplyTarget(null)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="primary"
+                    disabled={pendingTemplateId !== null}
+                    onClick={() => void applyTemplate(applyTarget)}
+                  >
+                    {pendingTemplateId === applyTarget._id ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ClipboardPlus className="h-4 w-4" aria-hidden="true" />
+                    )}
+                    Create {applyTarget.items.length} item
+                    {applyTarget.items.length === 1 ? "" : "s"}
+                  </Button>
+                </span>
+              </div>
+            </Banner>
+          )}
           {templates === undefined ? (
             <div
               className="flex min-h-32 items-center text-sm text-muted"
@@ -268,7 +306,7 @@ export function WorkTemplates({ eventId }: { eventId: string }) {
                       type="button"
                       size="sm"
                       variant="primary"
-                      onClick={() => applyTemplate(template)}
+                      onClick={() => setApplyTarget(template)}
                       disabled={pendingTemplateId !== null}
                     >
                       {pendingTemplateId === template._id ? (

@@ -634,6 +634,25 @@ export const workApi = {
   >("work:addComment"),
 };
 
+export type SetupStepStatus = {
+  id: "profile" | "movement" | "crew";
+  completed: boolean;
+  dismissed: boolean;
+};
+
+export const setupApi = {
+  status: makeFunctionReference<
+    "query",
+    { eventId: string },
+    SetupStepStatus[]
+  >("setup:status"),
+  dismiss: makeFunctionReference<
+    "mutation",
+    { eventId: string; step: SetupStepStatus["id"] },
+    null
+  >("setup:dismiss"),
+};
+
 export const workTemplatesApi = {
   list: makeFunctionReference<"query", { eventId: string }, WorkTemplate[]>(
     "workTemplates:list",

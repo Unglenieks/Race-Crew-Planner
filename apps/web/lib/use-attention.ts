@@ -16,13 +16,22 @@ export type AttentionChange = {
 };
 
 export type Attention = {
-  /** Open work items assigned to the signed-in operator. */
+  /** Unfinished work items assigned to the signed-in operator. */
   assignedWork: WorkItem[];
   /** Published changes this operator has not acknowledged. */
   unacknowledged: AttentionChange[];
   count: number;
   isLoading: boolean;
 };
+
+export function assignedAttentionWork(
+  work: WorkItem[],
+  userId?: string | null,
+) {
+  return work.filter(
+    (item) => item.status !== "completed" && item.assigneeId === userId,
+  );
+}
 
 /**
  * Shared by the attention screen and the topbar badge so a single definition of
@@ -34,9 +43,7 @@ export function useAttention(eventId: string): Attention {
   const work = useQuery(workApi.list, { eventId });
   const changes = useQuery(planChangesApi.listForMe, { eventId });
 
-  const assignedWork = (work ?? []).filter(
-    (item) => item.status === "open" && item.assigneeId === userId,
-  );
+  const assignedWork = assignedAttentionWork(work ?? [], userId);
 
   const unacknowledged = (changes ?? []).flatMap((entry) =>
     entry.change !== null &&

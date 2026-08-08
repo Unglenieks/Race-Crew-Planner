@@ -202,6 +202,8 @@ const eventTables = [
   "planSections",
   "workItems",
   "workTemplates",
+  "workTemplateApplications",
+  "eventSetupDismissals",
   "itineraryItems",
   "eventRecords",
   "eventRecordFields",

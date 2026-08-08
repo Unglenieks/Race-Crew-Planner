@@ -29,6 +29,8 @@ type TemplateItem = {
   dueContext?: string;
 };
 
+export const templateApplyCooldownMs = 30_000;
+
 async function requireEventMembership(
   ctx: QueryCtx | MutationCtx,
   eventId: Id<"events">,
@@ -147,6 +149,22 @@ export const apply = mutation({
       throw new Error("Template not found");
     }
     const now = Date.now();
+    const latestApplication = await ctx.db
+      .query("workTemplateApplications")
+      .withIndex("by_templateId_appliedAt", (q) =>
+        q.eq("templateId", templateId),
+      )
+      .order("desc")
+      .first();
+    if (
+      latestApplication !== null &&
+      latestApplication.appliedBy === identity.subject &&
+      now - latestApplication.appliedAt < templateApplyCooldownMs
+    ) {
+      throw new Error(
+        "This template was just applied. Wait before applying it again",
+      );
+    }
     const itemIds = await Promise.all(
       template.items.map((item) =>
         ctx.db.insert("workItems", {
@@ -158,6 +176,12 @@ export const apply = mutation({
         }),
       ),
     );
+    await ctx.db.insert("workTemplateApplications", {
+      eventId,
+      templateId,
+      appliedBy: identity.subject,
+      appliedAt: now,
+    });
     await writeAudit(ctx, {
       eventId,
       actorId: identity.subject,

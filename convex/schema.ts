@@ -242,6 +242,26 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_eventId", ["eventId"]),
+  workTemplateApplications: defineTable({
+    eventId: v.id("events"),
+    templateId: v.id("workTemplates"),
+    appliedBy: v.string(),
+    appliedAt: v.number(),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_templateId_appliedAt", ["templateId", "appliedAt"]),
+  eventSetupDismissals: defineTable({
+    eventId: v.id("events"),
+    userId: v.string(),
+    step: v.union(
+      v.literal("profile"),
+      v.literal("movement"),
+      v.literal("crew"),
+    ),
+    dismissedAt: v.number(),
+  })
+    .index("by_eventId_userId", ["eventId", "userId"])
+    .index("by_eventId_userId_step", ["eventId", "userId", "step"]),
   workItemComments: defineTable({
     eventId: v.id("events"),
     workItemId: v.id("workItems"),
