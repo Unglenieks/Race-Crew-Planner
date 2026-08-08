@@ -8,6 +8,7 @@ import {
 } from "./_generated/server";
 import { requireIdentity, requireRole } from "./auth";
 import { syncIdentityProfile } from "./userProfiles";
+import { seedMovementDefaults } from "./movements";
 
 const eventArgs = {
   name: v.string(),
@@ -103,6 +104,7 @@ export const create = mutation({
       role: "owner",
       createdAt,
     });
+    await seedMovementDefaults(ctx, eventId, createdAt);
 
     return eventId;
   },
@@ -132,6 +134,7 @@ export const createSample = mutation({
       role: "owner",
       createdAt,
     });
+    await seedMovementDefaults(ctx, eventId, createdAt);
 
     await ctx.db.insert("eventRecordFields", {
       eventId,
@@ -189,6 +192,12 @@ export const createSample = mutation({
 });
 
 const eventTables = [
+  "movementTagAssignments",
+  "movementAssignments",
+  "eventMovementTags",
+  "eventMovementTypes",
+  "eventTeams",
+  "eventOperationalRoles",
   "eventRecordCategoryAssignments",
   "travelContexts",
   "workItemComments",

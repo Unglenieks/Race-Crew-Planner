@@ -12,6 +12,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   itineraryApi,
+  movementsApi,
   recordsApi,
   type EventRole,
   type ItineraryItem,
@@ -33,6 +34,7 @@ type Draft = {
   location: string;
   recordId: string;
   notes: string;
+  movementTypeId: string;
 };
 
 const emptyDraft: Draft = {
@@ -43,6 +45,7 @@ const emptyDraft: Draft = {
   location: "",
   recordId: "",
   notes: "",
+  movementTypeId: "",
 };
 
 function displayScheduledFor(item: ItineraryItem, timeZone: string) {
@@ -79,12 +82,20 @@ export function ItineraryPlan({
   const items = useQuery(itineraryApi.list, { eventId });
   const archivedItems = useQuery(itineraryApi.listArchived, { eventId });
   const records = useQuery(recordsApi.list, { eventId });
+  const directory = useQuery(movementsApi.listDirectory, { eventId });
   const createItem = useMutation(itineraryApi.create);
   const archiveItem = useMutation(itineraryApi.archive);
   const restoreItem = useMutation(itineraryApi.restore);
+  const ensureDefaults = useMutation(movementsApi.ensureDefaults);
+  const createType = useMutation(movementsApi.createType);
+  const createTag = useMutation(movementsApi.createTag);
+  const createTeam = useMutation(movementsApi.createTeam);
+  const createOperationalRole = useMutation(movementsApi.createOperationalRole);
   const canEdit = role === "owner" || role === "manager";
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [selectedType, setSelectedType] = useState("");
+  const [selectedTag, setSelectedTag] = useState("");
   const [search, setSearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isArchiving, setIsArchiving] = useState<string | null>(null);
@@ -92,6 +103,9 @@ export function ItineraryPlan({
   const [undoItem, setUndoItem] = useState<ItineraryItem | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isCreatorOpen, setIsCreatorOpen] = useState(false);
+  const [vocabularyKind, setVocabularyKind] = useState("type");
+  const [vocabularyName, setVocabularyName] = useState("");
+  const [isSavingVocabulary, setIsSavingVocabulary] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const hasUnsavedChanges =
     JSON.stringify(draft) !== JSON.stringify(emptyDraft);
@@ -107,6 +121,10 @@ export function ItineraryPlan({
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [hasUnsavedChanges, isCreatorOpen]);
+  useEffect(() => {
+    if (!canEdit) return;
+    void ensureDefaults({ eventId }).catch(() => undefined);
+  }, [canEdit, ensureDefaults, eventId]);
 
   const days = useMemo(
     () =>
@@ -131,19 +149,38 @@ export function ItineraryPlan({
     return (items ?? []).filter((item) => {
       const matchesDay =
         selectedDay === null || item.scheduledFor.startsWith(selectedDay);
-      const haystack = [item.title, item.location, item.notes]
+      const matchesType =
+        selectedType.length === 0 || item.movementTypeId === selectedType;
+      const matchesTag =
+        selectedTag.length === 0 ||
+        (item.tags ?? []).some((tag) => tag._id === selectedTag);
+      const haystack = [
+        item.title,
+        item.location,
+        item.notes,
+        item.movementTypeLabel,
+        ...(item.tags ?? []).map((tag) => tag.name),
+        ...(item.assignments ?? []).map((assignment) => assignment.label),
+      ]
         .filter((value): value is string => value !== undefined)
         .join(" ")
         .toLocaleLowerCase();
-      return matchesDay && (query.length === 0 || haystack.includes(query));
+      return (
+        matchesDay &&
+        matchesType &&
+        matchesTag &&
+        (query.length === 0 || haystack.includes(query))
+      );
     });
-  }, [items, search, selectedDay]);
+  }, [items, search, selectedDay, selectedTag, selectedType]);
   function updateDraft(field: keyof Draft, value: string) {
     setDraft((current) => ({ ...current, [field]: value }));
   }
 
   function clearFilters() {
     setSelectedDay(null);
+    setSelectedType("");
+    setSelectedTag("");
     setSearch("");
   }
 
@@ -162,6 +199,7 @@ export function ItineraryPlan({
       location: draft.location || undefined,
       recordId: draft.recordId || undefined,
       notes: draft.notes || undefined,
+      movementTypeId: draft.movementTypeId || null,
     };
 
     try {
@@ -174,6 +212,24 @@ export function ItineraryPlan({
       );
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function addVocabulary(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setIsSavingVocabulary(true);
+    try {
+      const input = { eventId, name: vocabularyName };
+      if (vocabularyKind === "type") await createType(input);
+      else if (vocabularyKind === "tag") await createTag(input);
+      else if (vocabularyKind === "team") await createTeam(input);
+      else await createOperationalRole(input);
+      setVocabularyName("");
+    } catch {
+      setError("We could not add that operational value. It was not saved.");
+    } finally {
+      setIsSavingVocabulary(false);
     }
   }
 
@@ -332,10 +388,39 @@ export function ItineraryPlan({
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
                       className="pl-9"
-                      placeholder="Search description, place, or notes"
+                      placeholder="Search movement, type, tag, assignment, place, or notes"
                     />
                   </div>
-                  {(selectedDay !== null || search.length > 0) && (
+                  <select
+                    aria-label="Filter by movement type"
+                    value={selectedType}
+                    onChange={(event) => setSelectedType(event.target.value)}
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                  >
+                    <option value="">All types</option>
+                    {(directory?.types ?? []).map((type) => (
+                      <option key={type._id} value={type._id}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Filter by movement tag"
+                    value={selectedTag}
+                    onChange={(event) => setSelectedTag(event.target.value)}
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                  >
+                    <option value="">All tags</option>
+                    {(directory?.tags ?? []).map((tag) => (
+                      <option key={tag._id} value={tag._id}>
+                        {tag.name}
+                      </option>
+                    ))}
+                  </select>
+                  {(selectedDay !== null ||
+                    selectedType.length > 0 ||
+                    selectedTag.length > 0 ||
+                    search.length > 0) && (
                     <Button type="button" size="sm" onClick={clearFilters}>
                       <X className="h-4 w-4" aria-hidden="true" />
                       Clear filters
@@ -376,6 +461,33 @@ export function ItineraryPlan({
                         >
                           {item.title}
                         </Link>
+                        {item.movementTypeLabel === undefined ? null : (
+                          <Badge
+                            className="ml-2 align-middle"
+                            variant="neutral"
+                          >
+                            {item.movementTypeLabel}
+                          </Badge>
+                        )}
+                        {item.tags === undefined ||
+                        item.tags.length === 0 ? null : (
+                          <p className="mt-1 flex flex-wrap gap-1">
+                            {item.tags.map((tag) => (
+                              <Badge key={tag._id} variant="info">
+                                {tag.name}
+                              </Badge>
+                            ))}
+                          </p>
+                        )}
+                        {item.assignments === undefined ||
+                        item.assignments.length === 0 ? null : (
+                          <p className="mt-1 text-xs text-muted">
+                            Assigned:{" "}
+                            {item.assignments
+                              .map((assignment) => assignment.label)
+                              .join(", ")}
+                          </p>
+                        )}
                         {item.location === undefined ? null : (
                           <p className="mt-1 text-sm text-muted">
                             {item.location}
@@ -530,6 +642,35 @@ export function ItineraryPlan({
               <div className="grid gap-1.5">
                 <label
                   className="text-sm font-medium text-ink"
+                  htmlFor="movement-type"
+                >
+                  Movement type <span className="text-muted">(optional)</span>
+                </label>
+                <select
+                  id="movement-type"
+                  value={draft.movementTypeId}
+                  onChange={(event) =>
+                    updateDraft("movementTypeId", event.target.value)
+                  }
+                  className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink"
+                >
+                  <option value="">Unclassified</option>
+                  {(directory?.types ?? [])
+                    .filter((type) => type.archivedAt === undefined)
+                    .map((type) => (
+                      <option key={type._id} value={type._id}>
+                        {type.name}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-xs text-muted">
+                  Codes such as FCI, FCO, MTC, and Service A/B are tags on the
+                  movement detail.
+                </p>
+              </div>
+              <div className="grid gap-1.5">
+                <label
+                  className="text-sm font-medium text-ink"
                   htmlFor="movement-record"
                 >
                   Linked location <span className="text-muted">(optional)</span>
@@ -630,6 +771,51 @@ export function ItineraryPlan({
                   Cancel
                 </Button>
               </div>
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
+      {canEdit ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Operational vocabulary</CardTitle>
+            <p className="mt-1 text-sm text-muted">
+              Add event-local movement types, control tags, teams, and
+              operational roles. These do not change member permissions.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <form className="flex flex-wrap gap-2" onSubmit={addVocabulary}>
+              <select
+                aria-label="Operational vocabulary kind"
+                value={vocabularyKind}
+                onChange={(event) => setVocabularyKind(event.target.value)}
+                className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+              >
+                <option value="type">Movement type</option>
+                <option value="tag">Control code or tag</option>
+                <option value="team">Team</option>
+                <option value="role">Operational role</option>
+              </select>
+              <Input
+                aria-label="Operational vocabulary name"
+                value={vocabularyName}
+                onChange={(event) => setVocabularyName(event.target.value)}
+                maxLength={80}
+                required
+                placeholder={
+                  vocabularyKind === "tag"
+                    ? "e.g. FCI"
+                    : vocabularyKind === "team"
+                      ? "e.g. RRC"
+                      : vocabularyKind === "role"
+                        ? "e.g. Stage Captain"
+                        : "e.g. Regroup"
+                }
+              />
+              <Button type="submit" disabled={isSavingVocabulary}>
+                {isSavingVocabulary ? "Adding…" : "Add"}
+              </Button>
             </form>
           </CardContent>
         </Card>

@@ -7,12 +7,16 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireIdentity } from "./auth";
+import { movementStructuredFields } from "./movements";
 
 type ExportItem = {
   itineraryItemId: Id<"itineraryItems">;
   title: string;
   scheduledFor: string;
   location?: string;
+  movementTypeLabel?: string;
+  tagLabels?: string[];
+  assignmentLabels?: string[];
 };
 
 async function requireEventMembership(
@@ -38,17 +42,27 @@ function validatedFilterDay(filterDay: string | undefined) {
   return filterDay;
 }
 
-function itemSnapshot(item: {
-  _id: Id<"itineraryItems">;
-  title: string;
-  scheduledFor: string;
-  location?: string;
-}): ExportItem {
+async function itemSnapshot(
+  ctx: QueryCtx | MutationCtx,
+  item: {
+    _id: Id<"itineraryItems">;
+    title: string;
+    scheduledFor: string;
+    location?: string;
+    movementTypeId?: Id<"eventMovementTypes">;
+  },
+): Promise<ExportItem> {
+  const structured = await movementStructuredFields(ctx, item);
   return {
     itineraryItemId: item._id,
     title: item.title,
     scheduledFor: item.scheduledFor,
     location: item.location,
+    movementTypeLabel: structured.movementTypeLabel,
+    tagLabels: structured.tags.map((tag) => tag.name),
+    assignmentLabels: structured.assignments.map(
+      (assignment) => assignment.label,
+    ),
   };
 }
 
@@ -60,7 +74,12 @@ function sameItems(left: ExportItem[], right: ExportItem[]) {
         item.itineraryItemId === right[index]?.itineraryItemId &&
         item.title === right[index]?.title &&
         item.scheduledFor === right[index]?.scheduledFor &&
-        item.location === right[index]?.location,
+        item.location === right[index]?.location &&
+        item.movementTypeLabel === right[index]?.movementTypeLabel &&
+        JSON.stringify(item.tagLabels ?? []) ===
+          JSON.stringify(right[index]?.tagLabels ?? []) &&
+        JSON.stringify(item.assignmentLabels ?? []) ===
+          JSON.stringify(right[index]?.assignmentLabels ?? []),
     )
   );
 }
@@ -76,13 +95,14 @@ async function currentItems(
       index.eq("eventId", eventId),
     )
     .collect();
-  return items
+  const snapshots = items
     .filter(
       (item) =>
         item.archivedAt === undefined &&
         (filterDay === undefined || item.scheduledFor.startsWith(filterDay)),
     )
-    .map(itemSnapshot);
+    .map((item) => itemSnapshot(ctx, item));
+  return await Promise.all(snapshots);
 }
 
 /** Saves the exact active-plan snapshot that a member is about to download. */

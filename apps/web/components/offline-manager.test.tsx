@@ -74,6 +74,39 @@ describe("OfflineManager", () => {
     expect(screen.getByText("No offline package saved.")).toBeTruthy();
   });
 
+  it("includes structured movement labels in the local package", async () => {
+    queryResults = [
+      [
+        {
+          ...plan[0],
+          movementTypeLabel: "Service",
+          tags: [{ _id: "tag:mtc", name: "MTC" }],
+          assignments: [
+            { _id: "assignment:one", targetKind: "team", label: "RRC" },
+          ],
+        },
+      ],
+      work,
+      [],
+    ];
+    queryIndex = 0;
+    render(<OfflineManager eventId="events:one" />);
+    fireEvent.click(screen.getByRole("button", { name: /save plan/i }));
+    await waitFor(() =>
+      expect(queue.saveOfflinePackage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          plan: [
+            expect.objectContaining({
+              movementTypeLabel: "Service",
+              tagLabels: ["MTC"],
+              assignmentLabels: ["RRC"],
+            }),
+          ],
+        }),
+      ),
+    );
+  });
+
   it("lets the operator explicitly apply a resolved conflict using the latest version", async () => {
     queue.listQueuedChanges.mockResolvedValue([
       {

@@ -26,8 +26,32 @@ export type ItineraryItem = {
   location?: string;
   recordId?: string;
   notes?: string;
+  movementTypeId?: string;
+  movementTypeLabel?: string;
+  tags?: Array<{ _id: string; name: string }>;
+  assignments?: Array<{
+    _id: string;
+    targetKind: "member" | "team" | "operationalRole";
+    label: string;
+    targetUserId?: string;
+    teamId?: string;
+    operationalRoleId?: string;
+  }>;
   timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
   archivedAt?: number;
+};
+
+export type MovementDirectory = {
+  types: Array<{
+    _id: string;
+    name: string;
+    order: number;
+    archivedAt?: number;
+  }>;
+  tags: Array<{ _id: string; name: string; archivedAt?: number }>;
+  teams: Array<{ _id: string; name: string; archivedAt?: number }>;
+  operationalRoles: Array<{ _id: string; name: string; archivedAt?: number }>;
+  members: Array<{ userId: string; label: string }>;
 };
 
 export const recordTypes = [
@@ -170,6 +194,12 @@ export type PublishedPlanChange = {
   previousTitle?: string;
   previousScheduledFor?: string;
   previousScheduledUntil?: string;
+  movementTypeLabel?: string;
+  tagLabels?: string[];
+  assignmentLabels?: string[];
+  previousMovementTypeLabel?: string;
+  previousTagLabels?: string[];
+  previousAssignmentLabels?: string[];
   reason: string;
   severity: "routine" | "critical";
   publishedAt: number;
@@ -277,6 +307,9 @@ export type PlanExport = {
     title: string;
     scheduledFor: string;
     location?: string;
+    movementTypeLabel?: string;
+    tagLabels?: string[];
+    assignmentLabels?: string[];
   }>;
   generatedAt: number;
   isSuperseded?: boolean;
@@ -345,6 +378,7 @@ export const itineraryApi = {
       location?: string;
       recordId?: string;
       notes?: string;
+      movementTypeId?: string | null;
       timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
     },
     string
@@ -360,6 +394,7 @@ export const itineraryApi = {
       location?: string;
       recordId?: string;
       notes?: string;
+      movementTypeId?: string | null;
       timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
     },
     null
@@ -374,6 +409,55 @@ export const itineraryApi = {
     { eventId: string; itemId: string },
     null
   >("itinerary:restore"),
+};
+
+export const movementsApi = {
+  ensureDefaults: makeFunctionReference<"mutation", { eventId: string }, null>(
+    "movements:ensureDefaults",
+  ),
+  listDirectory: makeFunctionReference<
+    "query",
+    { eventId: string },
+    MovementDirectory
+  >("movements:listDirectory"),
+  createType: makeFunctionReference<
+    "mutation",
+    { eventId: string; name: string },
+    string
+  >("movements:createType"),
+  createTag: makeFunctionReference<
+    "mutation",
+    { eventId: string; name: string },
+    string
+  >("movements:createTag"),
+  createTeam: makeFunctionReference<
+    "mutation",
+    { eventId: string; name: string },
+    string
+  >("movements:createTeam"),
+  createOperationalRole: makeFunctionReference<
+    "mutation",
+    { eventId: string; name: string },
+    string
+  >("movements:createOperationalRole"),
+  setTags: makeFunctionReference<
+    "mutation",
+    { eventId: string; itemId: string; tagIds: string[] },
+    null
+  >("movements:setTags"),
+  setAssignments: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      itemId: string;
+      assignments: Array<
+        | { targetKind: "member"; targetUserId: string }
+        | { targetKind: "team"; teamId: string }
+        | { targetKind: "operationalRole"; operationalRoleId: string }
+      >;
+    },
+    null
+  >("movements:setAssignments"),
 };
 
 export const recordsApi = {
