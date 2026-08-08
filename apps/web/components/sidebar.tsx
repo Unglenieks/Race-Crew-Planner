@@ -110,7 +110,7 @@ export function Sidebar() {
         <Link
           href="/events"
           className="flex min-h-11 w-full items-center gap-2 rounded-lg border border-btnline bg-card px-3 py-2.5 text-left text-sm hover:border-ink2 focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
-          aria-label={`Current event: ${event.name}. Switch event.`}
+          aria-label={`${event.name}, ${event.timeZone}, ${role}, ${events.length} ${events.length === 1 ? "event" : "events"}. Switch event.`}
         >
           <span className="min-w-0 flex-1">
             <b className="block truncate text-sm font-semibold text-ink">

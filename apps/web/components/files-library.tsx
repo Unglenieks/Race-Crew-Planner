@@ -1,7 +1,7 @@
 "use client";
 
 import { FileUp, LoaderCircle, Trash2 } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   filesApi,
@@ -9,11 +9,15 @@ import {
   recordsApi,
   workApi,
   type EventRole,
+  type ItineraryItem,
 } from "@/lib/events-api";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/data-display";
+import { Input } from "@/components/ui/input";
+import { calendarDay, displayMovementTime } from "@/lib/timing";
+import { ConfirmDestructiveAction } from "@/components/ui/confirm-destructive-action";
 
 const acceptedTypes =
   ".pdf,.csv,.xlsx,image/jpeg,image/png,image/webp,text/plain";
@@ -28,6 +32,17 @@ function date(value: number) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
     new Date(value),
   );
+}
+
+function movementTargetLabel(item: ItineraryItem) {
+  return `Movement · ${new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(
+    new Date(`${calendarDay(item)}T00:00:00Z`),
+  )} · ${displayMovementTime(item)} · ${item.title}`;
 }
 
 export function FilesLibrary({
@@ -46,9 +61,36 @@ export function FilesLibrary({
   const remove = useMutation(filesApi.remove);
   const [file, setFile] = useState<File | null>(null);
   const [target, setTarget] = useState("");
+  const [targetQuery, setTargetQuery] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const canRemove = role === "owner" || role === "manager";
+  const selectedTargetLabel = useMemo(() => {
+    if (target === "") return "Event library only";
+    const [type, id] = target.split(":");
+    if (type === "record")
+      return records?.find((record) => record._id === id)?.name;
+    if (type === "work") return work?.find((item) => item._id === id)?.title;
+    const movement = movements?.find((item) => item._id === id);
+    return movement === undefined ? undefined : movementTargetLabel(movement);
+  }, [movements, records, target, work]);
+  const normalizedTargetQuery = targetQuery.trim().toLocaleLowerCase();
+  const filteredRecords = (records ?? []).filter((record) =>
+    record.name.toLocaleLowerCase().includes(normalizedTargetQuery),
+  );
+  const filteredWork = (work ?? []).filter((item) =>
+    item.title.toLocaleLowerCase().includes(normalizedTargetQuery),
+  );
+  const filteredMovements = (movements ?? []).filter((item) =>
+    movementTargetLabel(item)
+      .toLocaleLowerCase()
+      .includes(normalizedTargetQuery),
+  );
 
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -80,6 +122,7 @@ export function FilesLibrary({
       });
       setFile(null);
       setTarget("");
+      setTargetQuery("");
       const input = document.getElementById(
         "event-file",
       ) as HTMLInputElement | null;
@@ -93,10 +136,14 @@ export function FilesLibrary({
 
   async function deleteFile(fileId: string) {
     setError(null);
+    setIsRemoving(true);
     try {
       await remove({ eventId, fileId });
+      setRemoveTarget(null);
     } catch {
       setError("The file could not be removed. It is still available.");
+    } finally {
+      setIsRemoving(false);
     }
   }
 
@@ -118,6 +165,16 @@ export function FilesLibrary({
 
   return (
     <div className="grid items-start gap-4 lg:grid-cols-[.75fr_1.25fr]">
+      {removeTarget === null ? null : (
+        <ConfirmDestructiveAction
+          title="Remove file?"
+          description={`Remove ${removeTarget.name} from this event. This evidence file will no longer be available from the library.`}
+          confirmLabel="Remove file"
+          isPending={isRemoving}
+          onCancel={() => setRemoveTarget(null)}
+          onConfirm={() => void deleteFile(removeTarget.id)}
+        />
+      )}
       <Card>
         <CardHeader>
           <CardTitle>Add evidence</CardTitle>
@@ -141,35 +198,103 @@ export function FilesLibrary({
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
               />
             </label>
-            <label
-              className="grid gap-1 text-sm font-medium text-ink"
-              htmlFor="file-record"
-            >
-              Attach to
-              <select
-                id="file-record"
-                className="rounded-lg border border-line bg-card px-3 py-2 text-sm"
-                value={target}
-                onChange={(event) => setTarget(event.target.value)}
+            <fieldset className="grid gap-2">
+              <legend className="text-sm font-medium text-ink">
+                Attach to
+              </legend>
+              <p className="text-xs text-muted" id="file-target-help">
+                Search records, work, or movements. Movement results include
+                their operational date and time.
+              </p>
+              <label className="sr-only" htmlFor="file-target-search">
+                Search attachment targets
+              </label>
+              <Input
+                id="file-target-search"
+                value={targetQuery}
+                onChange={(event) => setTargetQuery(event.target.value)}
+                placeholder="Search attachment targets"
+                aria-describedby="file-target-help"
+                autoComplete="off"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant={target === "" ? "primary" : "secondary"}
+                className="w-fit"
+                aria-pressed={target === ""}
+                onClick={() => setTarget("")}
               >
-                <option value="">Event library only</option>
-                {records.map((record) => (
-                  <option key={record._id} value={`record:${record._id}`}>
-                    Record: {record.name}
-                  </option>
-                ))}
-                {work.map((item) => (
-                  <option key={item._id} value={`work:${item._id}`}>
-                    Work: {item.title}
-                  </option>
-                ))}
-                {movements.map((item) => (
-                  <option key={item._id} value={`movement:${item._id}`}>
-                    Movement: {item.title}
-                  </option>
-                ))}
-              </select>
-            </label>
+                Event library only
+              </Button>
+              {normalizedTargetQuery.length === 0 ? (
+                <p className="text-xs text-muted">
+                  Start typing to find an attachment target.
+                </p>
+              ) : (
+                <div
+                  className="grid max-h-60 gap-3 overflow-auto rounded-lg border border-line p-2"
+                  aria-live="polite"
+                >
+                  {[
+                    [
+                      "Records",
+                      filteredRecords.map((record) => ({
+                        id: `record:${record._id}`,
+                        label: `Record · ${record.name}`,
+                      })),
+                    ],
+                    [
+                      "Work",
+                      filteredWork.map((item) => ({
+                        id: `work:${item._id}`,
+                        label: `Work · ${item.title}`,
+                      })),
+                    ],
+                    [
+                      "Movements",
+                      filteredMovements.map((item) => ({
+                        id: `movement:${item._id}`,
+                        label: movementTargetLabel(item),
+                      })),
+                    ],
+                  ].map(([group, options]) => {
+                    const targets = options as { id: string; label: string }[];
+                    return targets.length === 0 ? null : (
+                      <div key={group as string} className="grid gap-1">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                          {group as string}
+                        </p>
+                        {targets.map((option) => (
+                          <Button
+                            key={option.id}
+                            type="button"
+                            variant={target === option.id ? "primary" : "ghost"}
+                            className="h-auto min-h-11 justify-start whitespace-normal text-left"
+                            aria-pressed={target === option.id}
+                            onClick={() => setTarget(option.id)}
+                          >
+                            {option.label}
+                          </Button>
+                        ))}
+                      </div>
+                    );
+                  })}
+                  {filteredRecords.length +
+                    filteredWork.length +
+                    filteredMovements.length ===
+                  0 ? (
+                    <p className="text-sm text-muted">
+                      No attachment targets match this search.
+                    </p>
+                  ) : null}
+                </div>
+              )}
+              <p className="text-xs text-muted" aria-live="polite">
+                Selected:{" "}
+                {selectedTargetLabel ?? "Attachment target unavailable"}
+              </p>
+            </fieldset>
             <Button
               className="w-fit"
               type="submit"
@@ -243,7 +368,9 @@ export function FilesLibrary({
                       variant="secondary"
                       size="sm"
                       aria-label={`Remove ${item.name}`}
-                      onClick={() => void deleteFile(item._id)}
+                      onClick={() =>
+                        setRemoveTarget({ id: item._id, name: item.name })
+                      }
                     >
                       <Trash2 className="h-4 w-4" aria-hidden="true" />
                       Remove

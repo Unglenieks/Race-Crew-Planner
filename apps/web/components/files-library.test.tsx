@@ -19,7 +19,7 @@ const files = [
 const records = [{ _id: "records:one", name: "Service park", type: "venue" }];
 
 vi.mock("convex/react", () => ({
-  useQuery: () => [files, records][queryIndex++ % 2],
+  useQuery: () => [files, records, [], []][queryIndex++ % 4],
   useMutation: () => Object.values(mutations)[mutationIndex++],
 }));
 
@@ -38,7 +38,7 @@ describe("FilesLibrary", () => {
   it("shows the event and record association for a stored file", () => {
     renderLibrary();
     expect(screen.getByRole("link", { name: "service-park.jpg" })).toBeTruthy();
-    expect(screen.getAllByText(/Service park/)).toHaveLength(2);
+    expect(screen.getByText(/Record: Service park/)).toBeTruthy();
   });
 
   it("hides deletion from crew members", () => {
@@ -63,5 +63,18 @@ describe("FilesLibrary", () => {
       "between 1 byte and 10 MB",
     );
     expect(mutations.uploadUrl).not.toHaveBeenCalled();
+  });
+
+  it("requires a search before listing attachment targets", () => {
+    renderLibrary();
+    expect(
+      screen.getByText("Start typing to find an attachment target."),
+    ).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Search attachment targets"), {
+      target: { value: "service" },
+    });
+    expect(
+      screen.getByRole("button", { name: "Record · Service park" }),
+    ).toBeTruthy();
   });
 });

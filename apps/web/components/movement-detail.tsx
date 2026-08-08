@@ -9,6 +9,7 @@ import { Banner } from "@/components/ui/banner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfirmDestructiveAction } from "@/components/ui/confirm-destructive-action";
 import { PlanChangeDelivery } from "@/components/plan-change-delivery";
 import {
   itineraryApi,
@@ -97,6 +98,8 @@ export function MovementDetail({
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [isArchiveConfirmationOpen, setIsArchiveConfirmationOpen] =
+    useState(false);
   const [openPublisher, setOpenPublisher] = useState(false);
   const [isUpdatingStructure, setIsUpdatingStructure] = useState(false);
   const canEdit = role === "owner" || role === "manager";
@@ -575,7 +578,7 @@ export function MovementDetail({
                   type="button"
                   variant="danger"
                   disabled={isArchiving}
-                  onClick={() => void archiveMovement()}
+                  onClick={() => setIsArchiveConfirmationOpen(true)}
                 >
                   {isArchiving ? (
                     <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -651,6 +654,16 @@ export function MovementDetail({
               </div>
             </dl>
           )}
+          {isArchiveConfirmationOpen ? (
+            <ConfirmDestructiveAction
+              title="Archive movement?"
+              description={`Archive ${item.title}. It will be removed from the active plan and can be restored from the archived movements list.`}
+              confirmLabel="Archive movement"
+              isPending={isArchiving}
+              onCancel={() => setIsArchiveConfirmationOpen(false)}
+              onConfirm={() => void archiveMovement()}
+            />
+          ) : null}
         </CardContent>
       </Card>
       {canEdit && !isEditing ? (

@@ -84,7 +84,7 @@ export function ActivitySources({ eventId }: { eventId: string }) {
               className="text-sm font-medium text-ink"
               htmlFor="event-comment"
             >
-              Add a comment
+              Comment
             </label>
             <textarea
               id="event-comment"

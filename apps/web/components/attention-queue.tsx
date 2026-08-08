@@ -42,8 +42,8 @@ export function AttentionQueue({ eventId }: { eventId: string }) {
               aria-hidden="true"
             />
             <p className="text-sm leading-relaxed text-success-tx">
-              Nothing needs your action right now. New assigned work and plan
-              changes remain here until you resolve them.
+              You’re all caught up. New assigned work and plan changes appear
+              here until they are resolved.
             </p>
           </div>
         ) : (
@@ -111,8 +111,8 @@ export function AttentionQueue({ eventId }: { eventId: string }) {
             className="h-4 w-4 shrink-0 text-green-ink"
             aria-hidden="true"
           />
-          Items leave this queue only when you resolve them. This release does
-          not automatically clear or snooze attention.
+          Resolve the related work or acknowledge the plan change to clear an
+          item from this queue.
         </p>
       </CardContent>
     </Card>

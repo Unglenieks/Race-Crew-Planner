@@ -161,6 +161,7 @@ export function ItineraryPlan({
   const [selectedAssignment, setSelectedAssignment] = useState("");
   const [selectedVenue, setSelectedVenue] = useState("");
   const [search, setSearch] = useState("");
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isArchiving, setIsArchiving] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
@@ -302,6 +303,12 @@ export function ItineraryPlan({
       ).sort(),
     [items, recordsById],
   );
+  const activeSecondaryFilterCount = [
+    selectedType,
+    selectedTag,
+    selectedAssignment,
+    selectedVenue,
+  ].filter(Boolean).length;
   function updateDraft(field: keyof Draft, value: string) {
     setDraft((current) => ({ ...current, [field]: value }));
   }
@@ -623,7 +630,7 @@ export function ItineraryPlan({
             <>
               <div className="grid gap-3 border-b border-line pb-4">
                 <div
-                  className="flex flex-wrap items-center gap-2"
+                  className="flex gap-2 overflow-x-auto pb-1"
                   aria-label="Filter by day"
                 >
                   <Button
@@ -677,6 +684,25 @@ export function ItineraryPlan({
                       placeholder="Search movement, type, tag, assignment, place, or notes"
                     />
                   </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="md:hidden"
+                    aria-expanded={isFiltersOpen}
+                    aria-controls="movement-secondary-filters"
+                    onClick={() => setIsFiltersOpen((open) => !open)}
+                  >
+                    Filters
+                    {activeSecondaryFilterCount === 0
+                      ? ""
+                      : ` (${activeSecondaryFilterCount})`}
+                  </Button>
+                </div>
+                <div
+                  id="movement-secondary-filters"
+                  className={`${isFiltersOpen ? "flex" : "hidden"} flex-wrap items-center gap-2 md:flex`}
+                >
                   <select
                     aria-label="Filter by movement type"
                     value={selectedType}

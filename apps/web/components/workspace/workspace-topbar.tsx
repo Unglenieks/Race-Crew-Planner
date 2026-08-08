@@ -21,8 +21,8 @@ function AttentionBadge({ eventId }: { eventId: string }) {
       }`}
       aria-label={
         isLoading
-          ? "Checking items requiring attention"
-          : `${count} items requiring attention`
+          ? "Attention, checking items requiring attention"
+          : `Attention, ${count} items requiring attention`
       }
     >
       <BellRing className="h-4 w-4 flex-none" aria-hidden="true" />
