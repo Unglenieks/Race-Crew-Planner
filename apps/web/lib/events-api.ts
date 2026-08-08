@@ -22,6 +22,7 @@ export type ItineraryItem = {
   _id: string;
   title: string;
   scheduledFor: string;
+  scheduledUntil?: string;
   location?: string;
   recordId?: string;
   notes?: string;
@@ -165,8 +166,10 @@ export type PublishedPlanChange = {
   itineraryItemId: string;
   title: string;
   scheduledFor: string;
+  scheduledUntil?: string;
   previousTitle?: string;
   previousScheduledFor?: string;
+  previousScheduledUntil?: string;
   reason: string;
   severity: "routine" | "critical";
   publishedAt: number;
@@ -338,6 +341,7 @@ export const itineraryApi = {
       eventId: string;
       title: string;
       scheduledFor: string;
+      scheduledUntil?: string;
       location?: string;
       recordId?: string;
       notes?: string;
@@ -352,6 +356,7 @@ export const itineraryApi = {
       eventId: string;
       title: string;
       scheduledFor: string;
+      scheduledUntil?: string;
       location?: string;
       recordId?: string;
       notes?: string;

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { eventTimeZones, localTimeZone, timeZoneOptions } from "./time-zones";
+import {
+  eventDateKey,
+  eventTimeZones,
+  formatEventDateTime,
+  localTimeZone,
+  timeZoneLabel,
+  timeZoneOptions,
+} from "./time-zones";
 
 describe("event time zones", () => {
   it("offers UTC and canonical IANA locations without ambiguous abbreviations", () => {
@@ -22,5 +29,15 @@ describe("event time zones", () => {
     expect(
       timeZoneOptions(["Europe/Berlin"], ["UTC", "Europe/Berlin", "UTC"]),
     ).toEqual(["Europe/Berlin", "UTC"]);
+  });
+
+  it("formats event-local dates without using the browser date", () => {
+    expect(
+      eventDateKey("America/Los_Angeles", new Date("2026-08-08T01:00:00Z")),
+    ).toBe("2026-08-07");
+    expect(
+      formatEventDateTime("2026-08-08T08:30", "America/New_York"),
+    ).toContain("America / New York");
+    expect(timeZoneLabel("America/New_York")).toBe("America / New York");
   });
 });

@@ -133,6 +133,7 @@ export const publish = mutation({
       itineraryItemId: itemId,
       title: item.title,
       scheduledFor: item.scheduledFor,
+      scheduledUntil: item.scheduledUntil,
       location: item.location,
       notes: item.notes,
       previousTitle: hasLastChangedSnapshot
@@ -141,6 +142,9 @@ export const publish = mutation({
       previousScheduledFor: hasLastChangedSnapshot
         ? item.lastChangedScheduledFor
         : prior?.scheduledFor,
+      previousScheduledUntil: hasLastChangedSnapshot
+        ? item.lastChangedScheduledUntil
+        : prior?.scheduledUntil,
       previousLocation: hasLastChangedSnapshot
         ? item.lastChangedLocation
         : prior?.location,
@@ -166,6 +170,7 @@ export const publish = mutation({
     await ctx.db.patch(itemId, {
       lastChangedTitle: undefined,
       lastChangedScheduledFor: undefined,
+      lastChangedScheduledUntil: undefined,
       lastChangedLocation: undefined,
       lastChangedNotes: undefined,
       lastChangedAt: undefined,

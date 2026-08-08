@@ -609,6 +609,36 @@ describe("Convex authorization helpers", () => {
     });
   });
 
+  it("validates range end times while preserving non-range input", () => {
+    expect(
+      validatedItineraryInput({
+        title: "Service window",
+        scheduledFor: "2026-10-16T08:30",
+        scheduledUntil: "2026-10-16T09:15",
+        timeKind: "range",
+      }),
+    ).toMatchObject({
+      scheduledFor: "2026-10-16T08:30",
+      scheduledUntil: "2026-10-16T09:15",
+      timeKind: "range",
+    });
+    expect(() =>
+      validatedItineraryInput({
+        title: "Invalid window",
+        scheduledFor: "2026-10-16T09:15",
+        scheduledUntil: "2026-10-16T08:30",
+        timeKind: "range",
+      }),
+    ).toThrow("after its start");
+    expect(() =>
+      validatedItineraryInput({
+        title: "Missing end",
+        scheduledFor: "2026-10-16T09:15",
+        timeKind: "range",
+      }),
+    ).toThrow("needs a valid end");
+  });
+
   it("writes one attributable audit entry with a movement transaction", async () => {
     const inserts: Array<{ table: string; value: Record<string, unknown> }> =
       [];

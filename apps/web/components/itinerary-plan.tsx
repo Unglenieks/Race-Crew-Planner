@@ -23,10 +23,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/data-display";
 import { Input } from "@/components/ui/input";
+import { formatEventDateTime } from "@/lib/time-zones";
 
 type Draft = {
   title: string;
   scheduledFor: string;
+  scheduledUntil: string;
+  timeKind: NonNullable<ItineraryItem["timeKind"]>;
   location: string;
   recordId: string;
   notes: string;
@@ -35,22 +38,21 @@ type Draft = {
 const emptyDraft: Draft = {
   title: "",
   scheduledFor: "",
+  scheduledUntil: "",
+  timeKind: "exact",
   location: "",
   recordId: "",
   notes: "",
 };
 
-function displayScheduledFor(scheduledFor: string) {
-  const [date, time] = scheduledFor.split("T");
-  const [year, month, day] = date.split("-").map(Number);
-  const dateLabel = new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(Date.UTC(year, month - 1, day)));
-
-  return `${dateLabel} · ${time}`;
+function displayScheduledFor(item: ItineraryItem, timeZone: string) {
+  const start = formatEventDateTime(item.scheduledFor, timeZone);
+  if (item.timeKind !== "range") return start;
+  return `${start} → ${
+    item.scheduledUntil === undefined
+      ? "End time not recorded (legacy range)"
+      : formatEventDateTime(item.scheduledUntil, timeZone)
+  }`;
 }
 
 function displayDay(day: string) {
@@ -138,6 +140,9 @@ export function ItineraryPlan({
       eventId,
       title: draft.title,
       scheduledFor: draft.scheduledFor,
+      scheduledUntil:
+        draft.timeKind === "range" ? draft.scheduledUntil : undefined,
+      timeKind: draft.timeKind,
       location: draft.location || undefined,
       recordId: draft.recordId || undefined,
       notes: draft.notes || undefined,
@@ -338,7 +343,7 @@ export function ItineraryPlan({
                       className="grid gap-3 py-4 first:pt-0 last:pb-0 sm:grid-cols-[8rem_minmax(0,1fr)_auto]"
                     >
                       <time className="font-mono text-xs text-green-ink">
-                        {displayScheduledFor(item.scheduledFor)}
+                        {displayScheduledFor(item, timeZone)}
                       </time>
                       <div className="min-w-0">
                         <Link
@@ -457,6 +462,47 @@ export function ItineraryPlan({
                   required
                 />
               </div>
+              <div className="grid gap-1.5">
+                <label
+                  className="text-sm font-medium text-ink"
+                  htmlFor="movement-time-kind"
+                >
+                  Time type
+                </label>
+                <select
+                  id="movement-time-kind"
+                  value={draft.timeKind}
+                  onChange={(event) =>
+                    updateDraft("timeKind", event.target.value)
+                  }
+                  className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                >
+                  <option value="exact">Exact</option>
+                  <option value="approximate">Approximate</option>
+                  <option value="range">Range</option>
+                  <option value="allDay">All day</option>
+                </select>
+              </div>
+              {draft.timeKind === "range" ? (
+                <div className="grid gap-1.5">
+                  <label
+                    className="text-sm font-medium text-ink"
+                    htmlFor="movement-end-time"
+                  >
+                    End time
+                  </label>
+                  <Input
+                    id="movement-end-time"
+                    type="datetime-local"
+                    value={draft.scheduledUntil}
+                    min={draft.scheduledFor || undefined}
+                    onChange={(event) =>
+                      updateDraft("scheduledUntil", event.target.value)
+                    }
+                    required
+                  />
+                </div>
+              ) : null}
               <div className="grid gap-1.5">
                 <label
                   className="text-sm font-medium text-ink"
