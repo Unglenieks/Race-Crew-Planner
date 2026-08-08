@@ -2,6 +2,7 @@
 
 import { FileText, Link2, LoaderCircle, MessageSquare } from "lucide-react";
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
 import { activityApi } from "@/lib/events-api";
 import { Button } from "@/components/ui/button";
@@ -130,12 +131,49 @@ export function ActivitySources({ eventId }: { eventId: string }) {
                       aria-hidden="true"
                     />
                     <div>
-                      <p className="text-sm text-ink">{item.message}</p>
+                      <p className="text-sm text-ink">
+                        {item.href === undefined ? (
+                          item.message
+                        ) : (
+                          <Link
+                            className="font-medium underline"
+                            href={item.href}
+                          >
+                            {item.message}
+                          </Link>
+                        )}
+                      </p>
                       <p className="text-xs text-muted">
                         {item.actorName ?? "Profile pending"} ·{" "}
                         {date(item.createdAt)}
                       </p>
                     </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Comments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.comments.length === 0 ? (
+              <p className="text-sm text-muted">No comments saved yet.</p>
+            ) : (
+              <ol className="grid gap-3">
+                {data.comments.map((comment) => (
+                  <li
+                    key={comment._id}
+                    className="border-b border-line pb-3 last:border-0"
+                  >
+                    <p className="whitespace-pre-wrap text-sm text-ink">
+                      {comment.body}
+                    </p>
+                    <p className="mt-1 text-xs text-muted">
+                      {comment.authorName} · {date(comment.createdAt)}
+                    </p>
                   </li>
                 ))}
               </ol>

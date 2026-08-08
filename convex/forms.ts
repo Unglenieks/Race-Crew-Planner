@@ -7,6 +7,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireIdentity, requireRole } from "./auth";
+import { writeAudit } from "./audit";
 
 const field = v.object({
   id: v.string(),
@@ -339,15 +340,27 @@ export const createTemplate = mutation({
   handler: async (ctx, { eventId, name, fields }) => {
     const { identity, membership } = await requireMembership(ctx, eventId);
     requireRole(membership.role, ["owner", "manager"]);
-    return ctx.db.insert("formTemplates", {
+    const templateName = validateTemplateName(name);
+    const templateId = await ctx.db.insert("formTemplates", {
       eventId,
-      name: validateTemplateName(name),
+      name: templateName,
       version: 1,
       isCurrent: true,
       fields: validateFields(fields),
       createdBy: identity.subject,
       createdAt: Date.now(),
     });
+    await writeAudit(ctx, {
+      eventId,
+      actorId: identity.subject,
+      kind: "inspection.templateCreated",
+      message: `Created inspection template: ${templateName}`,
+      objectType: "inspectionTemplate",
+      objectId: templateId,
+      objectLabel: templateName,
+      href: `/events/${eventId}/forms`,
+    });
+    return templateId;
   },
 });
 
@@ -379,6 +392,16 @@ export const createTemplateVersion = mutation({
       createdAt: Date.now(),
     });
     await ctx.db.patch(templateId, { isCurrent: false });
+    await writeAudit(ctx, {
+      eventId,
+      actorId: identity.subject,
+      kind: "inspection.templateUpdated",
+      message: `Updated inspection template: ${name.trim()}`,
+      objectType: "inspectionTemplate",
+      objectId: versionId,
+      objectLabel: name.trim(),
+      href: `/events/${eventId}/forms`,
+    });
     return versionId;
   },
 });
@@ -433,8 +456,8 @@ export const saveDraft = mutation({
       answers as Answers,
     );
     const now = Date.now();
-    if (submissionId === undefined)
-      return ctx.db.insert("formSubmissions", {
+    if (submissionId === undefined) {
+      const createdId = await ctx.db.insert("formSubmissions", {
         eventId,
         templateId,
         templateName: template.name,
@@ -446,6 +469,18 @@ export const saveDraft = mutation({
         createdAt: now,
         updatedAt: now,
       });
+      await writeAudit(ctx, {
+        eventId,
+        actorId: identity.subject,
+        kind: "inspection.draftSaved",
+        message: `Saved inspection draft: ${template.name}`,
+        objectType: "inspection",
+        objectId: createdId,
+        objectLabel: template.name,
+        href: `/events/${eventId}/forms`,
+      });
+      return createdId;
+    }
     const submission = await ctx.db.get(submissionId);
     if (
       submission === null ||
@@ -456,6 +491,16 @@ export const saveDraft = mutation({
     )
       throw new Error("Draft form not found");
     await ctx.db.patch(submissionId, { answers, updatedAt: now });
+    await writeAudit(ctx, {
+      eventId,
+      actorId: identity.subject,
+      kind: "inspection.draftSaved",
+      message: `Saved inspection draft: ${template.name}`,
+      objectType: "inspection",
+      objectId: submissionId,
+      objectLabel: template.name,
+      href: `/events/${eventId}/forms`,
+    });
     return submissionId;
   },
 });
@@ -491,6 +536,16 @@ export const submit = mutation({
       submittedBy: identity.subject,
       submittedAt: Date.now(),
       updatedAt: Date.now(),
+    });
+    await writeAudit(ctx, {
+      eventId,
+      actorId: identity.subject,
+      kind: "inspection.submitted",
+      message: `Submitted inspection: ${submission.templateName}`,
+      objectType: "inspection",
+      objectId: submissionId,
+      objectLabel: submission.templateName,
+      href: `/events/${eventId}/forms`,
     });
   },
 });

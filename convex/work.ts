@@ -8,6 +8,7 @@ import {
 } from "./_generated/server";
 import { requireIdentity, requireRole } from "./auth";
 import { resolveUserProfile } from "./userProfiles";
+import { writeAudit } from "./audit";
 
 const workItemArgs = {
   eventId: v.id("events"),
@@ -219,14 +220,17 @@ export const listAssignees = query({
 export const create = mutation({
   args: workItemArgs,
   handler: async (ctx, args) => {
-    const { membership } = await requireEventMembership(ctx, args.eventId);
+    const { identity, membership } = await requireEventMembership(
+      ctx,
+      args.eventId,
+    );
     requireRole(membership.role, ["owner", "manager"]);
     const item = validatedWorkItemInput(args);
     await requireAssigneeMembership(ctx, args.eventId, item.assigneeId);
     await requireLinkedRecordsBelongToEvent(ctx, args.eventId, item);
     const now = Date.now();
 
-    return await ctx.db.insert("workItems", {
+    const itemId = await ctx.db.insert("workItems", {
       eventId: args.eventId,
       ...item,
       status: item.status ?? "open",
@@ -235,6 +239,18 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     });
+    await writeAudit(ctx, {
+      eventId: args.eventId,
+      actorId: identity.subject,
+      kind: "work.created",
+      message: `Created work: ${item.title}`,
+      objectType: "work",
+      objectId: itemId,
+      objectLabel: item.title,
+      href: `/events/${args.eventId}/work/${itemId}`,
+      createdAt: now,
+    });
+    return itemId;
   },
 });
 
@@ -242,7 +258,10 @@ export const create = mutation({
 export const update = mutation({
   args: { itemId: v.id("workItems"), ...workItemArgs },
   handler: async (ctx, args) => {
-    const { membership } = await requireEventMembership(ctx, args.eventId);
+    const { identity, membership } = await requireEventMembership(
+      ctx,
+      args.eventId,
+    );
     requireRole(membership.role, ["owner", "manager"]);
     const existing = await requireWorkItem(ctx, args.eventId, args.itemId);
     const item = validatedWorkItemInput(args);
@@ -274,6 +293,16 @@ export const update = mutation({
             : undefined,
       updatedAt: Date.now(),
     });
+    await writeAudit(ctx, {
+      eventId: args.eventId,
+      actorId: identity.subject,
+      kind: "work.updated",
+      message: `Updated work: ${item.title}`,
+      objectType: "work",
+      objectId: args.itemId,
+      objectLabel: item.title,
+      href: `/events/${args.eventId}/work/${args.itemId}`,
+    });
   },
 });
 
@@ -286,13 +315,23 @@ export const setCompletion = mutation({
   },
   handler: async (ctx, { eventId, itemId, completed }) => {
     const { identity } = await requireEventMembership(ctx, eventId);
-    await requireWorkItem(ctx, eventId, itemId);
+    const item = await requireWorkItem(ctx, eventId, itemId);
 
     await ctx.db.patch(itemId, {
       status: completed ? "completed" : "open",
       completedAt: completed ? Date.now() : undefined,
       completedBy: completed ? identity.subject : undefined,
       updatedAt: Date.now(),
+    });
+    await writeAudit(ctx, {
+      eventId,
+      actorId: identity.subject,
+      kind: completed ? "work.completed" : "work.reopened",
+      message: `${completed ? "Completed" : "Reopened"} work: ${item.title}`,
+      objectType: "work",
+      objectId: itemId,
+      objectLabel: item.title,
+      href: `/events/${eventId}/work/${itemId}`,
     });
   },
 });
@@ -337,6 +376,16 @@ export const setCompletionOffline = mutation({
       createdBy: identity.subject,
       createdAt: Date.now(),
     });
+    await writeAudit(ctx, {
+      eventId,
+      actorId: identity.subject,
+      kind: completed ? "work.completed" : "work.reopened",
+      message: `${completed ? "Completed" : "Reopened"} work: ${item.title}`,
+      objectType: "work",
+      objectId: itemId,
+      objectLabel: item.title,
+      href: `/events/${eventId}/work/${itemId}`,
+    });
     return { replayed: false };
   },
 });
@@ -380,13 +429,24 @@ export const addComment = mutation({
   },
   handler: async (ctx, { eventId, itemId, body }) => {
     const { identity } = await requireEventMembership(ctx, eventId);
-    await requireWorkItem(ctx, eventId, itemId);
-    return await ctx.db.insert("workItemComments", {
+    const item = await requireWorkItem(ctx, eventId, itemId);
+    const commentId = await ctx.db.insert("workItemComments", {
       eventId,
       workItemId: itemId,
       body: commentBody(body),
       authorId: identity.subject,
       createdAt: Date.now(),
     });
+    await writeAudit(ctx, {
+      eventId,
+      actorId: identity.subject,
+      kind: "work.commented",
+      message: `Added a handoff note to: ${item.title}`,
+      objectType: "work",
+      objectId: itemId,
+      objectLabel: item.title,
+      href: `/events/${eventId}/work/${itemId}`,
+    });
+    return commentId;
   },
 });

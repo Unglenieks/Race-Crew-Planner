@@ -8,6 +8,7 @@ import {
 import type { Id } from "./_generated/dataModel";
 import { requireIdentity, requireRole } from "./auth";
 import { isLocationRecord } from "./records";
+import { writeAudit } from "./audit";
 
 const itineraryArgs = {
   eventId: v.id("events"),
@@ -102,7 +103,7 @@ async function requireEventMembership(
     throw new Error("Forbidden");
   }
 
-  return membership;
+  return { identity, membership };
 }
 
 async function requireLocationRecord(
@@ -166,7 +167,7 @@ export const get = query({
 export const archive = mutation({
   args: { itemId: v.id("itineraryItems"), eventId: v.id("events") },
   handler: async (ctx, { itemId, eventId }) => {
-    const membership = await requireEventMembership(ctx, eventId);
+    const { identity, membership } = await requireEventMembership(ctx, eventId);
     requireRole(membership.role, ["owner", "manager"]);
     const existing = await ctx.db.get(itemId);
 
@@ -179,6 +180,15 @@ export const archive = mutation({
         archivedAt: Date.now(),
         updatedAt: Date.now(),
       });
+      await writeAudit(ctx, {
+        eventId,
+        actorId: identity.subject,
+        kind: "movement.archived",
+        message: `Archived movement: ${existing.title}`,
+        objectType: "movement",
+        objectId: itemId,
+        objectLabel: existing.title,
+      });
     }
   },
 });
@@ -187,7 +197,7 @@ export const archive = mutation({
 export const restore = mutation({
   args: { itemId: v.id("itineraryItems"), eventId: v.id("events") },
   handler: async (ctx, { itemId, eventId }) => {
-    const membership = await requireEventMembership(ctx, eventId);
+    const { identity, membership } = await requireEventMembership(ctx, eventId);
     requireRole(membership.role, ["owner", "manager"]);
     const existing = await ctx.db.get(itemId);
 
@@ -200,6 +210,16 @@ export const restore = mutation({
         archivedAt: undefined,
         updatedAt: Date.now(),
       });
+      await writeAudit(ctx, {
+        eventId,
+        actorId: identity.subject,
+        kind: "movement.restored",
+        message: `Restored movement: ${existing.title}`,
+        objectType: "movement",
+        objectId: itemId,
+        objectLabel: existing.title,
+        href: `/events/${eventId}/plan/${itemId}`,
+      });
     }
   },
 });
@@ -208,19 +228,34 @@ export const restore = mutation({
 export const create = mutation({
   args: itineraryArgs,
   handler: async (ctx, args) => {
-    const membership = await requireEventMembership(ctx, args.eventId);
+    const { identity, membership } = await requireEventMembership(
+      ctx,
+      args.eventId,
+    );
     requireRole(membership.role, ["owner", "manager"]);
     const item = validatedItineraryInput(args);
     await requireLocationRecord(ctx, args.eventId, args.recordId);
     const now = Date.now();
 
-    return await ctx.db.insert("itineraryItems", {
+    const itemId = await ctx.db.insert("itineraryItems", {
       eventId: args.eventId,
       ...item,
       recordId: args.recordId,
       createdAt: now,
       updatedAt: now,
     });
+    await writeAudit(ctx, {
+      eventId: args.eventId,
+      actorId: identity.subject,
+      kind: "movement.created",
+      message: `Created movement: ${item.title}`,
+      objectType: "movement",
+      objectId: itemId,
+      objectLabel: item.title,
+      href: `/events/${args.eventId}/plan/${itemId}`,
+      createdAt: now,
+    });
+    return itemId;
   },
 });
 
@@ -228,7 +263,10 @@ export const create = mutation({
 export const update = mutation({
   args: { itemId: v.id("itineraryItems"), ...itineraryArgs },
   handler: async (ctx, args) => {
-    const membership = await requireEventMembership(ctx, args.eventId);
+    const { identity, membership } = await requireEventMembership(
+      ctx,
+      args.eventId,
+    );
     requireRole(membership.role, ["owner", "manager"]);
     const existing = await ctx.db.get(args.itemId);
 
@@ -238,8 +276,9 @@ export const update = mutation({
 
     await requireLocationRecord(ctx, args.eventId, args.recordId);
 
+    const item = validatedItineraryInput(args);
     await ctx.db.patch(args.itemId, {
-      ...validatedItineraryInput(args),
+      ...item,
       recordId: args.recordId,
       lastChangedTitle: existing.title,
       lastChangedScheduledFor: existing.scheduledFor,
@@ -247,6 +286,16 @@ export const update = mutation({
       lastChangedNotes: existing.notes,
       lastChangedAt: Date.now(),
       updatedAt: Date.now(),
+    });
+    await writeAudit(ctx, {
+      eventId: args.eventId,
+      actorId: identity.subject,
+      kind: "movement.updated",
+      message: `Updated movement: ${item.title}`,
+      objectType: "movement",
+      objectId: args.itemId,
+      objectLabel: item.title,
+      href: `/events/${args.eventId}/plan/${args.itemId}`,
     });
   },
 });

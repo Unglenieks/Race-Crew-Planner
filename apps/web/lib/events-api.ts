@@ -218,14 +218,19 @@ export type EventActivity = {
   _id: string;
   actorId: string;
   actorName?: string;
-  kind: "comment" | "source";
+  kind: string;
   message: string;
+  objectType?: string;
+  objectId?: string;
+  objectLabel?: string;
+  href?: string;
   createdAt: number;
 };
 export type EventComment = {
   _id: string;
   body: string;
   authorId: string;
+  authorName: string;
   createdAt: number;
 };
 export type EventSource = {
