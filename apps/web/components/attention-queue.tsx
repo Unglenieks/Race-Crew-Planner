@@ -64,12 +64,12 @@ export function AttentionQueue({ eventId }: { eventId: string }) {
                   <p className="mt-1 text-sm text-warning-tx">
                     {change.title}.{" "}
                     <Link
-                      href={screenHref(eventId, "plan")}
+                      href={`/events/${eventId}/plan/${change.itineraryItemId}#published-changes`}
                       className="font-semibold underline focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
                     >
-                      Open the movement plan
+                      Review and acknowledge
                     </Link>{" "}
-                    to review and acknowledge it.
+                    on the affected movement.
                   </p>
                 </div>
               </li>

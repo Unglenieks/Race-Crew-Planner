@@ -61,6 +61,8 @@ import {
 } from "../../convex/records";
 import {
   acknowledge as acknowledgePlanChange,
+  acknowledgeElsewhere as acknowledgePlanChangeElsewhere,
+  markOpened as markPlanChangeOpened,
   normalizedReason,
   publish as publishPlanChange,
 } from "../../convex/planChanges";
@@ -796,6 +798,70 @@ describe("Convex authorization helpers", () => {
         recipientId: "planChangeRecipients:one" as never,
       }),
     ).rejects.toThrow("Change acknowledgement not found");
+  });
+
+  it("lets the assigned recipient mark delivery opened and acknowledge", async () => {
+    const patches: Array<Record<string, unknown>> = [];
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+        }),
+        get: async () => ({
+          eventId: "events:one",
+          userId: "crew_123",
+          state: "sent",
+        }),
+        patch: async (_id: string, value: Record<string, unknown>) => {
+          patches.push(value);
+        },
+      },
+    };
+    await markPlanChangeOpened._handler(context as never, {
+      eventId: "events:one" as never,
+      recipientId: "planChangeRecipients:one" as never,
+    });
+    await acknowledgePlanChange._handler(context as never, {
+      eventId: "events:one" as never,
+      recipientId: "planChangeRecipients:one" as never,
+    });
+    expect(patches).toEqual([
+      expect.objectContaining({ state: "opened" }),
+      expect.objectContaining({
+        state: "acknowledged",
+        acknowledgedBy: "crew_123",
+      }),
+    ]);
+  });
+
+  it("reserves operator-recorded acknowledgement for owners and managers", async () => {
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+        }),
+      },
+    };
+    await expect(
+      acknowledgePlanChangeElsewhere._handler(context as never, {
+        eventId: "events:one" as never,
+        recipientId: "planChangeRecipients:one" as never,
+      }),
+    ).rejects.toThrow("Forbidden");
   });
 
   it("normalizes the first checklist item shape", () => {
