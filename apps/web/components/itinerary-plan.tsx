@@ -2,6 +2,7 @@
 
 import {
   CalendarPlus,
+  Copy,
   LoaderCircle,
   RotateCcw,
   Search,
@@ -35,6 +36,10 @@ import {
 } from "@/lib/timing";
 import { locationRecords } from "@/lib/record-locations";
 import { VenueLinkCombobox } from "@/components/venue-link-combobox";
+import {
+  ItineraryStagingGrid,
+  type StagedMovement,
+} from "@/components/itinerary-staging-grid";
 
 type Draft = {
   title: string;
@@ -131,6 +136,7 @@ export function ItineraryPlan({
   const logistics = useQuery(logisticsApi.getOverview, { eventId });
   const createItem = useMutation(itineraryApi.create);
   const createWithVenue = useMutation(itineraryApi.createWithVenue);
+  const createMany = useMutation(itineraryApi.createMany);
   const archiveItem = useMutation(itineraryApi.archive);
   const restoreItem = useMutation(itineraryApi.restore);
   const ensureDefaults = useMutation(movementsApi.ensureDefaults);
@@ -153,12 +159,13 @@ export function ItineraryPlan({
   const [vocabularyKind, setVocabularyKind] = useState("type");
   const [vocabularyName, setVocabularyName] = useState("");
   const [isSavingVocabulary, setIsSavingVocabulary] = useState(false);
-  const titleInputRef = useRef<HTMLInputElement>(null);
+  const [isStagingOpen, setIsStagingOpen] = useState(false);
+  const firstInputRef = useRef<HTMLInputElement>(null);
   const hasUnsavedChanges =
     JSON.stringify(draft) !== JSON.stringify(emptyDraft);
 
   useEffect(() => {
-    if (isCreatorOpen) titleInputRef.current?.focus();
+    if (isCreatorOpen) firstInputRef.current?.focus();
   }, [isCreatorOpen]);
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
@@ -258,8 +265,23 @@ export function ItineraryPlan({
       } else {
         await createItem({ ...input, recordId: draft.recordId || undefined });
       }
-      setDraft(emptyDraft);
-      setIsCreatorOpen(false);
+      const continueAdding =
+        (
+          (event.nativeEvent as SubmitEvent)
+            .submitter as HTMLButtonElement | null
+        )?.value === "continue";
+      if (continueAdding) {
+        setDraft((current) => ({
+          ...current,
+          scheduledFor: "",
+          scheduledUntil: "",
+          title: "",
+        }));
+        requestAnimationFrame(() => firstInputRef.current?.focus());
+      } else {
+        setDraft(emptyDraft);
+        setIsCreatorOpen(false);
+      }
     } catch {
       setError(
         "We could not save this movement. Your changes were not saved; please try again.",
@@ -285,6 +307,88 @@ export function ItineraryPlan({
     } finally {
       setIsSavingVocabulary(false);
     }
+  }
+
+  async function saveStagedRows(rows: StagedMovement[]) {
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const activeTypes = directory?.types.filter(
+        (entry) => entry.archivedAt === undefined,
+      );
+      const activeTags = directory?.tags.filter(
+        (entry) => entry.archivedAt === undefined,
+      );
+      const activeTeams = directory?.teams.filter(
+        (entry) => entry.archivedAt === undefined,
+      );
+      const byName = <T extends { name: string }>(entries: T[] | undefined, name: string) =>
+        entries?.find(
+          (entry) => entry.name.toLocaleLowerCase() === name.trim().toLocaleLowerCase(),
+        );
+      const unresolved = rows.find(
+        (row) =>
+          (row.movementType && !byName(activeTypes, row.movementType)) ||
+          (row.team && !byName(activeTeams, row.team)) ||
+          row.tags
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter(Boolean)
+            .some((tag) => !byName(activeTags, tag)),
+      );
+      if (unresolved)
+        throw new Error(
+          "Use operational vocabulary values that already exist before saving staged rows.",
+        );
+      await createMany({
+        eventId,
+        items: rows.map((row) => ({
+          eventId,
+          title: row.title,
+          scheduledFor: row.scheduledFor,
+          location: row.location || undefined,
+          operationalDay: row.operationalDay || undefined,
+          movementTypeId:
+            byName(activeTypes, row.movementType)?._id ?? null,
+          teamId: byName(activeTeams, row.team)?._id,
+          tagIds: row.tags
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter(Boolean)
+            .map((tag) => byName(activeTags, tag)!._id),
+          timeKind: "exact",
+        })),
+      });
+    } catch {
+      setError(
+        "We could not add the staged movements. Check the rows and try again.",
+      );
+      throw new Error("Staged movements were not saved");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function duplicateItem(item: ItineraryItem) {
+    setDraft({
+      title: item.title,
+      scheduledFor: "",
+      scheduledUntil: "",
+      timeKind: item.timeKind ?? "exact",
+      location: item.location ?? "",
+      recordId: item.recordId ?? "",
+      venueName: "",
+      venueAddress: "",
+      notes: item.notes ?? "",
+      operationalDay: item.operationalDay ?? "",
+      movementTypeId: item.movementTypeId ?? "",
+      sectionId: item.sectionId ?? "",
+      displayTime: item.displayTime ?? "standard",
+      travelContextId: item.travelContextId ?? "",
+      serviceIntervalId: item.serviceIntervalId ?? "",
+    });
+    setIsCreatorOpen(true);
+    setIsStagingOpen(false);
   }
 
   async function onArchive(item: ItineraryItem) {
@@ -353,8 +457,24 @@ export function ItineraryPlan({
                   >
                     Reconcile venues
                   </Link>
-                  <Button size="sm" onClick={() => setIsCreatorOpen(true)}>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setIsCreatorOpen(true);
+                      setIsStagingOpen(false);
+                    }}
+                  >
                     Add movement
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setIsStagingOpen(true);
+                      setIsCreatorOpen(false);
+                    }}
+                  >
+                    Add many
                   </Button>
                 </>
               ) : null}
@@ -597,6 +717,15 @@ export function ItineraryPlan({
                             )}
                             Archive
                           </Button>
+                          <Button
+                            type="button"
+                            variant="soft"
+                            size="sm"
+                            onClick={() => duplicateItem(item)}
+                          >
+                            <Copy className="h-4 w-4" aria-hidden="true" />
+                            Duplicate
+                          </Button>
                         </div>
                       ) : null}
                     </li>
@@ -635,6 +764,26 @@ export function ItineraryPlan({
           )}
         </CardContent>
       </Card>
+
+      {canEdit && isStagingOpen ? (
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <div>
+              <CardTitle>Add movements in a spreadsheet</CardTitle>
+              <p className="mt-1 text-sm text-muted">
+                Use the same staging table for typing, row-by-row work, and
+                multi-row spreadsheet paste.
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ItineraryStagingGrid
+              onSave={saveStagedRows}
+              isSaving={isSubmitting}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {canEdit && isCreatorOpen ? (
         <Card>
@@ -683,6 +832,7 @@ export function ItineraryPlan({
                 </label>
                 <Input
                   id="movement-time"
+                  ref={firstInputRef}
                   type={
                     draft.timeKind === "allDay" || draft.displayTime === "2400"
                       ? "date"
@@ -910,7 +1060,6 @@ export function ItineraryPlan({
                 </label>
                 <Input
                   id="movement-title"
-                  ref={titleInputRef}
                   value={draft.title}
                   onChange={(event) => updateDraft("title", event.target.value)}
                   maxLength={160}
@@ -961,7 +1110,16 @@ export function ItineraryPlan({
                   ) : (
                     <CalendarPlus className="h-4 w-4" aria-hidden="true" />
                   )}
-                  Add movement
+                  Add
+                </Button>
+                <Button
+                  type="submit"
+                  name="continue"
+                  value="continue"
+                  variant="secondary"
+                  disabled={isSubmitting}
+                >
+                  Add and continue
                 </Button>
                 <Button
                   type="button"

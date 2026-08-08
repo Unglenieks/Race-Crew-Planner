@@ -491,6 +491,104 @@ export const createWithVenue = mutation({
   },
 });
 
+/** Creates a reviewed set of structured movements in one authorized operation. */
+export const createMany = mutation({
+  args: {
+    eventId: v.id("events"),
+    items: v.array(
+      v.object({
+        ...itineraryArgs,
+        tagIds: v.array(v.id("eventMovementTags")),
+        teamId: v.optional(v.id("eventTeams")),
+      }),
+    ),
+  },
+  handler: async (ctx, { eventId, items }) => {
+    const { identity, membership } = await requireEventMembership(ctx, eventId);
+    requireRole(membership.role, ["owner", "manager"]);
+    if (items.length === 0 || items.length > 100)
+      throw new Error("Add between 1 and 100 movements at a time");
+    if (items.some((item) => item.eventId !== eventId))
+      throw new Error("All staged movements must belong to the selected event");
+
+    const timeZone = await requireEventTimeZone(ctx, eventId);
+    const now = Date.now();
+    const ids: Id<"itineraryItems">[] = [];
+    for (const raw of items) {
+      const item = validatedItineraryInput(raw, timeZone);
+      const record = await requireLocationRecord(ctx, eventId, raw.recordId);
+      await requireMovementType(ctx, eventId, raw.movementTypeId);
+      await requireSection(ctx, eventId, raw.sectionId);
+      await requireLogisticsReferences(
+        ctx,
+        eventId,
+        raw.travelContextId,
+        raw.serviceIntervalId,
+      );
+      const uniqueTagIds = [...new Set(raw.tagIds)];
+      const tags = await Promise.all(uniqueTagIds.map((tagId) => ctx.db.get(tagId)));
+      if (
+        tags.some(
+          (tag) =>
+            tag === null ||
+            tag.eventId !== eventId ||
+            tag.archivedAt !== undefined,
+        )
+      )
+        throw new Error("Movement tag not found");
+      const team = raw.teamId === undefined ? undefined : await ctx.db.get(raw.teamId);
+      if (
+        raw.teamId !== undefined &&
+        (team === null || team?.eventId !== eventId || team.archivedAt !== undefined)
+      )
+        throw new Error("Assigned team not found");
+
+      const itemId = await ctx.db.insert("itineraryItems", {
+        eventId,
+        ...item,
+        scheduledUntil:
+          item.timeKind === "range" ? item.scheduledUntil : undefined,
+        recordId: raw.recordId,
+        location: item.location ?? record?.name,
+        movementTypeId: item.movementTypeId ?? undefined,
+        travelContextId: raw.travelContextId,
+        serviceIntervalId: raw.serviceIntervalId,
+        createdAt: now,
+        updatedAt: now,
+      });
+      ids.push(itemId);
+      for (const tagId of uniqueTagIds)
+        await ctx.db.insert("movementTagAssignments", {
+          eventId,
+          itineraryItemId: itemId,
+          tagId,
+          createdAt: now,
+        });
+      if (team !== undefined && team !== null)
+        await ctx.db.insert("movementAssignments", {
+          eventId,
+          itineraryItemId: itemId,
+          targetKind: "team",
+          teamId: team._id,
+          label: team.name,
+          createdAt: now,
+        });
+      await writeAudit(ctx, {
+        eventId,
+        actorId: identity.subject,
+        kind: "movement.created",
+        message: `Created movement: ${item.title}`,
+        objectType: "movement",
+        objectId: itemId,
+        objectLabel: item.title,
+        href: `/events/${eventId}/plan/${itemId}`,
+        createdAt: now,
+      });
+    }
+    return ids;
+  },
+});
+
 /** Updates one movement after confirming it belongs to the selected event. */
 export const update = mutation({
   args: { itemId: v.id("itineraryItems"), ...itineraryArgs },

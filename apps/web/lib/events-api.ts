@@ -587,6 +587,31 @@ export const itineraryApi = {
     { eventId: string; links: Array<{ itemId: string; recordId: string }> },
     null
   >("itinerary:reconcileLinks"),
+  createMany: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      items: Array<{
+        eventId: string;
+        title: string;
+        scheduledFor: string;
+        scheduledUntil?: string;
+         location?: string;
+         recordId?: string;
+         travelContextId?: string;
+         serviceIntervalId?: string;
+         notes?: string;
+         movementTypeId?: string | null;
+         sectionId?: string;
+         operationalDay?: string;
+         displayTime?: "standard" | "2400";
+         tagIds: string[];
+         teamId?: string;
+         timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
+      }>;
+    },
+    string[]
+  >("itinerary:createMany"),
   update: makeFunctionReference<
     "mutation",
     {
