@@ -155,3 +155,41 @@ html {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* A generated crew brief is a standalone operational artifact, not a screen capture. */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  body:has(.crew-brief-print) * {
+    visibility: hidden;
+  }
+
+  .crew-brief-print,
+  .crew-brief-print * {
+    visibility: visible;
+  }
+
+  .crew-brief-print {
+    position: absolute;
+    inset: 0;
+    display: block !important;
+    width: 100%;
+  }
+
+  .crew-brief-document {
+    width: 100%;
+    font-size: 10pt;
+  }
+
+  .crew-brief-table thead {
+    display: table-header-group;
+  }
+
+  .crew-brief-table tr,
+  .crew-brief-document .break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
