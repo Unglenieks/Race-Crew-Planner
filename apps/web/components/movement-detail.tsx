@@ -26,6 +26,9 @@ type Draft = {
   location: string;
   recordId: string;
   notes: string;
+  movementType: string;
+  tags: string;
+  sectionId: string;
   timeKind: NonNullable<ItineraryItem["timeKind"]>;
 };
 
@@ -45,6 +48,9 @@ function toDraft(item: ItineraryItem): Draft {
     location: item.location ?? "",
     recordId: item.recordId ?? "",
     notes: item.notes ?? "",
+    movementType: item.movementType ?? "",
+    tags: (item.tags ?? []).join(", "),
+    sectionId: item.sectionId ?? "",
     timeKind: item.timeKind ?? "exact",
   };
 }
@@ -147,6 +153,12 @@ export function MovementDetail({
         location: currentDraft.location || undefined,
         recordId: currentDraft.recordId || undefined,
         notes: currentDraft.notes || undefined,
+        movementType: currentDraft.movementType || undefined,
+        tags: currentDraft.tags
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+        sectionId: currentDraft.sectionId || undefined,
         timeKind: currentDraft.timeKind,
       });
       setDraft(null);

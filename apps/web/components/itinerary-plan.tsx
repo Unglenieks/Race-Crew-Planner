@@ -3,6 +3,7 @@
 import {
   CalendarPlus,
   LoaderCircle,
+  MoreHorizontal,
   RotateCcw,
   Search,
   Trash2,
@@ -12,7 +13,9 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   itineraryApi,
+  planSectionsApi,
   recordsApi,
+  workApi,
   type EventRole,
   type ItineraryItem,
 } from "@/lib/events-api";
@@ -33,6 +36,9 @@ type Draft = {
   location: string;
   recordId: string;
   notes: string;
+  movementType: string;
+  tags: string;
+  sectionId: string;
 };
 
 const emptyDraft: Draft = {
@@ -43,7 +49,13 @@ const emptyDraft: Draft = {
   location: "",
   recordId: "",
   notes: "",
+  movementType: "",
+  tags: "",
+  sectionId: "",
 };
+
+const savedPlanViewKey = (eventId: string) =>
+  `race-planner:plan-view:${eventId}`;
 
 function displayScheduledFor(item: ItineraryItem, timeZone: string) {
   const start = formatEventDateTime(item.scheduledFor, timeZone);
@@ -65,6 +77,21 @@ function displayDay(day: string) {
   }).format(new Date(Date.UTC(year, month - 1, date)));
 }
 
+function eventLocalDateTime(timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("year")}-${value("month")}-${value("day")}T${value("hour")}:${value("minute")}`;
+}
+
 export function ItineraryPlan({
   eventId,
   eventName,
@@ -79,13 +106,23 @@ export function ItineraryPlan({
   const items = useQuery(itineraryApi.list, { eventId });
   const archivedItems = useQuery(itineraryApi.listArchived, { eventId });
   const records = useQuery(recordsApi.list, { eventId });
+  const sections = useQuery(planSectionsApi.list, { eventId });
+  const workItems = useQuery(workApi.list, { eventId });
   const createItem = useMutation(itineraryApi.create);
   const archiveItem = useMutation(itineraryApi.archive);
   const restoreItem = useMutation(itineraryApi.restore);
   const canEdit = role === "owner" || role === "manager";
   const [draft, setDraft] = useState<Draft>(emptyDraft);
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [selectedView, setSelectedView] = useState<string | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : window.localStorage.getItem(savedPlanViewKey(eventId)),
+  );
   const [search, setSearch] = useState("");
+  const [assignee, setAssignee] = useState("");
+  const [movementType, setMovementType] = useState("");
+  const [tag, setTag] = useState("");
+  const [venue, setVenue] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isArchiving, setIsArchiving] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
@@ -108,13 +145,34 @@ export function ItineraryPlan({
     return () => window.removeEventListener("beforeunload", warn);
   }, [hasUnsavedChanges, isCreatorOpen]);
 
-  const days = useMemo(
-    () =>
-      Array.from(
-        new Set((items ?? []).map((item) => item.scheduledFor.split("T")[0])),
-      ),
-    [items],
+  const sectionById = useMemo(
+    () => new Map((sections ?? []).map((section) => [section._id, section])),
+    [sections],
   );
+  const days = useMemo(() => {
+    const explicitDays = (sections ?? []).filter(
+      (section) => section.kind === "day",
+    );
+    const dates = Array.from(
+      new Set((items ?? []).map((item) => item.scheduledFor.split("T")[0])),
+    );
+    return [
+      ...explicitDays.map((section) => ({
+        key: `section:${section._id}`,
+        label: section.name,
+      })),
+      ...dates
+        .filter(
+          (date) =>
+            !(items ?? []).some(
+              (item) =>
+                item.scheduledFor.startsWith(date) &&
+                sectionById.get(item.sectionId ?? "")?.kind === "day",
+            ),
+        )
+        .map((date) => ({ key: `date:${date}`, label: displayDay(date) })),
+    ];
+  }, [items, sectionById, sections]);
   const locationRecords = useMemo(
     () =>
       (records ?? []).filter((record) =>
@@ -126,25 +184,153 @@ export function ItineraryPlan({
     () => new Map((records ?? []).map((record) => [record._id, record])),
     [records],
   );
+  const assigneesByItem = useMemo(() => {
+    const assignments = new Map<string, Set<string>>();
+    for (const workItem of workItems ?? []) {
+      if (
+        workItem.itineraryItemId === undefined ||
+        workItem.assigneeName === undefined
+      )
+        continue;
+      const names =
+        assignments.get(workItem.itineraryItemId) ?? new Set<string>();
+      names.add(workItem.assigneeName);
+      assignments.set(workItem.itineraryItemId, names);
+    }
+    return assignments;
+  }, [workItems]);
+  const filterOptions = useMemo(
+    () => ({
+      assignees: Array.from(
+        new Set(
+          Array.from(assigneesByItem.values()).flatMap((names) => [...names]),
+        ),
+      ).sort(),
+      movementTypes: Array.from(
+        new Set(
+          (items ?? [])
+            .map((item) => item.movementType)
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ).sort(),
+      tags: Array.from(
+        new Set((items ?? []).flatMap((item) => item.tags ?? [])),
+      ).sort(),
+      venues: Array.from(
+        new Set(
+          (items ?? [])
+            .map((item) =>
+              item.recordId
+                ? recordsById.get(item.recordId)?.name
+                : item.location,
+            )
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ).sort(),
+    }),
+    [assigneesByItem, items, recordsById],
+  );
+  const defaultView = useMemo(() => {
+    if (items === undefined) return null;
+    const now = eventLocalDateTime(timeZone);
+    const today = now.slice(0, 10);
+    const currentLeg = items
+      .filter((item) => {
+        const section = sectionById.get(item.sectionId ?? "");
+        return (
+          (section?.kind === "leg" || section?.kind === "session") &&
+          item.scheduledFor <= now
+        );
+      })
+      .at(-1);
+    if (currentLeg?.sectionId !== undefined)
+      return `section:${currentLeg.sectionId}`;
+    if (days.some((day) => day.key === `date:${today}`)) return `date:${today}`;
+    const next = days.find(
+      (day) => day.key.startsWith("date:") && day.key.slice(5) > today,
+    );
+    return next?.key ?? days.at(-1)?.key ?? "all";
+  }, [days, items, sectionById, timeZone]);
+  const activeView =
+    selectedView !== null &&
+    (selectedView === "all" ||
+      days.some((day) => day.key === selectedView) ||
+      (sections ?? []).some(
+        (section) => `section:${section._id}` === selectedView,
+      ))
+      ? selectedView
+      : (defaultView ?? "all");
+  function selectView(view: string) {
+    setSelectedView(view);
+    window.localStorage.setItem(savedPlanViewKey(eventId), view);
+  }
   const visibleItems = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     return (items ?? []).filter((item) => {
-      const matchesDay =
-        selectedDay === null || item.scheduledFor.startsWith(selectedDay);
+      const matchesView =
+        activeView === "all" ||
+        (activeView.startsWith("date:") &&
+          item.scheduledFor.startsWith(activeView.slice(5))) ||
+        (activeView.startsWith("section:") &&
+          item.sectionId === activeView.slice(8));
+      const itemVenue = item.recordId
+        ? recordsById.get(item.recordId)?.name
+        : item.location;
       const haystack = [item.title, item.location, item.notes]
         .filter((value): value is string => value !== undefined)
         .join(" ")
         .toLocaleLowerCase();
-      return matchesDay && (query.length === 0 || haystack.includes(query));
+      return (
+        matchesView &&
+        (query.length === 0 || haystack.includes(query)) &&
+        (assignee === "" ||
+          assigneesByItem.get(item._id)?.has(assignee) === true) &&
+        (movementType === "" || item.movementType === movementType) &&
+        (tag === "" || item.tags?.includes(tag) === true) &&
+        (venue === "" || itemVenue === venue)
+      );
     });
-  }, [items, search, selectedDay]);
+  }, [
+    assignee,
+    assigneesByItem,
+    items,
+    movementType,
+    recordsById,
+    search,
+    activeView,
+    tag,
+    venue,
+  ]);
+  const groupedItems = useMemo(() => {
+    const groups = new Map<string, { label: string; items: ItineraryItem[] }>();
+    for (const item of visibleItems) {
+      const section = sectionById.get(item.sectionId ?? "");
+      const key =
+        section?.kind === "day"
+          ? `section:${section._id}`
+          : `date:${item.scheduledFor.split("T")[0]}`;
+      const group = groups.get(key) ?? {
+        label:
+          section?.kind === "day"
+            ? section.name
+            : displayDay(item.scheduledFor.split("T")[0]),
+        items: [],
+      };
+      group.items.push(item);
+      groups.set(key, group);
+    }
+    return [...groups.entries()].map(([key, group]) => ({ key, ...group }));
+  }, [sectionById, visibleItems]);
   function updateDraft(field: keyof Draft, value: string) {
     setDraft((current) => ({ ...current, [field]: value }));
   }
 
   function clearFilters() {
-    setSelectedDay(null);
     setSearch("");
+    setAssignee("");
+    setMovementType("");
+    setTag("");
+    setVenue("");
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -162,6 +348,12 @@ export function ItineraryPlan({
       location: draft.location || undefined,
       recordId: draft.recordId || undefined,
       notes: draft.notes || undefined,
+      movementType: draft.movementType || undefined,
+      tags: draft.tags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+      sectionId: draft.sectionId || undefined,
     };
 
     try {
@@ -294,29 +486,47 @@ export function ItineraryPlan({
               <div className="grid gap-3 border-b border-line pb-4">
                 <div
                   className="flex flex-wrap items-center gap-2"
-                  aria-label="Filter by day"
+                  aria-label="Operational day or leg"
                 >
                   <Button
                     type="button"
                     size="sm"
-                    variant={selectedDay === null ? "primary" : "secondary"}
-                    aria-pressed={selectedDay === null}
-                    onClick={() => setSelectedDay(null)}
+                    variant={activeView === "all" ? "primary" : "secondary"}
+                    aria-pressed={activeView === "all"}
+                    onClick={() => selectView("all")}
                   >
-                    All days
+                    All schedule
                   </Button>
                   {days.map((day) => (
                     <Button
-                      key={day}
+                      key={day.key}
                       type="button"
                       size="sm"
-                      variant={selectedDay === day ? "primary" : "secondary"}
-                      aria-pressed={selectedDay === day}
-                      onClick={() => setSelectedDay(day)}
+                      variant={activeView === day.key ? "primary" : "secondary"}
+                      aria-pressed={activeView === day.key}
+                      onClick={() => selectView(day.key)}
                     >
-                      {displayDay(day)}
+                      {day.label}
                     </Button>
                   ))}
+                  {(sections ?? [])
+                    .filter((section) => section.kind !== "day")
+                    .map((section) => (
+                      <Button
+                        key={section._id}
+                        type="button"
+                        size="sm"
+                        variant={
+                          activeView === `section:${section._id}`
+                            ? "primary"
+                            : "secondary"
+                        }
+                        aria-pressed={activeView === `section:${section._id}`}
+                        onClick={() => selectView(`section:${section._id}`)}
+                      >
+                        {section.name}
+                      </Button>
+                    ))}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <label className="sr-only" htmlFor="movement-search">
@@ -335,7 +545,55 @@ export function ItineraryPlan({
                       placeholder="Search description, place, or notes"
                     />
                   </div>
-                  {(selectedDay !== null || search.length > 0) && (
+                  <select
+                    aria-label="Filter by assignment"
+                    value={assignee}
+                    onChange={(event) => setAssignee(event.target.value)}
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                  >
+                    <option value="">All assignments</option>
+                    {filterOptions.assignees.map((name) => (
+                      <option key={name}>{name}</option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Filter by movement type"
+                    value={movementType}
+                    onChange={(event) => setMovementType(event.target.value)}
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                  >
+                    <option value="">All movement types</option>
+                    {filterOptions.movementTypes.map((value) => (
+                      <option key={value}>{value}</option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Filter by tag"
+                    value={tag}
+                    onChange={(event) => setTag(event.target.value)}
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                  >
+                    <option value="">All tags</option>
+                    {filterOptions.tags.map((value) => (
+                      <option key={value}>{value}</option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Filter by venue"
+                    value={venue}
+                    onChange={(event) => setVenue(event.target.value)}
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                  >
+                    <option value="">All venues</option>
+                    {filterOptions.venues.map((value) => (
+                      <option key={value}>{value}</option>
+                    ))}
+                  </select>
+                  {(search.length > 0 ||
+                    assignee ||
+                    movementType ||
+                    tag ||
+                    venue) && (
                     <Button type="button" size="sm" onClick={clearFilters}>
                       <X className="h-4 w-4" aria-hidden="true" />
                       Clear filters
@@ -344,9 +602,7 @@ export function ItineraryPlan({
                 </div>
                 <p className="text-xs text-muted" aria-live="polite">
                   Showing {visibleItems.length} of {items.length} movement
-                  {items.length === 1 ? "" : "s"}
-                  {selectedDay === null ? "" : ` on ${displayDay(selectedDay)}`}
-                  {search.trim().length === 0 ? "" : " matching your search"}.
+                  {items.length === 1 ? "" : "s"}.
                 </p>
               </div>
               {visibleItems.length === 0 ? (
@@ -360,68 +616,123 @@ export function ItineraryPlan({
                   }
                 />
               ) : (
-                <ol className="divide-y divide-line">
-                  {visibleItems.map((item) => (
-                    <li
-                      key={item._id}
-                      className="grid gap-3 py-4 first:pt-0 last:pb-0 sm:grid-cols-[8rem_minmax(0,1fr)_auto]"
-                    >
-                      <time className="font-mono text-xs text-green-ink">
-                        {displayScheduledFor(item, timeZone)}
-                      </time>
-                      <div className="min-w-0">
-                        <Link
-                          href={`/events/${eventId}/plan/${item._id}`}
-                          className="font-semibold text-ink underline-offset-4 hover:underline focus-visible:outline-3 focus-visible:outline-focus"
-                        >
-                          {item.title}
-                        </Link>
-                        {item.location === undefined ? null : (
-                          <p className="mt-1 text-sm text-muted">
-                            {item.location}
-                          </p>
-                        )}
-                        {item.recordId === undefined ? null : (
-                          <p className="mt-1 text-xs font-medium text-green-ink">
-                            Linked location:{" "}
-                            {recordsById.get(item.recordId)?.name ??
-                              "Unavailable record"}
-                          </p>
-                        )}
-                        {item.notes === undefined ? null : (
-                          <p className="mt-1 text-sm leading-relaxed text-muted">
-                            {item.notes}
-                          </p>
-                        )}
+                <>
+                  <div
+                    className="grid gap-2 sm:grid-cols-2"
+                    aria-label="Day summaries"
+                  >
+                    {groupedItems.map((group) => (
+                      <div
+                        key={group.key}
+                        className="rounded-lg bg-soft px-3 py-2 text-xs text-muted"
+                      >
+                        <span className="font-semibold text-ink">
+                          {group.label}
+                        </span>{" "}
+                        · {group.items.length} items · first{" "}
+                        {displayScheduledFor(group.items[0], timeZone)} · last{" "}
+                        {displayScheduledFor(group.items.at(-1)!, timeZone)}
                       </div>
-                      {canEdit ? (
-                        <div className="flex flex-wrap gap-2 sm:justify-end">
+                    ))}
+                  </div>
+                  <ol className="divide-y divide-line border-y border-line">
+                    {visibleItems.map((item) => (
+                      <li
+                        key={item._id}
+                        className="grid gap-3 py-4 first:pt-0 last:pb-0 sm:grid-cols-[8rem_minmax(0,1fr)_auto]"
+                      >
+                        <time className="font-mono text-xs text-green-ink">
+                          {displayScheduledFor(item, timeZone)}
+                        </time>
+                        <div className="min-w-0">
                           <Link
                             href={`/events/${eventId}/plan/${item._id}`}
-                            className="inline-flex min-h-11 items-center rounded-lg border border-transparent px-2.5 py-1.5 text-xs font-semibold text-ink2 hover:bg-soft focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
+                            className="font-semibold text-ink underline-offset-4 hover:underline focus-visible:outline-3 focus-visible:outline-focus"
                           >
-                            Open details
+                            {item.title}
                           </Link>
-                          <Button
-                            type="button"
-                            variant="danger"
-                            size="sm"
-                            aria-label={`Archive ${item.title}`}
-                            onClick={() => onArchive(item)}
-                            disabled={isArchiving === item._id}
-                          >
-                            {isArchiving === item._id ? (
-                              <LoaderCircle className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" aria-hidden="true" />
-                            )}
-                            Archive
-                          </Button>
+                          {item.location === undefined ? null : (
+                            <p className="mt-1 text-sm text-muted">
+                              {item.location}
+                            </p>
+                          )}
+                          {item.recordId === undefined ? null : (
+                            <p className="mt-1 text-xs font-medium text-green-ink">
+                              Linked location:{" "}
+                              {recordsById.get(item.recordId)?.name ??
+                                "Unavailable record"}
+                            </p>
+                          )}
+                          {item.notes === undefined ? null : (
+                            <p className="mt-1 text-sm leading-relaxed text-muted">
+                              {item.notes}
+                            </p>
+                          )}
+                          <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-muted">
+                            {sectionById.get(item.sectionId ?? "")?.kind !==
+                              "day" &&
+                            sectionById.get(item.sectionId ?? "") !==
+                              undefined ? (
+                              <Badge variant="neutral">
+                                {sectionById.get(item.sectionId ?? "")?.name}
+                              </Badge>
+                            ) : null}
+                            {item.movementType ? (
+                              <Badge variant="neutral">
+                                {item.movementType}
+                              </Badge>
+                            ) : null}
+                            {item.tags?.map((itemTag) => (
+                              <Badge key={itemTag} variant="neutral">
+                                {itemTag}
+                              </Badge>
+                            ))}
+                            {assigneesByItem.get(item._id) ? (
+                              <span>
+                                Assigned:{" "}
+                                {[...assigneesByItem.get(item._id)!].join(", ")}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
-                      ) : null}
-                    </li>
-                  ))}
-                </ol>
+                        {canEdit ? (
+                          <details className="relative sm:justify-self-end">
+                            <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-lg px-2 hover:bg-soft">
+                              <MoreHorizontal
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              <span className="sr-only">
+                                Actions for {item.title}
+                              </span>
+                            </summary>
+                            <div className="absolute right-0 z-10 mt-1 w-36 rounded-lg border border-line bg-card p-1 shadow-lg">
+                              <Button
+                                type="button"
+                                variant="danger"
+                                size="sm"
+                                className="w-full justify-start"
+                                aria-label={`Archive ${item.title}`}
+                                onClick={() => onArchive(item)}
+                                disabled={isArchiving === item._id}
+                              >
+                                {isArchiving === item._id ? (
+                                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2
+                                    className="h-4 w-4"
+                                    aria-hidden="true"
+                                  />
+                                )}
+                                Archive
+                              </Button>
+                            </div>
+                          </details>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ol>
+                </>
               )}
             </>
           )}
@@ -507,6 +818,36 @@ export function ItineraryPlan({
                   <option value="allDay">All day</option>
                 </select>
               </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-sm font-medium text-ink">
+                  Operational day, leg, or session
+                  <select
+                    value={draft.sectionId}
+                    onChange={(event) =>
+                      updateDraft("sectionId", event.target.value)
+                    }
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm font-normal"
+                  >
+                    <option value="">Use scheduled date</option>
+                    {(sections ?? []).map((section) => (
+                      <option key={section._id} value={section._id}>
+                        {section.name} · {section.kind}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium text-ink">
+                  Movement type
+                  <Input
+                    value={draft.movementType}
+                    onChange={(event) =>
+                      updateDraft("movementType", event.target.value)
+                    }
+                    maxLength={60}
+                    placeholder="e.g. Transfer"
+                  />
+                </label>
+              </div>
               {draft.timeKind === "range" ? (
                 <div className="grid gap-1.5">
                   <label
@@ -570,6 +911,22 @@ export function ItineraryPlan({
                   required
                   placeholder="e.g. Depart for service area"
                 />
+              </div>
+              <div className="grid gap-1.5">
+                <label
+                  className="text-sm font-medium text-ink"
+                  htmlFor="movement-tags"
+                >
+                  Tags <span className="text-muted">(optional)</span>
+                </label>
+                <Input
+                  id="movement-tags"
+                  value={draft.tags}
+                  onChange={(event) => updateDraft("tags", event.target.value)}
+                  maxLength={300}
+                  placeholder="e.g. crew, fuel, critical"
+                />
+                <p className="text-xs text-muted">Separate tags with commas.</p>
               </div>
               <div className="grid gap-1.5">
                 <label

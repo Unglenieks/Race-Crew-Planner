@@ -18,6 +18,8 @@ const itineraryArgs = {
   location: v.optional(v.string()),
   recordId: v.optional(v.id("eventRecords")),
   notes: v.optional(v.string()),
+  movementType: v.optional(v.string()),
+  tags: v.optional(v.array(v.string())),
   sectionId: v.optional(v.id("planSections")),
   timeKind: v.optional(
     v.union(
@@ -36,6 +38,8 @@ type ItineraryInput = {
   scheduledUntil?: string;
   location?: string;
   notes?: string;
+  movementType?: string;
+  tags?: string[];
   sectionId?: Id<"planSections">;
   timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
 };
@@ -61,6 +65,8 @@ export function validatedItineraryInput({
   scheduledUntil,
   location,
   notes,
+  movementType,
+  tags,
   sectionId,
   timeKind,
 }: ItineraryInput) {
@@ -99,6 +105,15 @@ export function validatedItineraryInput({
     ...(timeKind === "range" ? { scheduledUntil } : {}),
     location: optionalText(location, 160),
     notes: optionalText(notes, 1000),
+    movementType: optionalText(movementType, 60),
+    tags: Array.from(
+      new Set(
+        (tags ?? [])
+          .map((tag) => tag.trim())
+          .filter((tag) => tag.length > 0)
+          .map((tag) => tag.slice(0, 60)),
+      ),
+    ),
     ...(sectionId === undefined ? {} : { sectionId }),
     ...(timeKind === undefined ? {} : { timeKind }),
   };

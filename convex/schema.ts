@@ -69,6 +69,10 @@ export default defineSchema({
     location: v.optional(v.string()),
     recordId: v.optional(v.id("eventRecords")),
     notes: v.optional(v.string()),
+    /** Operator-defined classification used to scan a dense schedule. */
+    movementType: v.optional(v.string()),
+    /** Short labels for filtering related operational movements. */
+    tags: v.optional(v.array(v.string())),
     /** Snapshot immediately before the latest edit, used by contextual publish. */
     lastChangedTitle: v.optional(v.string()),
     lastChangedScheduledFor: v.optional(v.string()),

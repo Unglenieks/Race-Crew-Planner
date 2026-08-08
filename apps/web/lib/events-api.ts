@@ -26,6 +26,9 @@ export type ItineraryItem = {
   location?: string;
   recordId?: string;
   notes?: string;
+  movementType?: string;
+  tags?: string[];
+  sectionId?: string;
   timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
   archivedAt?: number;
 };
@@ -345,6 +348,9 @@ export const itineraryApi = {
       location?: string;
       recordId?: string;
       notes?: string;
+      movementType?: string;
+      tags?: string[];
+      sectionId?: string;
       timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
     },
     string
@@ -360,6 +366,9 @@ export const itineraryApi = {
       location?: string;
       recordId?: string;
       notes?: string;
+      movementType?: string;
+      tags?: string[];
+      sectionId?: string;
       timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
     },
     null
