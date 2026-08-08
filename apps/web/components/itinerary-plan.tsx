@@ -24,6 +24,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/data-display";
 import { Input } from "@/components/ui/input";
 import { formatEventDateTime } from "@/lib/time-zones";
+import { locationRecords } from "@/lib/record-locations";
+import { VenueLinkCombobox } from "@/components/venue-link-combobox";
 
 type Draft = {
   title: string;
@@ -32,6 +34,8 @@ type Draft = {
   timeKind: NonNullable<ItineraryItem["timeKind"]>;
   location: string;
   recordId: string;
+  venueName: string;
+  venueAddress: string;
   notes: string;
 };
 
@@ -42,6 +46,8 @@ const emptyDraft: Draft = {
   timeKind: "exact",
   location: "",
   recordId: "",
+  venueName: "",
+  venueAddress: "",
   notes: "",
 };
 
@@ -79,7 +85,9 @@ export function ItineraryPlan({
   const items = useQuery(itineraryApi.list, { eventId });
   const archivedItems = useQuery(itineraryApi.listArchived, { eventId });
   const records = useQuery(recordsApi.list, { eventId });
+  const recordTypes = useQuery(recordsApi.listTypes, { eventId });
   const createItem = useMutation(itineraryApi.create);
+  const createWithVenue = useMutation(itineraryApi.createWithVenue);
   const archiveItem = useMutation(itineraryApi.archive);
   const restoreItem = useMutation(itineraryApi.restore);
   const canEdit = role === "owner" || role === "manager";
@@ -115,12 +123,9 @@ export function ItineraryPlan({
       ),
     [items],
   );
-  const locationRecords = useMemo(
-    () =>
-      (records ?? []).filter((record) =>
-        ["venue", "place", "service"].includes(record.type),
-      ),
-    [records],
+  const locationRecordOptions = useMemo(
+    () => locationRecords(records ?? [], recordTypes ?? []),
+    [records, recordTypes],
   );
   const recordsById = useMemo(
     () => new Map((records ?? []).map((record) => [record._id, record])),
@@ -160,12 +165,19 @@ export function ItineraryPlan({
         draft.timeKind === "range" ? draft.scheduledUntil : undefined,
       timeKind: draft.timeKind,
       location: draft.location || undefined,
-      recordId: draft.recordId || undefined,
       notes: draft.notes || undefined,
     };
 
     try {
-      await createItem(input);
+      if (draft.venueName) {
+        await createWithVenue({
+          ...input,
+          venueName: draft.venueName,
+          venueAddress: draft.venueAddress || undefined,
+        });
+      } else {
+        await createItem({ ...input, recordId: draft.recordId || undefined });
+      }
       setDraft(emptyDraft);
       setIsCreatorOpen(false);
     } catch {
@@ -236,9 +248,17 @@ export function ItineraryPlan({
                 {canEdit ? "Can edit" : "View only"}
               </Badge>
               {canEdit ? (
-                <Button size="sm" onClick={() => setIsCreatorOpen(true)}>
-                  Add movement
-                </Button>
+                <>
+                  <Link
+                    href={`/events/${eventId}/plan/reconcile`}
+                    className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-green-ink underline-offset-4 hover:underline focus-visible:outline-3 focus-visible:outline-focus"
+                  >
+                    Reconcile venues
+                  </Link>
+                  <Button size="sm" onClick={() => setIsCreatorOpen(true)}>
+                    Add movement
+                  </Button>
+                </>
               ) : null}
             </div>
           </div>
@@ -532,27 +552,54 @@ export function ItineraryPlan({
                   className="text-sm font-medium text-ink"
                   htmlFor="movement-record"
                 >
-                  Linked location <span className="text-muted">(optional)</span>
+                  Linked venue <span className="text-muted">(optional)</span>
                 </label>
-                <select
-                  id="movement-record"
-                  value={draft.recordId}
-                  onChange={(event) =>
-                    updateDraft("recordId", event.target.value)
-                  }
-                  className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink shadow-sm outline-none focus:border-ink focus:ring-2 focus:ring-ink"
-                >
-                  <option value="">No linked location</option>
-                  {locationRecords.map((record) => (
-                    <option key={record._id} value={record._id}>
-                      {record.name} · {record.type}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted">
-                  Only venue, place, and service records can be linked to a
-                  movement.
-                </p>
+                {draft.venueName ? (
+                  <div className="grid gap-3 rounded-lg border border-line bg-topbg p-3">
+                    <p className="text-sm font-medium text-ink">
+                      Create and link venue
+                    </p>
+                    <Input
+                      value={draft.venueName}
+                      onChange={(event) =>
+                        updateDraft("venueName", event.target.value)
+                      }
+                      maxLength={160}
+                      required
+                      aria-label="New venue name"
+                    />
+                    <Input
+                      value={draft.venueAddress}
+                      onChange={(event) =>
+                        updateDraft("venueAddress", event.target.value)
+                      }
+                      maxLength={300}
+                      placeholder="Address (optional)"
+                      aria-label="New venue address"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        updateDraft("venueName", "");
+                        updateDraft("venueAddress", "");
+                      }}
+                    >
+                      Use an existing venue instead
+                    </Button>
+                  </div>
+                ) : (
+                  <VenueLinkCombobox
+                    records={locationRecordOptions}
+                    selectedId={draft.recordId}
+                    onSelect={(record) => {
+                      updateDraft("recordId", record?._id ?? "");
+                      if (record !== null) updateDraft("location", record.name);
+                    }}
+                    onCreate={(name) => updateDraft("venueName", name)}
+                  />
+                )}
               </div>
               <div className="grid gap-1.5">
                 <label
@@ -576,7 +623,8 @@ export function ItineraryPlan({
                   className="text-sm font-medium text-ink"
                   htmlFor="movement-location"
                 >
-                  Place <span className="text-muted">(optional)</span>
+                  Location label{" "}
+                  <span className="text-muted">(snapshot or override)</span>
                 </label>
                 <Input
                   id="movement-location"
@@ -585,7 +633,7 @@ export function ItineraryPlan({
                     updateDraft("location", event.target.value)
                   }
                   maxLength={160}
-                  placeholder="e.g. Service Park"
+                  placeholder="Defaults to the selected venue"
                 />
               </div>
               <div className="grid gap-1.5">

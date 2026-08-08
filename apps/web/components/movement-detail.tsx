@@ -18,6 +18,7 @@ import {
 } from "@/lib/events-api";
 import { locationRecords } from "@/lib/record-locations";
 import { formatEventDateTime } from "@/lib/time-zones";
+import { VenueLinkCombobox } from "@/components/venue-link-combobox";
 
 type Draft = {
   title: string;
@@ -270,27 +271,23 @@ export function MovementDetail({
                   />
                 </label>
               ) : null}
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4">
+                <div className="grid gap-1.5 text-sm font-medium text-ink">
+                  <span>Linked venue</span>
+                  <VenueLinkCombobox
+                    records={locationRecordOptions}
+                    selectedId={currentDraft.recordId}
+                    onSelect={(record) => {
+                      updateDraft("recordId", record?._id ?? "");
+                      if (record !== null) updateDraft("location", record.name);
+                    }}
+                  />
+                </div>
                 <label className="grid gap-1.5 text-sm font-medium text-ink">
-                  Linked location
-                  <select
-                    value={currentDraft.recordId}
-                    onChange={(event) =>
-                      updateDraft("recordId", event.target.value)
-                    }
-                    className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm font-normal text-ink shadow-sm"
-                  >
-                    <option value="">No linked location</option>
-                    {locationRecordOptions.map((record) => (
-                      <option key={record._id} value={record._id}>
-                        {record.name} · {record.type}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="grid gap-1.5 text-sm font-medium text-ink">
-                  Place{" "}
-                  <span className="font-normal text-muted">(optional)</span>
+                  Location label{" "}
+                  <span className="font-normal text-muted">
+                    (saved snapshot or override)
+                  </span>
                   <input
                     value={currentDraft.location}
                     onChange={(event) =>
