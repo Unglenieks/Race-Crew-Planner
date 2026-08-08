@@ -49,6 +49,7 @@ function eventTitle(exported: SavedExport) {
 }
 
 function timeLabel(item: SavedExport["items"][number]) {
+  if (item.displayTime === "2400") return "2400";
   const start = item.scheduledFor.split("T")[1] ?? item.scheduledFor;
   switch (item.timeKind ?? "exact") {
     case "approximate":
@@ -133,19 +134,23 @@ export function planExportCsv(exported: SavedExport) {
       "Location",
       "Address",
       "Action",
+      "Movement type",
       "Movement tags",
       "Assigned to",
       "Notes",
     ],
     ...exported.items.map((item) => [
-      dayOf(item.scheduledFor),
+      item.operationalDay ?? dayOf(item.scheduledFor),
       timeLabel(item),
       timeSemantics(item),
       item.venue?.name ?? item.location ?? "",
       item.venue?.address ?? "",
       item.title,
-      [...(item.tags ?? []), item.section?.name].filter(Boolean).join("; "),
-      item.assignedTo ?? "",
+      item.movementTypeLabel ?? "",
+      [...(item.tagLabels ?? item.tags ?? []), item.section?.name]
+        .filter(Boolean)
+        .join("; "),
+      item.assignedTo ?? item.assignmentLabels?.join("; ") ?? "",
       rowNotes(item),
     ]),
   ];
@@ -237,7 +242,7 @@ function CrewBrief({ exported }: { exported: SavedExport }) {
   const details = appendices(exported);
   const days = new Map<string, SavedExport["items"]>();
   exported.items.forEach((item) => {
-    const day = dayOf(item.scheduledFor);
+    const day = item.operationalDay ?? dayOf(item.scheduledFor);
     days.set(day, [...(days.get(day) ?? []), item]);
   });
   const appendixSections = [
@@ -475,7 +480,11 @@ export function PlanExport({
   timeZone: string;
 }) {
   const days = useMemo(
-    () => [...new Set(items.map((item) => dayOf(item.scheduledFor)))],
+    () => [
+      ...new Set(
+        items.map((item) => item.operationalDay ?? dayOf(item.scheduledFor)),
+      ),
+    ],
     [items],
   );
   const [selectedDay, setSelectedDay] = useState("all");

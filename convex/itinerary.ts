@@ -442,6 +442,12 @@ export const createWithVenue = mutation({
     const item = validatedItineraryInput(args, timeZone);
     await requireMovementType(ctx, args.eventId, args.movementTypeId);
     await requireSection(ctx, args.eventId, args.sectionId);
+    await requireLogisticsReferences(
+      ctx,
+      args.eventId,
+      args.travelContextId,
+      args.serviceIntervalId,
+    );
     const venue = validatedRecordInput({
       name: args.venueName,
       type: "venue",
@@ -526,7 +532,9 @@ export const createMany = mutation({
         raw.serviceIntervalId,
       );
       const uniqueTagIds = [...new Set(raw.tagIds)];
-      const tags = await Promise.all(uniqueTagIds.map((tagId) => ctx.db.get(tagId)));
+      const tags = await Promise.all(
+        uniqueTagIds.map((tagId) => ctx.db.get(tagId)),
+      );
       if (
         tags.some(
           (tag) =>
@@ -536,10 +544,13 @@ export const createMany = mutation({
         )
       )
         throw new Error("Movement tag not found");
-      const team = raw.teamId === undefined ? undefined : await ctx.db.get(raw.teamId);
+      const team =
+        raw.teamId === undefined ? undefined : await ctx.db.get(raw.teamId);
       if (
         raw.teamId !== undefined &&
-        (team === null || team?.eventId !== eventId || team.archivedAt !== undefined)
+        (team === null ||
+          team?.eventId !== eventId ||
+          team.archivedAt !== undefined)
       )
         throw new Error("Assigned team not found");
 

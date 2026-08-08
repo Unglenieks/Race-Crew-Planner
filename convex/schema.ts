@@ -582,6 +582,10 @@ export default defineSchema({
         itineraryItemId: v.id("itineraryItems"),
         title: v.string(),
         scheduledFor: v.string(),
+        operationalDay: v.optional(v.string()),
+        displayTime: v.optional(
+          v.union(v.literal("standard"), v.literal("2400")),
+        ),
         location: v.optional(v.string()),
         movementTypeLabel: v.optional(v.string()),
         tagLabels: v.optional(v.array(v.string())),

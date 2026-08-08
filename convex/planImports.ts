@@ -10,6 +10,7 @@ import { requireIdentity, requireRole } from "./auth";
 import { writeAudit } from "./audit";
 import { validatedItineraryInput } from "./itinerary";
 import { isLocationRecord } from "./records";
+import { seedMovementDefaults } from "./movements";
 
 const sourceKind = v.union(
   v.literal("pdf"),
@@ -57,6 +58,35 @@ const rowInput = {
   issues: v.array(issue),
   warningsAccepted: v.boolean(),
 };
+
+function normalizedLabel(value: string) {
+  return value.trim().toLocaleLowerCase();
+}
+
+function inferredMovementType(description: string) {
+  const value = description.toLocaleLowerCase();
+  if (/\b(fci|fco|mtc|time control)\b/.test(value)) return "Time control";
+  if (/\bservice\b/.test(value)) return "Service";
+  if (/\brecce\b/.test(value)) return "Recce";
+  if (/\b(tech|scrutineering)\b/.test(value)) return "Scrutineering / tech";
+  if (/\b(depart|departure|leaves?)\b/.test(value)) return "Departure";
+  if (/\b(arrive|arrival|returns?)\b/.test(value)) return "Arrival";
+  if (/parc expos/.test(value)) return "Parc exposé";
+  if (/parc ferm/.test(value)) return "Parc fermé";
+  if (/\bmeeting\b/.test(value)) return "Meeting";
+  if (/\b(lodging|bedtime|wake up)\b/.test(value)) return "Lodging";
+  if (/\b(breakfast|lunch|dinner|meal)\b/.test(value)) return "Meal";
+  return undefined;
+}
+
+function inferredTags(description: string, proposed: string[]) {
+  const codes = description.match(/\b(FCI|FCO|MTC)\b/gi) ?? [];
+  return [
+    ...new Set(
+      [...proposed, ...codes].map((tag) => tag.trim()).filter(Boolean),
+    ),
+  ];
+}
 
 async function membership(ctx: QueryCtx | MutationCtx, eventId: Id<"events">) {
   const identity = await requireIdentity(ctx);
@@ -221,6 +251,9 @@ export const commit = mutation({
   args: { eventId: v.id("events"), importId: v.id("planImports") },
   handler: async (ctx, { eventId, importId }) => {
     const { identity } = await manager(ctx, eventId);
+    const event = await ctx.db.get(eventId);
+    if (event === null || event.archivedAt !== undefined)
+      throw new Error("Event not found");
     const imported = await importForEvent(ctx, eventId, importId);
     if (imported.status === "committed") {
       return { importId, movementCount: imported.committedMovementCount ?? 0 };
@@ -243,6 +276,29 @@ export const commit = mutation({
       );
     }
     if (rows.length === 0) throw new Error("No rows are available to import");
+    await seedMovementDefaults(ctx, eventId);
+    const [movementTypes, existingTags, existingTeams] = await Promise.all([
+      ctx.db
+        .query("eventMovementTypes")
+        .withIndex("by_eventId_order", (q) => q.eq("eventId", eventId))
+        .collect(),
+      ctx.db
+        .query("eventMovementTags")
+        .withIndex("by_eventId_name", (q) => q.eq("eventId", eventId))
+        .collect(),
+      ctx.db
+        .query("eventTeams")
+        .withIndex("by_eventId_name", (q) => q.eq("eventId", eventId))
+        .collect(),
+    ]);
+    const tagsByName = new Map<
+      string,
+      { _id: Id<"eventMovementTags">; name: string }
+    >(existingTags.map((tag) => [normalizedLabel(tag.name), tag]));
+    const teamsByName = new Map<
+      string,
+      { _id: Id<"eventTeams">; name: string }
+    >(existingTeams.map((team) => [normalizedLabel(team.name), team]));
     const now = Date.now();
     for (const row of rows) {
       if (
@@ -251,17 +307,39 @@ export const commit = mutation({
       ) {
         throw new Error(`Row ${row.sourceRow} needs a date and time`);
       }
-      const item = validatedItineraryInput({
-        title: row.description,
-        scheduledFor: `${row.normalizedDate}T${row.normalizedTime}`,
-        scheduledUntil:
-          row.proposedMovementType === "range" &&
-          row.normalizedEndTime !== undefined
-            ? `${row.normalizedDate}T${row.normalizedEndTime}`
-            : undefined,
-        location: row.placeText,
-        timeKind: row.proposedMovementType,
-      });
+      const rawTime =
+        Object.entries(row.rawValues).find(([key]) =>
+          ["time", "timein", "starttime", "scheduledfor"].includes(
+            key.toLocaleLowerCase().replace(/[^a-z0-9]/g, ""),
+          ),
+        )?.[1] ?? "";
+      const displayAs2400 = /^\s*2400\b/.test(rawTime);
+      const operationalDay = row.operationalDay ?? row.normalizedDate;
+      const movementTypeName = inferredMovementType(row.description);
+      const movementTypeId = movementTypes.find(
+        (type) =>
+          movementTypeName !== undefined &&
+          normalizedLabel(type.name) === normalizedLabel(movementTypeName),
+      )?._id;
+      const item = validatedItineraryInput(
+        {
+          title: row.description,
+          scheduledFor: displayAs2400
+            ? `${operationalDay}T24:00`
+            : `${row.normalizedDate}T${row.normalizedTime}`,
+          scheduledUntil:
+            row.proposedMovementType === "range" &&
+            row.normalizedEndTime !== undefined
+              ? `${row.normalizedDate}T${row.normalizedEndTime}`
+              : undefined,
+          location: row.placeText,
+          timeKind: row.proposedMovementType,
+          operationalDay,
+          displayTime: displayAs2400 ? "2400" : "standard",
+          movementTypeId,
+        },
+        event.timeZone,
+      );
       if (row.proposedVenueId !== undefined) {
         const venue = await ctx.db.get(row.proposedVenueId);
         if (
@@ -276,10 +354,54 @@ export const commit = mutation({
         eventId,
         importId,
         ...item,
+        movementTypeId: item.movementTypeId ?? undefined,
         recordId: row.proposedVenueId,
         createdAt: now,
         updatedAt: now,
       });
+      for (const name of inferredTags(row.description, row.proposedTags)) {
+        const key = normalizedLabel(name);
+        let tag = tagsByName.get(key);
+        if (tag === undefined) {
+          const tagId = await ctx.db.insert("eventMovementTags", {
+            eventId,
+            name,
+            createdAt: now,
+            updatedAt: now,
+          });
+          tag = { _id: tagId, name };
+          tagsByName.set(key, tag);
+        }
+        await ctx.db.insert("movementTagAssignments", {
+          eventId,
+          itineraryItemId: movementId,
+          tagId: tag._id,
+          createdAt: now,
+        });
+      }
+      const personnel = row.rawPersonnel?.trim();
+      if (personnel !== undefined && personnel !== "" && personnel !== "-") {
+        const key = normalizedLabel(personnel);
+        let team = teamsByName.get(key);
+        if (team === undefined) {
+          const teamId = await ctx.db.insert("eventTeams", {
+            eventId,
+            name: personnel,
+            createdAt: now,
+            updatedAt: now,
+          });
+          team = { _id: teamId, name: personnel };
+          teamsByName.set(key, team);
+        }
+        await ctx.db.insert("movementAssignments", {
+          eventId,
+          itineraryItemId: movementId,
+          targetKind: "team",
+          teamId: team._id,
+          label: team.name,
+          createdAt: now,
+        });
+      }
       await ctx.db.patch(row._id, {
         importedMovementId: movementId,
         updatedAt: now,

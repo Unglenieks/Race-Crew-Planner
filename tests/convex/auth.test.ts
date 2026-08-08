@@ -406,7 +406,11 @@ describe("Convex authorization helpers", () => {
           query: (table: string) => {
             queriedTables.push(table);
             return {
-              withIndex: () => ({ unique: async () => ({ role: "owner" }) }),
+              withIndex: () => ({
+                unique: async () => ({ role: "owner" }),
+                collect: async () =>
+                  table === "planImports" ? [{ _id: "planImports:one" }] : [],
+              }),
               filter: () => ({
                 collect: async () =>
                   table === "eventRecords" ? [{ _id: "eventRecords:one" }] : [],
@@ -419,6 +423,8 @@ describe("Convex authorization helpers", () => {
       { eventId: "events:sample" as never },
     );
     expect(queriedTables).toContain("eventRecordCategoryAssignments");
+    expect(queriedTables).toContain("planImports");
+    expect(queriedTables).toContain("planImportRows");
     expect(queriedTables).toContain("eventMemberships");
     expect(deleted).toEqual(["eventRecords:one", "events:sample"]);
   });

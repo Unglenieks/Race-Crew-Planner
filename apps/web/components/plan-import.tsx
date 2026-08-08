@@ -1,8 +1,8 @@
 "use client";
 
-import { FileUp, LoaderCircle, RotateCcw, TableProperties } from "lucide-react";
+import { FileUp, LoaderCircle, RotateCcw } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Banner } from "@/components/ui/banner";
 import { Badge } from "@/components/ui/badge";
@@ -36,12 +36,11 @@ function sourceKind(file: File) {
 }
 
 function rowInput(row: PlanImportRow | ParsedImportRow): StagedRow {
-  const {
-    _id: _id,
-    importedMovementId: _movementId,
-    ...input
-  } = row as PlanImportRow;
-  return input;
+  if (!("_id" in row)) return row;
+  const input = { ...row } as Partial<PlanImportRow>;
+  delete input._id;
+  delete input.importedMovementId;
+  return input as StagedRow;
 }
 
 function reviewedIssues(row: PlanImportRow): PlanImportRow["issues"] {
@@ -128,11 +127,12 @@ export function PlanImport({
   const commit = useMutation(planImportsApi.commit);
   const rollback = useMutation(planImportsApi.rollback);
   const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
+  const effectiveImportId = selectedImportId ?? imports?.[0]?._id ?? null;
   const selected = useQuery(
     planImportsApi.get,
-    selectedImportId === null
+    effectiveImportId === null
       ? "skip"
-      : { eventId, importId: selectedImportId },
+      : { eventId, importId: effectiveImportId },
   );
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [pasted, setPasted] = useState("");
@@ -143,17 +143,6 @@ export function PlanImport({
   const [drafts, setDrafts] = useState<Drafts>({});
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (
-      selectedImportId === null &&
-      imports !== undefined &&
-      imports.length > 0
-    ) {
-      setSelectedImportId(imports[0]._id);
-    }
-  }, [imports, selectedImportId]);
-  useEffect(() => setDrafts({}), [selectedImportId]);
 
   const rows = useMemo(
     () => (selected?.rows ?? []).map((row) => drafts[row._id] ?? row),
@@ -277,7 +266,7 @@ export function PlanImport({
   }
 
   async function saveGrid() {
-    if (selectedImportId === null || Object.keys(drafts).length === 0) return;
+    if (effectiveImportId === null || Object.keys(drafts).length === 0) return;
     setError(null);
     setIsSaving(true);
     try {
@@ -285,7 +274,7 @@ export function PlanImport({
         Object.values(drafts).map((row) =>
           updateRow({
             eventId,
-            importId: selectedImportId,
+            importId: effectiveImportId,
             rowId: row._id,
             ...rowInput(row),
           }),
@@ -303,11 +292,11 @@ export function PlanImport({
   }
 
   async function commitImport() {
-    if (selectedImportId === null) return;
+    if (effectiveImportId === null) return;
     setError(null);
     setIsCommitting(true);
     try {
-      const result = await commit({ eventId, importId: selectedImportId });
+      const result = await commit({ eventId, importId: effectiveImportId });
       setMessage(
         `Imported ${result.movementCount} movements. This import can be rolled back from this screen.`,
       );
@@ -323,11 +312,11 @@ export function PlanImport({
   }
 
   async function rollbackImport() {
-    if (selectedImportId === null) return;
+    if (effectiveImportId === null) return;
     setError(null);
     setIsRollingBack(true);
     try {
-      const result = await rollback({ eventId, importId: selectedImportId });
+      const result = await rollback({ eventId, importId: effectiveImportId });
       setMessage(
         `Rolled back ${result.movementCount} imported movements. They remain archived for audit and recovery.`,
       );
@@ -440,10 +429,11 @@ export function PlanImport({
               <select
                 aria-label="Import session"
                 className="rounded-lg border border-line bg-card px-3 py-2 text-sm"
-                value={selectedImportId ?? ""}
-                onChange={(event) =>
-                  setSelectedImportId(event.target.value || null)
-                }
+                value={effectiveImportId ?? ""}
+                onChange={(event) => {
+                  setDrafts({});
+                  setSelectedImportId(event.target.value || null);
+                }}
               >
                 <option value="">Choose an import</option>
                 {imports.map((item) => (
@@ -456,7 +446,7 @@ export function PlanImport({
           </div>
         </CardHeader>
         <CardContent className="grid gap-4">
-          {selected === undefined || selectedImportId === null ? (
+          {selected === undefined || effectiveImportId === null ? (
             <p className="text-sm text-muted">
               Choose or stage a source to review its rows.
             </p>

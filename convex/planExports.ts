@@ -17,6 +17,8 @@ type ExportItem = {
   itineraryItemId: Id<"itineraryItems">;
   title: string;
   scheduledFor: string;
+  operationalDay?: string;
+  displayTime?: "standard" | "2400";
   location?: string;
   movementTypeLabel?: string;
   tagLabels?: string[];
@@ -202,6 +204,8 @@ function sameItems(left: ExportItem[], right: ExportItem[], strict = false) {
         (!strict ||
           (item.scheduledUntil === right[index]?.scheduledUntil &&
             item.timeKind === right[index]?.timeKind &&
+            item.operationalDay === right[index]?.operationalDay &&
+            item.displayTime === right[index]?.displayTime &&
             item.assignedTo === right[index]?.assignedTo &&
             item.movementTypeLabel === right[index]?.movementTypeLabel &&
             JSON.stringify(item.tagLabels ?? []) ===
@@ -413,45 +417,49 @@ async function currentBrief(
       (filterDay === undefined ||
         (item.operationalDay ?? item.scheduledFor.slice(0, 10)) === filterDay),
   );
-  const snapshotItems = await Promise.all(activeItems.map(async (item) => {
-    const venue =
-      item.recordId === undefined ? undefined : recordById.get(item.recordId);
-    const venueTags =
-      venue === undefined ? [] : (tagsByRecordId.get(venue._id) ?? []);
-    const section =
-      item.sectionId === undefined
-        ? undefined
-        : sectionById.get(item.sectionId);
-    const structured = await movementStructuredFields(ctx, item);
-    const tags = [
-      ...structured.tags.map((tag) => tag.name),
-      ...venueTags,
-      ...(section === undefined ? [] : [section.kind]),
-    ];
-    const assignedTo = [
-      ...structured.assignments.map((assignment) => assignment.label),
-      ...new Set(assigneesByMovement.get(item._id) ?? []),
-    ].join(", ");
-    return {
-      ...itemSnapshot(item),
-      movementTypeLabel: structured.movementTypeLabel,
-      tagLabels: structured.tags.map((tag) => tag.name),
-      assignmentLabels: structured.assignments.map(
-        (assignment) => assignment.label,
-      ),
-      scheduledUntil: item.scheduledUntil,
-      timeKind: item.timeKind ?? "exact",
-      ...(section === undefined
-        ? {}
-        : { section: { name: section.name, kind: section.kind } }),
-      ...(tags.length === 0 ? {} : { tags }),
-      ...(venue === undefined
-        ? {}
-        : { venue: venueSnapshot(venue, venueTags) }),
-      ...(assignedTo.length === 0 ? {} : { assignedTo }),
-      notes: item.notes,
-    } satisfies ExportItem;
-  }));
+  const snapshotItems = await Promise.all(
+    activeItems.map(async (item) => {
+      const venue =
+        item.recordId === undefined ? undefined : recordById.get(item.recordId);
+      const venueTags =
+        venue === undefined ? [] : (tagsByRecordId.get(venue._id) ?? []);
+      const section =
+        item.sectionId === undefined
+          ? undefined
+          : sectionById.get(item.sectionId);
+      const structured = await movementStructuredFields(ctx, item);
+      const tags = [
+        ...structured.tags.map((tag) => tag.name),
+        ...venueTags,
+        ...(section === undefined ? [] : [section.kind]),
+      ];
+      const assignedTo = [
+        ...structured.assignments.map((assignment) => assignment.label),
+        ...new Set(assigneesByMovement.get(item._id) ?? []),
+      ].join(", ");
+      return {
+        ...itemSnapshot(item),
+        operationalDay: item.operationalDay,
+        displayTime: item.displayTime,
+        movementTypeLabel: structured.movementTypeLabel,
+        tagLabels: structured.tags.map((tag) => tag.name),
+        assignmentLabels: structured.assignments.map(
+          (assignment) => assignment.label,
+        ),
+        scheduledUntil: item.scheduledUntil,
+        timeKind: item.timeKind ?? "exact",
+        ...(section === undefined
+          ? {}
+          : { section: { name: section.name, kind: section.kind } }),
+        ...(tags.length === 0 ? {} : { tags }),
+        ...(venue === undefined
+          ? {}
+          : { venue: venueSnapshot(venue, venueTags) }),
+        ...(assignedTo.length === 0 ? {} : { assignedTo }),
+        notes: item.notes,
+      } satisfies ExportItem;
+    }),
+  );
 
   const recordSnapshots = records.map((record) => ({
     record,

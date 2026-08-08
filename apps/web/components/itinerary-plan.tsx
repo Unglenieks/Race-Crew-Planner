@@ -4,6 +4,7 @@ import {
   CalendarPlus,
   Copy,
   LoaderCircle,
+  MoreHorizontal,
   RotateCcw,
   Search,
   Trash2,
@@ -146,9 +147,19 @@ export function ItineraryPlan({
   const createOperationalRole = useMutation(movementsApi.createOperationalRole);
   const canEdit = role === "owner" || role === "manager";
   const [draft, setDraft] = useState<Draft>(emptyDraft);
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string | null | undefined>(
+    () => {
+      if (typeof window === "undefined") return undefined;
+      const saved = window.localStorage.getItem(
+        `race-planner:plan-view:${eventId}`,
+      );
+      return saved === "all" ? null : (saved ?? undefined);
+    },
+  );
   const [selectedType, setSelectedType] = useState("");
   const [selectedTag, setSelectedTag] = useState("");
+  const [selectedAssignment, setSelectedAssignment] = useState("");
+  const [selectedVenue, setSelectedVenue] = useState("");
   const [search, setSearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isArchiving, setIsArchiving] = useState<string | null>(null);
@@ -181,9 +192,24 @@ export function ItineraryPlan({
   }, [canEdit, ensureDefaults, eventId]);
 
   const days = useMemo(
-    () => Array.from(new Set((items ?? []).map(calendarDay))),
+    () => Array.from(new Set((items ?? []).map(calendarDay))).sort(),
     [items],
   );
+  const defaultDay = useMemo(() => {
+    if (items === undefined || days.length === 0) return null;
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    return days.find((day) => day >= today) ?? days.at(-1) ?? null;
+  }, [days, items, timeZone]);
+  const activeDay =
+    selectedDay === undefined ||
+    (selectedDay !== null && !days.includes(selectedDay))
+      ? defaultDay
+      : selectedDay;
   const locationRecordOptions = useMemo(
     () => locationRecords(records ?? [], recordTypes ?? []),
     [records, recordTypes],
@@ -195,13 +221,23 @@ export function ItineraryPlan({
   const visibleItems = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     return (items ?? []).filter((item) => {
-      const matchesDay =
-        selectedDay === null || calendarDay(item) === selectedDay;
+      const matchesDay = activeDay === null || calendarDay(item) === activeDay;
       const matchesType =
         selectedType.length === 0 || item.movementTypeId === selectedType;
       const matchesTag =
         selectedTag.length === 0 ||
         (item.tags ?? []).some((tag) => tag._id === selectedTag);
+      const matchesAssignment =
+        selectedAssignment.length === 0 ||
+        (item.assignments ?? []).some(
+          (assignment) => assignment.label === selectedAssignment,
+        );
+      const venueName =
+        item.recordId === undefined
+          ? item.location
+          : recordsById.get(item.recordId)?.name;
+      const matchesVenue =
+        selectedVenue.length === 0 || venueName === selectedVenue;
       const haystack = [
         item.title,
         item.location,
@@ -217,10 +253,55 @@ export function ItineraryPlan({
         matchesDay &&
         matchesType &&
         matchesTag &&
+        matchesAssignment &&
+        matchesVenue &&
         (query.length === 0 || haystack.includes(query))
       );
     });
-  }, [items, search, selectedDay, selectedTag, selectedType]);
+  }, [
+    items,
+    recordsById,
+    search,
+    selectedAssignment,
+    activeDay,
+    selectedTag,
+    selectedType,
+    selectedVenue,
+  ]);
+  const groupedItems = useMemo(() => {
+    const groups = new Map<string, ItineraryItem[]>();
+    for (const item of visibleItems) {
+      const day = calendarDay(item);
+      groups.set(day, [...(groups.get(day) ?? []), item]);
+    }
+    return [...groups].map(([day, grouped]) => ({ day, items: grouped }));
+  }, [visibleItems]);
+  const assignmentOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (items ?? []).flatMap((item) =>
+            (item.assignments ?? []).map((assignment) => assignment.label),
+          ),
+        ),
+      ).sort(),
+    [items],
+  );
+  const venueOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (items ?? [])
+            .map((item) =>
+              item.recordId === undefined
+                ? item.location
+                : recordsById.get(item.recordId)?.name,
+            )
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ).sort(),
+    [items, recordsById],
+  );
   function updateDraft(field: keyof Draft, value: string) {
     setDraft((current) => ({ ...current, [field]: value }));
   }
@@ -229,6 +310,8 @@ export function ItineraryPlan({
     setSelectedDay(null);
     setSelectedType("");
     setSelectedTag("");
+    setSelectedAssignment("");
+    setSelectedVenue("");
     setSearch("");
   }
 
@@ -322,9 +405,13 @@ export function ItineraryPlan({
       const activeTeams = directory?.teams.filter(
         (entry) => entry.archivedAt === undefined,
       );
-      const byName = <T extends { name: string }>(entries: T[] | undefined, name: string) =>
+      const byName = <T extends { name: string }>(
+        entries: T[] | undefined,
+        name: string,
+      ) =>
         entries?.find(
-          (entry) => entry.name.toLocaleLowerCase() === name.trim().toLocaleLowerCase(),
+          (entry) =>
+            entry.name.toLocaleLowerCase() === name.trim().toLocaleLowerCase(),
         );
       const unresolved = rows.find(
         (row) =>
@@ -348,8 +435,7 @@ export function ItineraryPlan({
           scheduledFor: row.scheduledFor,
           location: row.location || undefined,
           operationalDay: row.operationalDay || undefined,
-          movementTypeId:
-            byName(activeTypes, row.movementType)?._id ?? null,
+          movementTypeId: byName(activeTypes, row.movementType)?._id ?? null,
           teamId: byName(activeTeams, row.team)?._id,
           tagIds: row.tags
             .split(",")
@@ -543,9 +629,15 @@ export function ItineraryPlan({
                   <Button
                     type="button"
                     size="sm"
-                    variant={selectedDay === null ? "primary" : "secondary"}
-                    aria-pressed={selectedDay === null}
-                    onClick={() => setSelectedDay(null)}
+                    variant={activeDay === null ? "primary" : "secondary"}
+                    aria-pressed={activeDay === null}
+                    onClick={() => {
+                      setSelectedDay(null);
+                      window.localStorage.setItem(
+                        `race-planner:plan-view:${eventId}`,
+                        "all",
+                      );
+                    }}
                   >
                     All days
                   </Button>
@@ -554,9 +646,15 @@ export function ItineraryPlan({
                       key={day}
                       type="button"
                       size="sm"
-                      variant={selectedDay === day ? "primary" : "secondary"}
-                      aria-pressed={selectedDay === day}
-                      onClick={() => setSelectedDay(day)}
+                      variant={activeDay === day ? "primary" : "secondary"}
+                      aria-pressed={activeDay === day}
+                      onClick={() => {
+                        setSelectedDay(day);
+                        window.localStorage.setItem(
+                          `race-planner:plan-view:${eventId}`,
+                          day,
+                        );
+                      }}
                     >
                       {displayDay(day)}
                     </Button>
@@ -605,9 +703,35 @@ export function ItineraryPlan({
                       </option>
                     ))}
                   </select>
-                  {(selectedDay !== null ||
+                  <select
+                    aria-label="Filter by assignment"
+                    value={selectedAssignment}
+                    onChange={(event) =>
+                      setSelectedAssignment(event.target.value)
+                    }
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                  >
+                    <option value="">All assignments</option>
+                    {assignmentOptions.map((assignment) => (
+                      <option key={assignment}>{assignment}</option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Filter by venue"
+                    value={selectedVenue}
+                    onChange={(event) => setSelectedVenue(event.target.value)}
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                  >
+                    <option value="">All venues</option>
+                    {venueOptions.map((venue) => (
+                      <option key={venue}>{venue}</option>
+                    ))}
+                  </select>
+                  {(activeDay !== null ||
                     selectedType.length > 0 ||
                     selectedTag.length > 0 ||
+                    selectedAssignment.length > 0 ||
+                    selectedVenue.length > 0 ||
                     search.length > 0) && (
                     <Button type="button" size="sm" onClick={clearFilters}>
                       <X className="h-4 w-4" aria-hidden="true" />
@@ -618,7 +742,7 @@ export function ItineraryPlan({
                 <p className="text-xs text-muted" aria-live="polite">
                   Showing {visibleItems.length} of {items.length} movement
                   {items.length === 1 ? "" : "s"}
-                  {selectedDay === null ? "" : ` on ${displayDay(selectedDay)}`}
+                  {activeDay === null ? "" : ` on ${displayDay(activeDay)}`}
                   {search.trim().length === 0 ? "" : " matching your search"}.
                 </p>
               </div>
@@ -633,110 +757,146 @@ export function ItineraryPlan({
                   }
                 />
               ) : (
-                <ol className="divide-y divide-line">
-                  {visibleItems.map((item) => (
-                    <li
-                      key={item._id}
-                      className="grid gap-3 py-4 first:pt-0 last:pb-0 sm:grid-cols-[8rem_minmax(0,1fr)_auto]"
-                    >
-                      <time
-                        className="font-mono text-xs text-green-ink"
-                        aria-label={movementTimeLabel(item)}
+                <>
+                  <div
+                    className="grid gap-2 sm:grid-cols-2"
+                    aria-label="Day summaries"
+                  >
+                    {groupedItems.map((group) => (
+                      <div
+                        key={group.day}
+                        className="rounded-lg bg-soft px-3 py-2 text-xs text-muted"
                       >
-                        {displayMovementTime(item)}
-                      </time>
-                      <div className="min-w-0">
-                        <Link
-                          href={`/events/${eventId}/plan/${item._id}`}
-                          className="font-semibold text-ink underline-offset-4 hover:underline focus-visible:outline-3 focus-visible:outline-focus"
-                        >
-                          {item.title}
-                        </Link>
-                        {item.movementTypeLabel === undefined ? null : (
-                          <Badge
-                            className="ml-2 align-middle"
-                            variant="neutral"
-                          >
-                            {item.movementTypeLabel}
-                          </Badge>
-                        )}
-                        {item.tags === undefined ||
-                        item.tags.length === 0 ? null : (
-                          <p className="mt-1 flex flex-wrap gap-1">
-                            {item.tags.map((tag) => (
-                              <Badge key={tag._id} variant="info">
-                                {tag.name}
-                              </Badge>
-                            ))}
-                          </p>
-                        )}
-                        {item.assignments === undefined ||
-                        item.assignments.length === 0 ? null : (
-                          <p className="mt-1 text-xs text-muted">
-                            Assigned:{" "}
-                            {item.assignments
-                              .map((assignment) => assignment.label)
-                              .join(", ")}
-                          </p>
-                        )}
-                        <p className="mt-1 text-xs font-medium text-muted">
-                          {operationalDayLabel(item, sections ?? [])}
-                        </p>
-                        {item.location === undefined ? null : (
-                          <p className="mt-1 text-sm text-muted">
-                            {item.location}
-                          </p>
-                        )}
-                        {item.recordId === undefined ? null : (
-                          <p className="mt-1 text-xs font-medium text-green-ink">
-                            Linked location:{" "}
-                            {recordsById.get(item.recordId)?.name ??
-                              "Unavailable record"}
-                          </p>
-                        )}
-                        {item.notes === undefined ? null : (
-                          <p className="mt-1 text-sm leading-relaxed text-muted">
-                            {item.notes}
-                          </p>
-                        )}
+                        <span className="font-semibold text-ink">
+                          {displayDay(group.day)}
+                        </span>{" "}
+                        · {group.items.length} movement
+                        {group.items.length === 1 ? "" : "s"} · first{" "}
+                        {displayMovementTime(group.items[0])} · last{" "}
+                        {displayMovementTime(group.items.at(-1)!)}
                       </div>
-                      {canEdit ? (
-                        <div className="flex flex-wrap gap-2 sm:justify-end">
+                    ))}
+                  </div>
+                  <ol className="divide-y divide-line border-y border-line">
+                    {visibleItems.map((item, index) => (
+                      <li
+                        key={item._id}
+                        className="grid gap-3 py-4 first:pt-0 last:pb-0 sm:grid-cols-[8rem_minmax(0,1fr)_auto]"
+                      >
+                        {index === 0 ||
+                        calendarDay(visibleItems[index - 1]) !==
+                          calendarDay(item) ? (
+                          <h3 className="pt-2 font-semibold text-ink sm:col-span-3">
+                            {displayDay(calendarDay(item))}
+                          </h3>
+                        ) : null}
+                        <time
+                          className="font-mono text-xs text-green-ink"
+                          aria-label={movementTimeLabel(item)}
+                        >
+                          {displayMovementTime(item)}
+                        </time>
+                        <div className="min-w-0">
                           <Link
                             href={`/events/${eventId}/plan/${item._id}`}
-                            className="inline-flex min-h-11 items-center rounded-lg border border-transparent px-2.5 py-1.5 text-xs font-semibold text-ink2 hover:bg-soft focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
+                            className="font-semibold text-ink underline-offset-4 hover:underline focus-visible:outline-3 focus-visible:outline-focus"
                           >
-                            Open details
+                            {item.title}
                           </Link>
-                          <Button
-                            type="button"
-                            variant="danger"
-                            size="sm"
-                            aria-label={`Archive ${item.title}`}
-                            onClick={() => onArchive(item)}
-                            disabled={isArchiving === item._id}
-                          >
-                            {isArchiving === item._id ? (
-                              <LoaderCircle className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" aria-hidden="true" />
-                            )}
-                            Archive
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="soft"
-                            size="sm"
-                            onClick={() => duplicateItem(item)}
-                          >
-                            <Copy className="h-4 w-4" aria-hidden="true" />
-                            Duplicate
-                          </Button>
+                          {item.movementTypeLabel === undefined ? null : (
+                            <Badge
+                              className="ml-2 align-middle"
+                              variant="neutral"
+                            >
+                              {item.movementTypeLabel}
+                            </Badge>
+                          )}
+                          {item.tags === undefined ||
+                          item.tags.length === 0 ? null : (
+                            <p className="mt-1 flex flex-wrap gap-1">
+                              {item.tags.map((tag) => (
+                                <Badge key={tag._id} variant="info">
+                                  {tag.name}
+                                </Badge>
+                              ))}
+                            </p>
+                          )}
+                          {item.assignments === undefined ||
+                          item.assignments.length === 0 ? null : (
+                            <p className="mt-1 text-xs text-muted">
+                              Assigned:{" "}
+                              {item.assignments
+                                .map((assignment) => assignment.label)
+                                .join(", ")}
+                            </p>
+                          )}
+                          <p className="mt-1 text-xs font-medium text-muted">
+                            {operationalDayLabel(item, sections ?? [])}
+                          </p>
+                          {item.location === undefined ? null : (
+                            <p className="mt-1 text-sm text-muted">
+                              {item.location}
+                            </p>
+                          )}
+                          {item.recordId === undefined ? null : (
+                            <p className="mt-1 text-xs font-medium text-green-ink">
+                              Linked location:{" "}
+                              {recordsById.get(item.recordId)?.name ??
+                                "Unavailable record"}
+                            </p>
+                          )}
+                          {item.notes === undefined ? null : (
+                            <p className="mt-1 text-sm leading-relaxed text-muted">
+                              {item.notes}
+                            </p>
+                          )}
                         </div>
-                      ) : null}
-                    </li>
-                  ))}
-                </ol>
+                        {canEdit ? (
+                          <details className="relative sm:justify-self-end">
+                            <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-lg px-2 hover:bg-soft">
+                              <MoreHorizontal
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              <span className="sr-only">
+                                Actions for {item.title}
+                              </span>
+                            </summary>
+                            <div className="grid min-w-36 gap-1 rounded-lg border border-line bg-card p-2 shadow-lg sm:absolute sm:right-0 sm:z-10">
+                              <Button
+                                type="button"
+                                variant="danger"
+                                size="sm"
+                                aria-label={`Archive ${item.title}`}
+                                onClick={() => onArchive(item)}
+                                disabled={isArchiving === item._id}
+                              >
+                                {isArchiving === item._id ? (
+                                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2
+                                    className="h-4 w-4"
+                                    aria-hidden="true"
+                                  />
+                                )}
+                                Archive
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="soft"
+                                size="sm"
+                                onClick={() => duplicateItem(item)}
+                              >
+                                <Copy className="h-4 w-4" aria-hidden="true" />
+                                Duplicate
+                              </Button>
+                            </div>
+                          </details>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ol>
+                </>
               )}
             </>
           )}
