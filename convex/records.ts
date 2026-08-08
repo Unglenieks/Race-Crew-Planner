@@ -345,7 +345,7 @@ export const get = query({
   handler: async (ctx, args) => {
     await membership(ctx, args.eventId);
     const record = await recordInEvent(ctx, args.eventId, args.recordId);
-    const [assignments, outgoing, incoming] = await Promise.all([
+    const [assignments, outgoing, fields, incoming] = await Promise.all([
       ctx.db
         .query("eventRecordCategoryAssignments")
         .withIndex("by_eventId_recordId", (q) =>
@@ -357,6 +357,10 @@ export const get = query({
         .withIndex("by_fromRecordId", (q) =>
           q.eq("fromRecordId", args.recordId),
         )
+        .collect(),
+      ctx.db
+        .query("eventRecordFields")
+        .withIndex("by_eventId_order", (q) => q.eq("eventId", args.eventId))
         .collect(),
       ctx.db
         .query("travelContexts")
@@ -378,6 +382,7 @@ export const get = query({
       ...record,
       categories: uniqueCategories,
       travelContexts: [...outgoing, ...incoming],
+      fields,
     };
   },
 });

@@ -1031,6 +1031,55 @@ describe("Convex authorization helpers", () => {
     ).rejects.toThrow("Record not found");
   });
 
+  it("returns editor notes and every configured value on record detail", async () => {
+    const record = {
+      _id: "eventRecords:one",
+      eventId: "events:one",
+      name: "Service vehicle",
+      type: "vehicle",
+      notes: "Original notes",
+      fieldValues: { operational_status: "Ready" },
+    };
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew",
+          subject: "crew",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        get: async (id: string) => (id === "eventRecords:one" ? record : null),
+        query: (table: string) => ({
+          withIndex: () => ({
+            unique: async () => ({ role: "crew" }),
+            collect: async () =>
+              table === "eventRecordFields"
+                ? [
+                    {
+                      key: "operational_status",
+                      label: "Operational status",
+                      type: "select",
+                      order: 0,
+                    },
+                  ]
+                : [],
+          }),
+        }),
+      },
+    };
+    await expect(
+      getRecord._handler(context as never, {
+        eventId: "events:one" as never,
+        recordId: "eventRecords:one" as never,
+      }),
+    ).resolves.toMatchObject({
+      notes: "Original notes",
+      fieldValues: { operational_status: "Ready" },
+      fields: [expect.objectContaining({ label: "Operational status" })],
+    });
+  });
+
   it("does not let crew update venue or travel context", async () => {
     const context = {
       auth: {
