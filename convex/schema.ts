@@ -320,6 +320,10 @@ export default defineSchema({
     eventId: v.id("events"),
     /** Undefined means the export included every active movement. */
     filterDay: v.optional(v.string()),
+    /** Missing only on exports created before versioned crew briefs existed. */
+    schemaVersion: v.optional(v.number()),
+    /** Copied at generation time so a renamed event cannot rewrite history. */
+    eventName: v.optional(v.string()),
     timeZone: v.string(),
     items: v.array(
       v.object({
@@ -327,10 +331,113 @@ export default defineSchema({
         title: v.string(),
         scheduledFor: v.string(),
         location: v.optional(v.string()),
+        scheduledUntil: v.optional(v.string()),
+        timeKind: v.optional(
+          v.union(
+            v.literal("exact"),
+            v.literal("approximate"),
+            v.literal("range"),
+            v.literal("allDay"),
+            v.literal("unspecified"),
+          ),
+        ),
+        section: v.optional(
+          v.object({
+            name: v.string(),
+            kind: v.union(
+              v.literal("day"),
+              v.literal("session"),
+              v.literal("leg"),
+            ),
+          }),
+        ),
+        tags: v.optional(v.array(v.string())),
+        venue: v.optional(
+          v.object({
+            name: v.string(),
+            address: v.optional(v.string()),
+            accessNotes: v.optional(v.string()),
+            hours: v.optional(v.string()),
+            contactDetail: v.optional(v.string()),
+            notes: v.optional(v.string()),
+            tags: v.optional(v.array(v.string())),
+          }),
+        ),
+        assignedTo: v.optional(v.string()),
+        notes: v.optional(v.string()),
+      }),
+    ),
+    /** Optional so snapshots written by the original, minimal export still validate. */
+    appendices: v.optional(
+      v.object({
+        venues: v.array(
+          v.object({
+            name: v.string(),
+            address: v.optional(v.string()),
+            accessNotes: v.optional(v.string()),
+            hours: v.optional(v.string()),
+            contactDetail: v.optional(v.string()),
+            notes: v.optional(v.string()),
+            tags: v.optional(v.array(v.string())),
+          }),
+        ),
+        officialContacts: v.array(
+          v.object({
+            name: v.string(),
+            role: v.optional(v.string()),
+            email: v.optional(v.string()),
+            phoneNumber: v.optional(v.string()),
+            contactDetail: v.optional(v.string()),
+            notes: v.optional(v.string()),
+          }),
+        ),
+        travel: v.array(
+          v.object({
+            from: v.string(),
+            to: v.string(),
+            estimate: v.string(),
+            calculation: v.optional(v.string()),
+            routeNote: v.optional(v.string()),
+          }),
+        ),
+        fuel: v.array(
+          v.object({
+            name: v.string(),
+            address: v.optional(v.string()),
+            accessNotes: v.optional(v.string()),
+            hours: v.optional(v.string()),
+            contactDetail: v.optional(v.string()),
+            notes: v.optional(v.string()),
+            tags: v.optional(v.array(v.string())),
+          }),
+        ),
+        weather: v.array(
+          v.object({
+            name: v.string(),
+            address: v.optional(v.string()),
+            accessNotes: v.optional(v.string()),
+            hours: v.optional(v.string()),
+            contactDetail: v.optional(v.string()),
+            notes: v.optional(v.string()),
+            tags: v.optional(v.array(v.string())),
+          }),
+        ),
+        supportServices: v.array(
+          v.object({
+            name: v.string(),
+            address: v.optional(v.string()),
+            accessNotes: v.optional(v.string()),
+            hours: v.optional(v.string()),
+            contactDetail: v.optional(v.string()),
+            notes: v.optional(v.string()),
+            tags: v.optional(v.array(v.string())),
+          }),
+        ),
       }),
     ),
     generatedAt: v.number(),
     generatedBy: v.string(),
+    generatedByName: v.optional(v.string()),
   }).index("by_eventId_generatedAt", ["eventId", "generatedAt"]),
   formTemplates: defineTable({
     eventId: v.id("events"),

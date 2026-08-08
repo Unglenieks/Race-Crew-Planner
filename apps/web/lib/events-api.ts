@@ -271,15 +271,58 @@ export type PlanSection = {
 export type PlanExport = {
   _id: string;
   filterDay?: string;
+  /** Undefined identifies a brief made before the versioned crew-brief model. */
+  schemaVersion?: number;
+  eventName?: string;
   timeZone: string;
   items: Array<{
     itineraryItemId: string;
     title: string;
     scheduledFor: string;
     location?: string;
+    scheduledUntil?: string;
+    timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
+    section?: { name: string; kind: "day" | "session" | "leg" };
+    tags?: string[];
+    venue?: PlanExportVenue;
+    assignedTo?: string;
+    notes?: string;
   }>;
+  appendices?: {
+    venues: PlanExportVenue[];
+    officialContacts: PlanExportContact[];
+    travel: PlanExportTravel[];
+    fuel: PlanExportVenue[];
+    weather: PlanExportVenue[];
+    supportServices: PlanExportVenue[];
+  };
   generatedAt: number;
+  generatedByName?: string;
   isSuperseded?: boolean;
+};
+export type PlanExportVenue = {
+  name: string;
+  address?: string;
+  accessNotes?: string;
+  hours?: string;
+  contactDetail?: string;
+  notes?: string;
+  tags?: string[];
+};
+export type PlanExportContact = {
+  name: string;
+  role?: string;
+  email?: string;
+  phoneNumber?: string;
+  contactDetail?: string;
+  notes?: string;
+};
+export type PlanExportTravel = {
+  from: string;
+  to: string;
+  estimate: string;
+  calculation?: string;
+  routeNote?: string;
 };
 
 /**
