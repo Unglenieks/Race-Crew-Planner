@@ -7,7 +7,12 @@ type IdentityContext = {
 };
 
 /** Application roles are assigned by Convex-backed membership records. */
-export const applicationRoles = ["owner", "manager", "crew"] as const;
+export const applicationRoles = [
+  "owner",
+  "manager",
+  "crew",
+  "spectator",
+] as const;
 
 export type ApplicationRole = (typeof applicationRoles)[number];
 

@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ConfirmDestructiveAction } from "@/components/ui/confirm-destructive-action";
+import { useEventWorkspace } from "@/components/workspace/event-workspace";
 
-type InvitationRole = "manager" | "crew";
+type InvitationRole = "manager" | "crew" | "spectator";
 
 function contactLabel(contact: EventContact) {
   return (
@@ -19,6 +20,8 @@ function contactLabel(contact: EventContact) {
 }
 
 export function EventContacts({ eventId }: { eventId: string }) {
+  const { role: currentRole } = useEventWorkspace();
+  const canManage = currentRole === "owner" || currentRole === "manager";
   const contacts = useQuery(invitationsApi.listContacts, { eventId });
   const revoke = useMutation(invitationsApi.revoke);
   const updateMemberRole = useMutation(invitationsApi.updateMemberRole);
@@ -214,7 +217,9 @@ export function EventContacts({ eventId }: { eventId: string }) {
                     {contact.email || contact.phoneNumber || "Profile pending"}
                   </span>
                 </span>
-                {contact.type === "member" && contact.role !== "owner" ? (
+                {canManage &&
+                contact.type === "member" &&
+                contact.role !== "owner" ? (
                   <select
                     aria-label={`Role for ${contactLabel(contact)}`}
                     value={contact.role}
@@ -229,6 +234,7 @@ export function EventContacts({ eventId }: { eventId: string }) {
                   >
                     <option value="manager">Manager</option>
                     <option value="crew">Crew</option>
+                    <option value="spectator">Spectator</option>
                   </select>
                 ) : (
                   <Badge
@@ -237,7 +243,7 @@ export function EventContacts({ eventId }: { eventId: string }) {
                     {contact.type === "member" ? contact.role : "Pending"}
                   </Badge>
                 )}
-                {contact.type === "invitation" ? (
+                {canManage && contact.type === "invitation" ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -254,7 +260,7 @@ export function EventContacts({ eventId }: { eventId: string }) {
                     <Trash2 className="h-4 w-4" />
                     Cancel
                   </Button>
-                ) : contact.role === "owner" ? null : (
+                ) : canManage && contact.role !== "owner" ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -271,72 +277,77 @@ export function EventContacts({ eventId }: { eventId: string }) {
                     <Trash2 className="h-4 w-4" />
                     Remove
                   </Button>
-                )}
+                ) : null}
               </li>
             ))}
           </ul>
         )}
-        <form
-          className="grid gap-4 border-t border-line pt-5"
-          onSubmit={onInvite}
-        >
-          <div className="grid gap-1.5">
-            <label
-              className="text-sm font-medium text-ink"
-              htmlFor="invite-email"
-            >
-              Email address
-            </label>
-            <Input
-              id="invite-email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-              placeholder="teammate@example.com"
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <label
-              className="text-sm font-medium text-ink"
-              htmlFor="invite-role"
-            >
-              Access level
-            </label>
-            <select
-              id="invite-role"
-              value={role}
-              onChange={(event) =>
-                setRole(event.target.value as InvitationRole)
-              }
-              className="rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink"
-            >
-              <option value="crew">Crew — can view the plan</option>
-              <option value="manager">Manager — can edit the plan</option>
-            </select>
-          </div>
-          {error === null ? null : (
-            <p
-              className="rounded-md border border-danger-tx bg-danger-bg px-3 py-2 text-sm text-danger-tx"
-              role="alert"
-            >
-              {error}
-            </p>
-          )}
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={isInviting}
-            className="w-fit"
+        {canManage ? (
+          <form
+            className="grid gap-4 border-t border-line pt-5"
+            onSubmit={onInvite}
           >
-            {isInviting ? (
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
+            <div className="grid gap-1.5">
+              <label
+                className="text-sm font-medium text-ink"
+                htmlFor="invite-email"
+              >
+                Email address
+              </label>
+              <Input
+                id="invite-email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                placeholder="teammate@example.com"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <label
+                className="text-sm font-medium text-ink"
+                htmlFor="invite-role"
+              >
+                Access level
+              </label>
+              <select
+                id="invite-role"
+                value={role}
+                onChange={(event) =>
+                  setRole(event.target.value as InvitationRole)
+                }
+                className="rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink"
+              >
+                <option value="crew">Crew — can view the plan</option>
+                <option value="spectator">
+                  Spectator — event info and spectator locations only
+                </option>
+                <option value="manager">Manager — can edit the plan</option>
+              </select>
+            </div>
+            {error === null ? null : (
+              <p
+                className="rounded-md border border-danger-tx bg-danger-bg px-3 py-2 text-sm text-danger-tx"
+                role="alert"
+              >
+                {error}
+              </p>
             )}
-            Send invitation
-          </Button>
-        </form>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={isInviting}
+              className="w-fit"
+            >
+              {isInviting ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              Send invitation
+            </Button>
+          </form>
+        ) : null}
       </CardContent>
     </Card>
   );

@@ -33,7 +33,7 @@ function AttentionBadge({ eventId }: { eventId: string }) {
 }
 
 export function WorkspaceTopbar({ screen }: { screen: ScreenDefinition }) {
-  const { event } = useEventWorkspace();
+  const { event, role } = useEventWorkspace();
 
   return (
     <header className="sticky top-0 z-20 hidden min-h-16 flex-wrap items-center gap-2 border-b border-line bg-topbg px-6 py-2.5 md:flex">
@@ -58,7 +58,7 @@ export function WorkspaceTopbar({ screen }: { screen: ScreenDefinition }) {
           </li>
         </ol>
       </nav>
-      <AttentionBadge eventId={event.id} />
+      {role === "spectator" ? null : <AttentionBadge eventId={event.id} />}
       <DisplayModeControl />
       <UserButton />
     </header>

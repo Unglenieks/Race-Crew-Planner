@@ -1,34 +1,25 @@
 import {
-  BellRing,
+  CalendarDays,
   ClipboardList,
   FileText,
   FolderOpen,
-  CloudOff,
-  LayoutDashboard,
   Gauge,
-  MapPin,
+  LayoutDashboard,
+  MapPinned,
   MessageSquare,
-  Printer,
   Route,
-  Rows3,
-  TableProperties,
   Users,
   type LucideIcon,
 } from "lucide-react";
 import type { EventRole } from "@/lib/events-api";
 
-/**
- * Single source of truth for workspace navigation.
- *
- * The sidebar, the topbar breadcrumb, and route validation all read this list,
- * so a screen cannot appear in navigation without a route, and a route cannot
- * exist without a label. `tests/screens.test.ts` asserts every entry here has a
- * matching `page.tsx`, which is the regression guard for the previous shell
- * where navigation advertised screens that were never built.
- */
-
 export type ScreenId =
   | "today"
+  | "map"
+  | "contacts"
+  | "schedule"
+  | "event-info"
+  | "spectator-info"
   | "attention"
   | "plan"
   | "plan-import"
@@ -46,38 +37,93 @@ export type ScreenId =
 
 export type ScreenDefinition = {
   id: ScreenId;
-  /** Path relative to `/events/[eventId]`. */
   segment: string;
-  /** Sidebar label and breadcrumb tail. */
   label: string;
-  /** Short label for the breadcrumb when the full label is long. */
   shortLabel: string;
   description: string;
   icon: LucideIcon;
-  /** Lowest role permitted to open the screen. */
   minRole: EventRole;
+  /** Hidden routes remain available to existing workflows but do not crowd the new menu. */
+  hidden?: boolean;
+  /** Use this for non-hierarchical audiences such as spectator-only pages. */
+  allowedRoles?: EventRole[];
 };
 
 const roleRank: Record<EventRole, number> = {
-  crew: 0,
-  manager: 1,
-  owner: 2,
+  spectator: 0,
+  crew: 1,
+  manager: 2,
+  owner: 3,
 };
 
 export function roleSatisfies(role: EventRole, minRole: EventRole): boolean {
   return roleRank[role] >= roleRank[minRole];
 }
 
-export const screens: ScreenDefinition[] = [
+export function canAccessScreen(role: EventRole, screen: ScreenDefinition) {
+  return (
+    screen.allowedRoles?.includes(role) ?? roleSatisfies(role, screen.minRole)
+  );
+}
+
+const core: ScreenDefinition[] = [
   {
     id: "today",
     segment: "today",
-    label: "Today",
-    shortLabel: "Today",
-    description: "What is happening now and what is next.",
+    label: "Event home",
+    shortLabel: "Home",
+    description: "Your race at a glance.",
     icon: LayoutDashboard,
+    minRole: "spectator",
+  },
+  {
+    id: "map",
+    segment: "map",
+    label: "Map",
+    shortLabel: "Map",
+    description: "Race venues and crew support locations.",
+    icon: MapPinned,
     minRole: "crew",
   },
+  {
+    id: "contacts",
+    segment: "contacts",
+    label: "Contacts",
+    shortLabel: "Contacts",
+    description: "Event officials and your crew roster.",
+    icon: Users,
+    minRole: "crew",
+  },
+  {
+    id: "schedule",
+    segment: "schedule",
+    label: "Schedule",
+    shortLabel: "Schedule",
+    description: "The event movement plan by day.",
+    icon: CalendarDays,
+    minRole: "crew",
+  },
+  {
+    id: "event-info",
+    segment: "event-info",
+    label: "Event info",
+    shortLabel: "Event info",
+    description: "Car, legs, mileage, fuel, and weather.",
+    icon: Gauge,
+    minRole: "spectator",
+  },
+  {
+    id: "spectator-info",
+    segment: "spectator-info",
+    label: "Spectator info",
+    shortLabel: "Spectator info",
+    description: "Spectator locations and event-day essentials.",
+    icon: MapPinned,
+    minRole: "spectator",
+  },
+];
+
+const legacy: ScreenDefinition[] = [
   {
     id: "attention",
     segment: "attention",
@@ -85,8 +131,9 @@ export const screens: ScreenDefinition[] = [
     shortLabel: "Attention",
     description:
       "Work assigned to you and plan changes awaiting your response.",
-    icon: BellRing,
+    icon: ClipboardList,
     minRole: "crew",
+    hidden: true,
   },
   {
     id: "plan",
@@ -96,43 +143,47 @@ export const screens: ScreenDefinition[] = [
     description: "The shared schedule of movements for this event.",
     icon: Route,
     minRole: "crew",
+    hidden: true,
   },
   {
     id: "plan-import",
     segment: "plan/import",
     label: "Import plan",
     shortLabel: "Import",
-    description:
-      "Stage, review, and safely commit a schedule from a file or pasted table.",
-    icon: TableProperties,
+    description: "Stage, review, and safely commit a schedule.",
+    icon: FileText,
     minRole: "manager",
+    hidden: true,
   },
   {
     id: "plan-export",
     segment: "plan/export",
     label: "Export & print",
-    shortLabel: "Export & print",
+    shortLabel: "Export",
     description: "A filtered, printable view of the plan.",
-    icon: Printer,
+    icon: FileText,
     minRole: "crew",
+    hidden: true,
   },
   {
     id: "work",
     segment: "work",
     label: "Work & checklists",
     shortLabel: "Work",
-    description: "Shared checklists and assignments for the crew.",
+    description: "Shared checklists and assignments.",
     icon: ClipboardList,
     minRole: "crew",
+    hidden: true,
   },
   {
     id: "work-templates",
     segment: "work/templates",
     label: "Checklist templates",
     shortLabel: "Templates",
-    description: "Create, apply, and archive repeatable event work.",
-    icon: Rows3,
+    description: "Repeatable event work.",
+    icon: ClipboardList,
     minRole: "manager",
+    hidden: true,
   },
   {
     id: "records",
@@ -140,115 +191,101 @@ export const screens: ScreenDefinition[] = [
     label: "Records & venues",
     shortLabel: "Records",
     description: "Places, services, vehicles, equipment, and organisations.",
-    icon: MapPin,
+    icon: MapPinned,
     minRole: "crew",
+    hidden: true,
   },
   {
     id: "travel",
     segment: "records/travel",
     label: "Travel reference",
     shortLabel: "Travel",
-    description: "Place-to-place estimates and route notes for the event.",
-    icon: MapPin,
+    description: "Place-to-place estimates and notes.",
+    icon: Route,
     minRole: "crew",
+    hidden: true,
   },
   {
     id: "logistics",
     segment: "logistics",
     label: "Rally logistics",
     shortLabel: "Logistics",
-    description: "Car, legs, fuel, travel, service, weather, and support.",
+    description: "Car, legs, fuel, service, weather, and support.",
     icon: Gauge,
     minRole: "crew",
+    hidden: true,
   },
   {
     id: "files",
     segment: "files",
     label: "Files & sources",
     shortLabel: "Files",
-    description: "Attach and retrieve event evidence and record files.",
+    description: "Event evidence and record files.",
     icon: FolderOpen,
     minRole: "crew",
+    hidden: true,
   },
   {
     id: "offline",
     segment: "offline",
     label: "Offline manager",
     shortLabel: "Offline",
-    description: "Connection status and durable queued changes.",
-    icon: CloudOff,
+    description: "Connection status and queued changes.",
+    icon: FolderOpen,
     minRole: "crew",
+    hidden: true,
   },
   {
     id: "forms",
     segment: "forms",
     label: "Forms & inspections",
     shortLabel: "Forms",
-    description: "Templates to complete and submissions you have made.",
+    description: "Templates and submissions.",
     icon: FileText,
     minRole: "crew",
+    hidden: true,
   },
   {
     id: "activity",
     segment: "activity",
     label: "Activity & comments",
     shortLabel: "Activity",
-    description: "Event history, comments, and linked sources.",
+    description: "Event history and comments.",
     icon: MessageSquare,
     minRole: "crew",
+    hidden: true,
   },
   {
     id: "people",
     segment: "people",
     label: "People & permissions",
     shortLabel: "People",
-    description: "Crew access, invitations, and roles.",
+    description: "Crew access and invitations.",
     icon: Users,
     minRole: "owner",
+    hidden: true,
   },
 ];
 
-export type ScreenGroup = {
-  /** `null` renders the screens without a group heading. */
-  label: string | null;
-  screenIds: ScreenId[];
-};
-
+export const screens = [...core, ...legacy];
+export type ScreenGroup = { label: string | null; screenIds: ScreenId[] };
 export const screenGroups: ScreenGroup[] = [
-  { label: null, screenIds: ["today", "attention"] },
-  {
-    label: "Plan",
-    screenIds: ["plan", "plan-import", "plan-export"],
-  },
-  {
-    label: "Work",
-    screenIds: ["work", "work-templates"],
-  },
-  { label: "Records", screenIds: ["records", "travel", "logistics", "files"] },
-  { label: "Forms", screenIds: ["forms"] },
-  { label: "Trust & setup", screenIds: ["activity", "offline", "people"] },
+  { label: null, screenIds: core.map((screen) => screen.id) },
 ];
-
 const screensById = new Map(screens.map((screen) => [screen.id, screen]));
-
-export function getScreen(id: ScreenId): ScreenDefinition {
+export function getScreen(id: ScreenId) {
   const screen = screensById.get(id);
-  if (screen === undefined) throw new Error(`Unknown screen: ${id}`);
+  if (!screen) throw new Error(`Unknown screen: ${id}`);
   return screen;
 }
-
-export function screenHref(eventId: string, id: ScreenId): string {
+export function screenHref(eventId: string, id: ScreenId) {
   return `/events/${eventId}/${getScreen(id).segment}`;
 }
-
-export function visibleScreens(role: EventRole): ScreenDefinition[] {
-  return screens.filter((screen) => roleSatisfies(role, screen.minRole));
+export function visibleScreens(role: EventRole) {
+  return screens.filter(
+    (screen) => !screen.hidden && canAccessScreen(role, screen),
+  );
 }
-
-/**
- * Resolves the screen a pathname belongs to. Longest segment wins so
- * `/plan/sections` resolves to Plan sections rather than Movement plan.
- */
 export function findScreenByPath(
   eventId: string,
   pathname: string,
@@ -257,13 +294,10 @@ export function findScreenByPath(
     const href = screenHref(eventId, screen.id);
     return pathname === href || pathname.startsWith(`${href}/`);
   });
-
-  if (matches.length === 0) return null;
-
-  return matches.reduce((longest, screen) =>
-    screen.segment.length > longest.segment.length ? screen : longest,
-  );
+  return matches.length === 0
+    ? null
+    : matches.reduce((longest, screen) =>
+        longest.segment.length > screen.segment.length ? longest : screen,
+      );
 }
-
-/** The screen an operator lands on when they open an event. */
 export const defaultScreenId: ScreenId = "today";

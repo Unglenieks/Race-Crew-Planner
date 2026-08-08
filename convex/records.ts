@@ -236,11 +236,50 @@ export function resolvedCoordinates(
 export const list = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
-    await membership(ctx, eventId);
+    const { member } = await membership(ctx, eventId);
+    if (member.role === "spectator") throw new Error("Forbidden");
     return await ctx.db
       .query("eventRecords")
       .withIndex("by_eventId_name", (q) => q.eq("eventId", eventId))
       .collect();
+  },
+});
+
+/**
+ * Map-safe location projection. Spectators receive only locations their crew
+ * chief explicitly marked visible; crew keep the full event location set.
+ */
+export const listMapLocations = query({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    const { member } = await membership(ctx, eventId);
+    const records = await ctx.db
+      .query("eventRecords")
+      .withIndex("by_eventId_name", (q) => q.eq("eventId", eventId))
+      .collect();
+    const locations = await Promise.all(
+      records.map(async (record) =>
+        (await isLocationRecord(ctx, record)) ? record : null,
+      ),
+    );
+    return locations
+      .filter((record): record is NonNullable<typeof record> => record !== null)
+      .filter(
+        (record) =>
+          member.role !== "spectator" || record.spectatorVisible === true,
+      )
+      .map((record) => ({
+        _id: record._id,
+        name: record.name,
+        address: record.address,
+        notes: record.notes,
+        accessNotes: record.accessNotes,
+        hours: record.hours,
+        latitude: record.latitude,
+        longitude: record.longitude,
+        supportCategories: record.supportCategories ?? [],
+        spectatorVisible: record.spectatorVisible === true,
+      }));
   },
 });
 
@@ -361,7 +400,8 @@ export const reorderFields = mutation({
 export const get = query({
   args: { eventId: v.id("events"), recordId: v.id("eventRecords") },
   handler: async (ctx, args) => {
-    await membership(ctx, args.eventId);
+    const { member } = await membership(ctx, args.eventId);
+    if (member.role === "spectator") throw new Error("Forbidden");
     const record = await recordInEvent(ctx, args.eventId, args.recordId);
     const [assignments, outgoing, fields, incoming] = await Promise.all([
       ctx.db
@@ -415,6 +455,7 @@ export const create = mutation({
     notes: v.optional(v.string()),
     fieldValues: v.optional(v.record(v.string(), v.string())),
     supportCategories: v.optional(v.array(supportCategory)),
+    spectatorVisible: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { identity } = await manager(ctx, args.eventId);
@@ -442,6 +483,9 @@ export const create = mutation({
               args.supportCategories,
             ),
           }),
+      ...(args.spectatorVisible === undefined
+        ? {}
+        : { spectatorVisible: args.spectatorVisible }),
       createdAt: now,
       updatedAt: now,
     });
@@ -476,6 +520,7 @@ export const update = mutation({
     notes: v.optional(v.string()),
     fieldValues: v.optional(v.record(v.string(), v.string())),
     supportCategories: v.optional(v.array(supportCategory)),
+    spectatorVisible: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { identity } = await manager(ctx, args.eventId);
@@ -511,6 +556,9 @@ export const update = mutation({
               args.supportCategories,
             ),
           }),
+      ...(args.spectatorVisible === undefined
+        ? {}
+        : { spectatorVisible: args.spectatorVisible }),
       updatedAt: Date.now(),
     });
     await writeAudit(ctx, {
@@ -541,6 +589,7 @@ export const saveVenueDetails = mutation({
     hours: v.optional(v.string()),
     contactDetail: v.optional(v.string()),
     supportCategories: v.optional(v.array(supportCategory)),
+    spectatorVisible: v.optional(v.boolean()),
     confirmationStatus: v.union(
       v.literal("unconfirmed"),
       v.literal("confirmed"),
@@ -566,6 +615,9 @@ export const saveVenueDetails = mutation({
               args.supportCategories,
             ),
           }),
+      ...(args.spectatorVisible === undefined
+        ? {}
+        : { spectatorVisible: args.spectatorVisible }),
       confirmationStatus: args.confirmationStatus,
       confirmationSource: optionalText(args.confirmationSource, 500),
       verifiedAt: Date.now(),

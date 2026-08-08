@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 
 const createInvitation = makeFunctionReference<
   "mutation",
-  { eventId: string; email: string; role: "manager" | "crew" },
+  { eventId: string; email: string; role: "manager" | "crew" | "spectator" },
   string
 >("invitations:create");
 const revokeInvitation = makeFunctionReference<
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   if (
     typeof eventId !== "string" ||
     typeof email !== "string" ||
-    (role !== "manager" && role !== "crew")
+    (role !== "manager" && role !== "crew" && role !== "spectator")
   )
     return NextResponse.json({ error: "Invalid invitation" }, { status: 400 });
   const convex = new ConvexHttpClient(convexUrl);
