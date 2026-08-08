@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, LoaderCircle, Radio, Send } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   planChangesApi,
@@ -12,7 +12,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/data-display";
 
 function displayTime(value: number) {
   return new Intl.DateTimeFormat(undefined, {
@@ -23,9 +22,15 @@ function displayTime(value: number) {
 
 function ChangeStatus({
   change,
+  canManage,
+  pendingRecipientId,
+  onAcknowledge,
   onAcknowledgeElsewhere,
 }: {
   change: PublishedPlanChange;
+  canManage: boolean;
+  pendingRecipientId: string | null;
+  onAcknowledge: (recipientId: string) => Promise<void>;
   onAcknowledgeElsewhere: (recipientId: string) => Promise<void>;
 }) {
   const reached = change.recipients.filter(
@@ -33,32 +38,70 @@ function ChangeStatus({
       recipient.state === "acknowledged" ||
       recipient.state === "acknowledgedElsewhere",
   ).length;
-  const pending = change.recipients.length - reached;
+  const currentRecipient = change.currentRecipient;
+  const needsMyAcknowledgement =
+    currentRecipient !== undefined &&
+    currentRecipient.state !== "acknowledged" &&
+    currentRecipient.state !== "acknowledgedElsewhere";
 
   return (
-    <li className="grid gap-3 border-t border-line py-4 first:border-t-0 first:pt-0">
+    <li className="grid gap-3 border-t border-line py-5 first:border-t-0 first:pt-0">
       <div className="flex flex-wrap items-start gap-2">
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-ink">{change.title}</p>
           <p className="mt-1 text-sm text-muted">{change.reason}</p>
           <p className="mt-1 text-xs text-muted">
-            Published {displayTime(change.publishedAt)}
+            Published by {change.publishedByName} ·{" "}
+            {displayTime(change.publishedAt)}
           </p>
         </div>
         <Badge variant={change.severity === "critical" ? "danger" : "neutral"}>
           {change.severity}
         </Badge>
       </div>
+      {change.previousTitle === undefined ? null : (
+        <p className="rounded-md bg-topbg px-3 py-2 text-xs text-muted">
+          Previous instruction: {change.previousScheduledFor} ·{" "}
+          {change.previousTitle}
+        </p>
+      )}
+      {needsMyAcknowledgement ? (
+        <div className="rounded-lg border border-warning-ln bg-warning-bg p-3">
+          <p className="text-sm text-warning-tx">
+            Review this change, then confirm that you have read it and will act.
+          </p>
+          <Button
+            className="mt-3"
+            type="button"
+            variant="primary"
+            disabled={pendingRecipientId === currentRecipient._id}
+            onClick={() => void onAcknowledge(currentRecipient._id)}
+          >
+            {pendingRecipientId === currentRecipient._id ? (
+              <LoaderCircle
+                className="h-4 w-4 animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              <Check className="h-4 w-4" aria-hidden="true" />
+            )}
+            Review and acknowledge
+          </Button>
+        </div>
+      ) : currentRecipient === undefined ? null : (
+        <p className="text-sm font-medium text-success-tx">
+          You acknowledged this change.
+        </p>
+      )}
       <p className="text-sm text-ink" aria-live="polite">
-        {reached} of {change.recipients.length} reached
-        {pending === 0 ? "" : ` · ${pending} pending`}
+        {reached} of {change.recipients.length} acknowledged
       </p>
-      <ul className="grid gap-2" aria-label="Recipient reach state">
+      <ul className="grid gap-2" aria-label="Recipient acknowledgement state">
         {change.recipients.map((recipient) => {
-          const reachedByAnotherRoute =
+          const acknowledgedElsewhere =
             recipient.state === "acknowledgedElsewhere";
-          const reached =
-            recipient.state === "acknowledged" || reachedByAnotherRoute;
+          const acknowledged =
+            recipient.state === "acknowledged" || acknowledgedElsewhere;
           return (
             <li
               key={recipient._id}
@@ -66,25 +109,26 @@ function ChangeStatus({
             >
               <span className="min-w-0 flex-1 text-ink">{recipient.name}</span>
               <span className="text-muted">
-                {reached
-                  ? reachedByAnotherRoute
-                    ? "Reached another way"
-                    : "Acknowledged"
+                {acknowledged
+                  ? acknowledgedElsewhere
+                    ? `Recorded by ${recipient.acknowledgedByName ?? "operator"}`
+                    : `Acknowledged by ${recipient.acknowledgedByName ?? recipient.name}`
                   : recipient.state === "opened"
                     ? "Opened"
-                    : "Pending"}
+                    : "Sent"}
               </span>
-              {reached ? null : (
+              {canManage && !acknowledged ? (
                 <Button
                   type="button"
                   size="sm"
                   variant="secondary"
+                  disabled={pendingRecipientId === recipient._id}
                   onClick={() => void onAcknowledgeElsewhere(recipient._id)}
                 >
                   <Radio className="h-4 w-4" aria-hidden="true" />
                   Record radio / phone
                 </Button>
-              )}
+              ) : null}
             </li>
           );
         })}
@@ -93,27 +137,58 @@ function ChangeStatus({
   );
 }
 
-function PublisherDelivery({
+export function PlanChangeDelivery({
   eventId,
+  role,
   items,
   movementId,
+  openComposer = false,
 }: {
   eventId: string;
+  role: EventRole;
   items: ItineraryItem[];
-  movementId?: string;
+  movementId: string;
+  openComposer?: boolean;
 }) {
-  const recipients = useQuery(planChangesApi.recipients, { eventId });
-  const changes = useQuery(planChangesApi.listForPublisher, { eventId });
-  const publish = useMutation(planChangesApi.publish);
-  const acknowledgeElsewhere = useMutation(planChangesApi.acknowledgeElsewhere);
-  const [itemId, setItemId] = useState(
-    movementId ?? (items.length === 1 ? (items[0]?._id ?? "") : ""),
+  const canManage = role === "owner" || role === "manager";
+  const recipients = useQuery(
+    planChangesApi.recipients,
+    canManage ? { eventId } : "skip",
   );
+  const changes = useQuery(planChangesApi.listForMovement, {
+    eventId,
+    itemId: movementId,
+  });
+  const publish = useMutation(planChangesApi.publish);
+  const markOpened = useMutation(planChangesApi.markOpened);
+  const acknowledge = useMutation(planChangesApi.acknowledge);
+  const acknowledgeElsewhere = useMutation(planChangesApi.acknowledgeElsewhere);
+  const [isComposerOpen, setIsComposerOpen] = useState(
+    canManage && openComposer,
+  );
+  const [publishedSuccessfully, setPublishedSuccessfully] = useState(false);
   const [reason, setReason] = useState("");
   const [severity, setSeverity] = useState<"routine" | "critical">("routine");
   const [recipientIds, setRecipientIds] = useState<string[] | null>(null);
+  const [pendingRecipientId, setPendingRecipientId] = useState<string | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
+
+  useEffect(() => {
+    for (const change of changes ?? []) {
+      if (change.currentRecipient?.state === "sent") {
+        void markOpened({
+          eventId,
+          recipientId: change.currentRecipient._id,
+        }).catch(() => undefined);
+      }
+    }
+  }, [changes, eventId, markOpened]);
+
+  const selectedRecipientIds =
+    recipientIds ?? recipients?.map((recipient) => recipient.userId) ?? [];
 
   function toggleRecipient(userId: string) {
     setRecipientIds((current) => {
@@ -125,13 +200,6 @@ function PublisherDelivery({
     });
   }
 
-  const selectedRecipientIds =
-    recipientIds ?? recipients?.map((recipient) => recipient.userId) ?? [];
-  const visibleChanges =
-    movementId === undefined
-      ? changes
-      : changes?.filter((change) => change.itineraryItemId === movementId);
-
   async function onPublish(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -139,12 +207,16 @@ function PublisherDelivery({
     try {
       await publish({
         eventId,
-        itemId,
+        itemId: movementId,
         reason,
         severity,
         recipientUserIds: selectedRecipientIds,
       });
       setReason("");
+      setSeverity("routine");
+      setRecipientIds(null);
+      setPublishedSuccessfully(true);
+      setIsComposerOpen(false);
     } catch {
       setError(
         "This change was not published. Check the details and try again.",
@@ -154,7 +226,21 @@ function PublisherDelivery({
     }
   }
 
+  async function acknowledgeForMe(recipientId: string) {
+    setPendingRecipientId(recipientId);
+    setError(null);
+    try {
+      await acknowledge({ eventId, recipientId });
+    } catch {
+      setError("That acknowledgement could not be recorded. Please try again.");
+    } finally {
+      setPendingRecipientId(null);
+    }
+  }
+
   async function recordAcknowledgementElsewhere(recipientId: string) {
+    setPendingRecipientId(recipientId);
+    setError(null);
     try {
       await acknowledgeElsewhere({
         eventId,
@@ -162,264 +248,164 @@ function PublisherDelivery({
         note: "Acknowledged by radio, phone, or in person.",
       });
     } catch {
-      setError("That acknowledgement could not be recorded. Please try again.");
+      setError("That operator acknowledgement could not be recorded.");
+    } finally {
+      setPendingRecipientId(null);
     }
   }
 
   return (
-    <Card>
+    <Card id="published-changes">
       <CardHeader>
-        <div>
-          <CardTitle>Publish a plan change</CardTitle>
-          <p className="mt-1 text-sm text-muted">
-            Publishing creates an attributable instruction and reports reach,
-            not just send.
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle>Published change history</CardTitle>
+            <p className="mt-1 text-sm text-muted">
+              Review delivery and acknowledgement for this movement.
+            </p>
+          </div>
+          {canManage && !isComposerOpen ? (
+            <Button
+              type="button"
+              variant={publishedSuccessfully ? "secondary" : "primary"}
+              onClick={() => {
+                setPublishedSuccessfully(false);
+                setIsComposerOpen(true);
+              }}
+            >
+              <Send className="h-4 w-4" aria-hidden="true" />
+              {publishedSuccessfully
+                ? "Publish another change"
+                : "Publish change"}
+            </Button>
+          ) : null}
         </div>
       </CardHeader>
-      <CardContent className="grid gap-6">
-        {items.length === 0 ? (
-          <EmptyState
-            title="Add a movement before publishing"
-            description="A published change always refers to a current movement in the plan."
-          />
-        ) : recipients === undefined ? (
-          <p className="flex items-center text-sm text-muted" role="status">
-            <LoaderCircle
-              className="mr-2 h-4 w-4 animate-spin"
-              aria-hidden="true"
-            />
-            Loading available recipients…
+      <CardContent className="grid gap-5">
+        {publishedSuccessfully ? (
+          <p
+            className="rounded-md border border-success-ln bg-success-bg px-3 py-2 text-sm text-success-tx"
+            role="status"
+          >
+            Change published. Delivery status is shown below.
           </p>
-        ) : (
-          <form className="grid gap-4" onSubmit={onPublish}>
-            {movementId === undefined ? (
-              <div className="grid gap-1.5">
-                <label
-                  className="text-sm font-medium text-ink"
-                  htmlFor="published-movement"
-                >
-                  Movement
-                </label>
-                <select
-                  id="published-movement"
-                  value={itemId}
-                  onChange={(event) => setItemId(event.target.value)}
-                  required
-                  className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm text-ink outline-none focus:border-ink focus:ring-2 focus:ring-ink"
-                >
-                  <option value="" disabled>
-                    Select the changed movement
-                  </option>
-                  {items.map((item) => (
-                    <option key={item._id} value={item._id}>
-                      {item.scheduledFor} · {item.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <p className="rounded-lg border border-line bg-topbg px-3 py-2 text-sm text-muted">
-                Publishing the saved change to{" "}
+        ) : null}
+        {canManage && isComposerOpen ? (
+          recipients === undefined ? (
+            <p className="text-sm text-muted" role="status">
+              Loading recipients…
+            </p>
+          ) : (
+            <form
+              className="grid gap-4 rounded-lg border border-line p-4"
+              onSubmit={onPublish}
+            >
+              <p className="text-sm text-muted">
+                Publishing the saved instruction for{" "}
                 <strong className="text-ink">{items[0]?.title}</strong>.
               </p>
-            )}
-            <div className="grid gap-1.5">
-              <label
-                className="text-sm font-medium text-ink"
-                htmlFor="change-reason"
-              >
+              <label className="grid gap-1.5 text-sm font-medium text-ink">
                 Reason or source
+                <textarea
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  maxLength={500}
+                  required
+                  className="min-h-20 rounded-lg border border-line bg-card px-3 py-2 font-normal"
+                />
               </label>
-              <textarea
-                id="change-reason"
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                maxLength={500}
-                required
-                className="min-h-20 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink outline-none focus:border-ink focus:ring-2 focus:ring-ink"
-                placeholder="e.g. Route control notified the team of a 15-minute delay."
-              />
-            </div>
-            <fieldset className="grid gap-2">
-              <legend className="text-sm font-medium text-ink">Severity</legend>
-              <label className="flex items-center gap-2 text-sm text-ink">
-                <input
-                  type="radio"
-                  checked={severity === "routine"}
-                  onChange={() => setSeverity("routine")}
-                />
-                Routine — recipients can acknowledge when available
-              </label>
-              <label className="flex items-center gap-2 text-sm text-ink">
-                <input
-                  type="radio"
-                  checked={severity === "critical"}
-                  onChange={() => setSeverity("critical")}
-                />
-                Critical — acknowledgement needs follow-up
-              </label>
-            </fieldset>
-            <fieldset className="grid gap-2">
-              <legend className="text-sm font-medium text-ink">
-                Affected people
-              </legend>
-              {recipients.map((recipient) => (
-                <label
-                  key={recipient.userId}
-                  className="flex min-h-11 items-center gap-2 rounded-lg border border-line px-3 text-sm text-ink"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedRecipientIds.includes(recipient.userId)}
-                    onChange={() => toggleRecipient(recipient.userId)}
-                  />
-                  <span className="flex-1">{recipient.name}</span>
-                  <span className="text-xs text-muted">{recipient.role}</span>
-                </label>
-              ))}
-            </fieldset>
-            {error === null ? null : (
-              <p
-                className="rounded-md border border-danger-tx bg-danger-bg px-3 py-2 text-sm text-danger-tx"
-                role="alert"
-              >
-                {error}
-              </p>
-            )}
-            <Button
-              type="submit"
-              variant="primary"
-              className="w-fit"
-              disabled={isPublishing || selectedRecipientIds.length === 0}
-            >
-              {isPublishing ? (
-                <LoaderCircle
-                  className="h-4 w-4 animate-spin"
-                  aria-hidden="true"
-                />
-              ) : (
-                <Send className="h-4 w-4" aria-hidden="true" />
-              )}
-              Publish and track reach
-            </Button>
-          </form>
-        )}
-        {visibleChanges === undefined ? null : visibleChanges.length ===
-          0 ? null : (
-          <div className="grid gap-2">
-            <h3 className="text-sm font-semibold text-ink">
-              Published changes
-            </h3>
-            <ol>
-              {visibleChanges.map((change) => (
-                <ChangeStatus
-                  key={change._id}
-                  change={change}
-                  onAcknowledgeElsewhere={recordAcknowledgementElsewhere}
-                />
-              ))}
-            </ol>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function RecipientDelivery({ eventId }: { eventId: string }) {
-  const changes = useQuery(planChangesApi.listForMe, { eventId });
-  const acknowledge = useMutation(planChangesApi.acknowledge);
-  const [isAcknowledging, setIsAcknowledging] = useState<string | null>(null);
-
-  if (changes === undefined) return null;
-  if (changes.length === 0) return null;
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Changes needing your acknowledgement</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ol className="grid gap-3">
-          {changes.map(({ change, recipient }) =>
-            change === null ? null : (
-              <li
-                key={recipient._id}
-                className="rounded-lg border border-line p-4"
-              >
-                <div className="flex gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-ink">{change.title}</p>
-                    <p className="mt-1 text-sm text-muted">{change.reason}</p>
-                  </div>
-                  <Badge
-                    variant={
-                      change.severity === "critical" ? "danger" : "neutral"
-                    }
+              <fieldset className="grid gap-2">
+                <legend className="text-sm font-medium text-ink">
+                  Severity
+                </legend>
+                {(["routine", "critical"] as const).map((value) => (
+                  <label
+                    key={value}
+                    className="flex items-center gap-2 text-sm capitalize text-ink"
                   >
-                    {change.severity}
-                  </Badge>
-                </div>
-                {change.previousTitle === undefined ? null : (
-                  <p className="mt-2 text-xs text-muted">
-                    Previous instruction: {change.previousScheduledFor} ·{" "}
-                    {change.previousTitle}
-                  </p>
-                )}
+                    <input
+                      type="radio"
+                      checked={severity === value}
+                      onChange={() => setSeverity(value)}
+                    />
+                    {value}
+                  </label>
+                ))}
+              </fieldset>
+              <fieldset className="grid gap-2">
+                <legend className="text-sm font-medium text-ink">
+                  Affected people
+                </legend>
+                {recipients.map((recipient) => (
+                  <label
+                    key={recipient.userId}
+                    className="flex min-h-11 items-center gap-2 rounded-lg border border-line px-3 text-sm text-ink"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedRecipientIds.includes(recipient.userId)}
+                      onChange={() => toggleRecipient(recipient.userId)}
+                    />
+                    <span className="flex-1">{recipient.name}</span>
+                    <span className="text-xs text-muted">{recipient.role}</span>
+                  </label>
+                ))}
+              </fieldset>
+              <div className="flex flex-wrap gap-2">
                 <Button
-                  className="mt-4"
-                  type="button"
+                  type="submit"
                   variant="primary"
-                  disabled={isAcknowledging === recipient._id}
-                  onClick={async () => {
-                    setIsAcknowledging(recipient._id);
-                    try {
-                      await acknowledge({
-                        eventId,
-                        recipientId: recipient._id,
-                      });
-                    } finally {
-                      setIsAcknowledging(null);
-                    }
-                  }}
+                  disabled={isPublishing || selectedRecipientIds.length === 0}
                 >
-                  {isAcknowledging === recipient._id ? (
+                  {isPublishing ? (
                     <LoaderCircle
                       className="h-4 w-4 animate-spin"
                       aria-hidden="true"
                     />
                   ) : (
-                    <Check className="h-4 w-4" aria-hidden="true" />
+                    <Send className="h-4 w-4" aria-hidden="true" />
                   )}
-                  I have read and will act
+                  Publish and track reach
                 </Button>
-              </li>
-            ),
-          )}
-        </ol>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setIsComposerOpen(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          )
+        ) : null}
+        {error === null ? null : (
+          <p className="text-sm text-danger-tx" role="alert">
+            {error}
+          </p>
+        )}
+        {changes === undefined ? (
+          <p className="text-sm text-muted" role="status">
+            Loading published changes…
+          </p>
+        ) : changes.length === 0 ? (
+          <p className="text-sm text-muted">
+            No changes have been published for this movement.
+          </p>
+        ) : (
+          <ol>
+            {changes.map((change) => (
+              <ChangeStatus
+                key={change._id}
+                change={change}
+                canManage={canManage}
+                pendingRecipientId={pendingRecipientId}
+                onAcknowledge={acknowledgeForMe}
+                onAcknowledgeElsewhere={recordAcknowledgementElsewhere}
+              />
+            ))}
+          </ol>
+        )}
       </CardContent>
     </Card>
-  );
-}
-
-export function PlanChangeDelivery({
-  eventId,
-  role,
-  items,
-  movementId,
-}: {
-  eventId: string;
-  role: EventRole;
-  items: ItineraryItem[];
-  movementId?: string;
-}) {
-  return role === "owner" || role === "manager" ? (
-    <PublisherDelivery
-      eventId={eventId}
-      items={items}
-      movementId={movementId}
-    />
-  ) : (
-    <RecipientDelivery eventId={eventId} />
   );
 }

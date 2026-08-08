@@ -197,6 +197,11 @@ export const listForPublisher = query({
             return {
               ...recipient,
               name: profile.name,
+              acknowledgedByName:
+                recipient.acknowledgedBy === undefined
+                  ? undefined
+                  : (await resolveUserProfile(ctx, recipient.acknowledgedBy))
+                      .name,
             };
           }),
         );
@@ -219,7 +224,7 @@ export const listForPublisher = query({
 export const listForMovement = query({
   args: { eventId: v.id("events"), itemId: v.id("itineraryItems") },
   handler: async (ctx, { eventId, itemId }) => {
-    await requireMembership(ctx, eventId);
+    const { identity } = await requireMembership(ctx, eventId);
     const item = await ctx.db.get(itemId);
     if (item === null || item.eventId !== eventId) {
       throw new Error("Movement not found");
@@ -243,6 +248,11 @@ export const listForMovement = query({
             return {
               ...recipient,
               name: profile.name,
+              acknowledgedByName:
+                recipient.acknowledgedBy === undefined
+                  ? undefined
+                  : (await resolveUserProfile(ctx, recipient.acknowledgedBy))
+                      .name,
             };
           }),
         );
@@ -251,9 +261,34 @@ export const listForMovement = query({
           publishedByName: (await resolveUserProfile(ctx, change.publishedBy))
             .name,
           recipients: namedRecipients,
+          currentRecipient: namedRecipients.find(
+            (recipient) => recipient.userId === identity.subject,
+          ),
         };
       }),
     );
+  },
+});
+
+/** Marks delivery opened only when the assigned recipient reaches the change. */
+export const markOpened = mutation({
+  args: { eventId: v.id("events"), recipientId: v.id("planChangeRecipients") },
+  handler: async (ctx, { eventId, recipientId }) => {
+    const { identity } = await requireMembership(ctx, eventId);
+    const recipient = await ctx.db.get(recipientId);
+    if (
+      recipient === null ||
+      recipient.eventId !== eventId ||
+      recipient.userId !== identity.subject
+    ) {
+      throw new Error("Change delivery not found");
+    }
+    if (recipient.state === "sent") {
+      await ctx.db.patch(recipientId, {
+        state: "opened",
+        openedAt: Date.now(),
+      });
+    }
   },
 });
 
@@ -299,11 +334,12 @@ export const acknowledge = mutation({
     ) {
       throw new Error("Change acknowledgement not found");
     }
-    if (recipient.state === "sent")
-      await ctx.db.patch(recipientId, {
-        state: "opened",
-        openedAt: Date.now(),
-      });
+    if (
+      recipient.state === "acknowledged" ||
+      recipient.state === "acknowledgedElsewhere"
+    ) {
+      return;
+    }
     await ctx.db.patch(recipientId, {
       state: "acknowledged",
       acknowledgedAt: Date.now(),
@@ -324,6 +360,12 @@ export const acknowledgeElsewhere = mutation({
     const recipient = await ctx.db.get(recipientId);
     if (recipient === null || recipient.eventId !== eventId)
       throw new Error("Change recipient not found");
+    if (
+      recipient.state === "acknowledged" ||
+      recipient.state === "acknowledgedElsewhere"
+    ) {
+      return;
+    }
     await ctx.db.patch(recipientId, {
       state: "acknowledgedElsewhere",
       acknowledgedAt: Date.now(),

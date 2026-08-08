@@ -58,7 +58,6 @@ export function MovementDetail({
   const router = useRouter();
   const searchParams = useSearchParams();
   const isEditing = searchParams.get("edit") === "1";
-  const isPublishing = searchParams.get("publish") === "1";
   const item = useQuery(itineraryApi.get, { eventId, itemId });
   const records = useQuery(recordsApi.list, { eventId });
   const recordTypes = useQuery(recordsApi.listTypes, { eventId });
@@ -68,6 +67,7 @@ export function MovementDetail({
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [openPublisher, setOpenPublisher] = useState(false);
   const canEdit = role === "owner" || role === "manager";
   const currentDraft = draft ?? (item === undefined ? null : toDraft(item));
   // Uses the shared rule so a team's own location types appear here exactly as
@@ -141,9 +141,8 @@ export function MovementDetail({
         timeKind: currentDraft.timeKind,
       });
       setDraft(null);
-      router.replace(
-        `/events/${eventId}/plan/${itemId}${publishAfterSave ? "?publish=1" : ""}`,
-      );
+      setOpenPublisher(publishAfterSave);
+      router.replace(`/events/${eventId}/plan/${itemId}`);
     } catch {
       setError("We could not save this movement. Your changes were not saved.");
     } finally {
@@ -376,14 +375,15 @@ export function MovementDetail({
           </CardContent>
         </Card>
       ) : null}
-      {canEdit && isPublishing ? (
+      {isEditing ? null : (
         <PlanChangeDelivery
           eventId={eventId}
           role={role}
           items={[item]}
           movementId={itemId}
+          openComposer={openPublisher}
         />
-      ) : null}
+      )}
     </section>
   );
 }

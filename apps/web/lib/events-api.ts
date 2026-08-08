@@ -152,8 +152,10 @@ export type PlanChangeRecipient = {
   userId: string;
   state: "sent" | "opened" | "acknowledged" | "acknowledgedElsewhere";
   sentAt: number;
+  openedAt?: number;
   acknowledgedAt?: number;
   acknowledgedBy?: string;
+  acknowledgedByName?: string;
   acknowledgementNote?: string;
   name: string;
 };
@@ -170,6 +172,7 @@ export type PublishedPlanChange = {
   publishedAt: number;
   publishedByName: string;
   recipients: PlanChangeRecipient[];
+  currentRecipient?: PlanChangeRecipient;
 };
 
 export type FormField = {
@@ -717,6 +720,11 @@ export const planChangesApi = {
     { eventId: string; recipientId: string },
     null
   >("planChanges:acknowledge"),
+  markOpened: makeFunctionReference<
+    "mutation",
+    { eventId: string; recipientId: string },
+    null
+  >("planChanges:markOpened"),
   acknowledgeElsewhere: makeFunctionReference<
     "mutation",
     { eventId: string; recipientId: string; note?: string },
