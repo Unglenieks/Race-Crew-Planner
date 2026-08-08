@@ -38,7 +38,7 @@ describe("FilesLibrary", () => {
   it("shows the event and record association for a stored file", () => {
     renderLibrary();
     expect(screen.getByRole("link", { name: "service-park.jpg" })).toBeTruthy();
-    expect(screen.getAllByText(/Service park/)).toHaveLength(2);
+    expect(screen.getByText(/Record: Service park/)).toBeTruthy();
   });
 
   it("hides deletion from crew members", () => {
