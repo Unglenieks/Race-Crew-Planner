@@ -15,6 +15,15 @@ describe("deploymentConfigurationIssues", () => {
     ).toContain("clerk_development_key_deployed");
   });
 
+  it("allows a development Clerk key in the Railway development lane", () => {
+    expect(
+      deploymentConfigurationIssues({
+        RAILWAY_ENVIRONMENT_NAME: "development",
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_development-value",
+      }),
+    ).toEqual([]);
+  });
+
   it("detects incomplete and invalid analytics configuration", () => {
     expect(
       deploymentConfigurationIssues({ NEXT_PUBLIC_POSTHOG_KEY: "phc_key" }),
