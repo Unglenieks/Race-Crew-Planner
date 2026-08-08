@@ -77,6 +77,14 @@ export default defineSchema({
     lastChangedNotes: v.optional(v.string()),
     lastChangedAt: v.optional(v.number()),
     sectionId: v.optional(v.id("planSections")),
+    /**
+     * The operational date the operator assigned this movement to. It need not
+     * be the calendar date embedded in scheduledFor (for example, 00:45 can
+     * still belong to Friday's running order).
+     */
+    operationalDay: v.optional(v.string()),
+    /** Preserve a printed 2400 while scheduledFor sorts as next-day 00:00. */
+    displayTime: v.optional(v.union(v.literal("standard"), v.literal("2400"))),
     timeKind: v.optional(
       v.union(
         v.literal("exact"),
@@ -464,6 +472,11 @@ export default defineSchema({
     name: v.string(),
     kind: v.union(v.literal("day"), v.literal("session"), v.literal("leg")),
     order: v.number(),
+    /** Optional calendar anchor; a section remains useful without one. */
+    operationalDate: v.optional(v.string()),
+    /** The local boundary at which this operating day rolls over. */
+    boundaryTime: v.optional(v.string()),
     createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
   }).index("by_eventId_order", ["eventId", "order"]),
 });

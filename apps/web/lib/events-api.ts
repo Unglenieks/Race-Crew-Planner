@@ -26,6 +26,9 @@ export type ItineraryItem = {
   location?: string;
   recordId?: string;
   notes?: string;
+  sectionId?: string;
+  operationalDay?: string;
+  displayTime?: "standard" | "2400";
   timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
   archivedAt?: number;
 };
@@ -267,6 +270,8 @@ export type PlanSection = {
   name: string;
   kind: "day" | "session" | "leg";
   order: number;
+  operationalDate?: string;
+  boundaryTime?: string;
 };
 export type PlanExport = {
   _id: string;
@@ -345,6 +350,9 @@ export const itineraryApi = {
       location?: string;
       recordId?: string;
       notes?: string;
+      sectionId?: string;
+      operationalDay?: string;
+      displayTime?: "standard" | "2400";
       timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
     },
     string
@@ -360,6 +368,9 @@ export const itineraryApi = {
       location?: string;
       recordId?: string;
       notes?: string;
+      sectionId?: string;
+      operationalDay?: string;
+      displayTime?: "standard" | "2400";
       timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
     },
     null
@@ -843,9 +854,32 @@ export const planSectionsApi = {
   ),
   create: makeFunctionReference<
     "mutation",
-    { eventId: string; name: string; kind: "day" | "session" | "leg" },
+    {
+      eventId: string;
+      name: string;
+      kind: "day" | "session" | "leg";
+      operationalDate?: string;
+      boundaryTime?: string;
+    },
     string
   >("planSections:create"),
+  update: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      sectionId: string;
+      name: string;
+      kind: "day" | "session" | "leg";
+      operationalDate?: string;
+      boundaryTime?: string;
+    },
+    null
+  >("planSections:update"),
+  reorder: makeFunctionReference<
+    "mutation",
+    { eventId: string; sectionIds: string[] },
+    null
+  >("planSections:reorder"),
 };
 
 export const planExportsApi = {

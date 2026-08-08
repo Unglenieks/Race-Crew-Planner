@@ -9,6 +9,11 @@ import type { Id } from "./_generated/dataModel";
 import { requireIdentity, requireRole } from "./auth";
 import { isLocationRecord } from "./records";
 import { writeAudit } from "./audit";
+import {
+  isCalendarDate,
+  isValidEventLocalDateTime,
+  normalize2400,
+} from "./timeSemantics";
 
 const itineraryArgs = {
   eventId: v.id("events"),
@@ -19,6 +24,8 @@ const itineraryArgs = {
   recordId: v.optional(v.id("eventRecords")),
   notes: v.optional(v.string()),
   sectionId: v.optional(v.id("planSections")),
+  operationalDay: v.optional(v.string()),
+  displayTime: v.optional(v.union(v.literal("standard"), v.literal("2400"))),
   timeKind: v.optional(
     v.union(
       v.literal("exact"),
@@ -37,6 +44,8 @@ type ItineraryInput = {
   location?: string;
   notes?: string;
   sectionId?: Id<"planSections">;
+  operationalDay?: string;
+  displayTime?: "standard" | "2400";
   timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
 };
 
@@ -55,15 +64,20 @@ function optionalText(value: string | undefined, maximum: number) {
 }
 
 /** Validates a movement without converting it out of the event's local time. */
-export function validatedItineraryInput({
-  title,
-  scheduledFor,
-  scheduledUntil,
-  location,
-  notes,
-  sectionId,
-  timeKind,
-}: ItineraryInput) {
+export function validatedItineraryInput(
+  {
+    title,
+    scheduledFor,
+    scheduledUntil,
+    location,
+    notes,
+    sectionId,
+    operationalDay,
+    displayTime,
+    timeKind,
+  }: ItineraryInput,
+  timeZone = "UTC",
+) {
   const normalizedTitle = title.trim();
 
   if (normalizedTitle.length === 0 || normalizedTitle.length > 160) {
@@ -72,34 +86,46 @@ export function validatedItineraryInput({
     );
   }
 
+  const normalizedScheduledFor = normalize2400(scheduledFor, displayTime);
   if (
     (timeKind ?? "exact") !== "unspecified" &&
-    (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(scheduledFor) ||
-      Number.isNaN(Date.parse(`${scheduledFor}:00Z`)))
+    !isValidEventLocalDateTime(normalizedScheduledFor, timeZone)
   ) {
     throw new Error("A valid planned date and time is required");
+  }
+  if (operationalDay !== undefined && !isCalendarDate(operationalDay)) {
+    throw new Error("Operational day must be a valid calendar date");
+  }
+  if (
+    displayTime === "2400" &&
+    (operationalDay === undefined ||
+      normalizedScheduledFor !==
+        normalize2400(`${operationalDay}T24:00`, "2400"))
+  ) {
+    throw new Error("2400 must be assigned to an operational day and midnight");
   }
 
   if (timeKind === "range") {
     if (
       scheduledUntil === undefined ||
-      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(scheduledUntil) ||
-      Number.isNaN(Date.parse(`${scheduledUntil}:00Z`))
+      !isValidEventLocalDateTime(scheduledUntil, timeZone)
     ) {
       throw new Error("A range movement needs a valid end date and time");
     }
-    if (scheduledUntil <= scheduledFor) {
+    if (scheduledUntil <= normalizedScheduledFor) {
       throw new Error("Range end time must be after its start time");
     }
   }
 
   return {
     title: normalizedTitle,
-    scheduledFor,
+    scheduledFor: normalizedScheduledFor,
     ...(timeKind === "range" ? { scheduledUntil } : {}),
     location: optionalText(location, 160),
     notes: optionalText(notes, 1000),
     ...(sectionId === undefined ? {} : { sectionId }),
+    ...(operationalDay === undefined ? {} : { operationalDay }),
+    ...(displayTime === undefined ? {} : { displayTime }),
     ...(timeKind === undefined ? {} : { timeKind }),
   };
 }
@@ -136,6 +162,25 @@ async function requireLocationRecord(
     !(await isLocationRecord(ctx, record))
   ) {
     throw new Error("Location record not found");
+  }
+}
+
+async function requireEventTimeZone(ctx: MutationCtx, eventId: Id<"events">) {
+  const event = await ctx.db.get(eventId);
+  if (event === null || event.archivedAt !== undefined)
+    throw new Error("Event not found");
+  return event.timeZone;
+}
+
+async function requireSection(
+  ctx: MutationCtx,
+  eventId: Id<"events">,
+  sectionId: Id<"planSections"> | undefined,
+) {
+  if (sectionId === undefined) return;
+  const section = await ctx.db.get(sectionId);
+  if (section === null || section.eventId !== eventId) {
+    throw new Error("Operational section not found");
   }
 }
 
@@ -250,8 +295,10 @@ export const create = mutation({
       args.eventId,
     );
     requireRole(membership.role, ["owner", "manager"]);
-    const item = validatedItineraryInput(args);
+    const timeZone = await requireEventTimeZone(ctx, args.eventId);
+    const item = validatedItineraryInput(args, timeZone);
     await requireLocationRecord(ctx, args.eventId, args.recordId);
+    await requireSection(ctx, args.eventId, args.sectionId);
     const now = Date.now();
 
     const itemId = await ctx.db.insert("itineraryItems", {
@@ -295,7 +342,9 @@ export const update = mutation({
 
     await requireLocationRecord(ctx, args.eventId, args.recordId);
 
-    const item = validatedItineraryInput(args);
+    const timeZone = await requireEventTimeZone(ctx, args.eventId);
+    const item = validatedItineraryInput(args, timeZone);
+    await requireSection(ctx, args.eventId, args.sectionId);
     await ctx.db.patch(args.itemId, {
       ...item,
       scheduledUntil:
