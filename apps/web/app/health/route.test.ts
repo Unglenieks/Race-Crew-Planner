@@ -6,7 +6,10 @@ describe("GET /health", () => {
   it("returns an OK status", async () => {
     const response = GET();
 
-    await expect(response.json()).resolves.toEqual({ status: "ok", issues: [] });
+    await expect(response.json()).resolves.toEqual({
+      status: "ok",
+      issues: [],
+    });
     expect(response.status).toBe(200);
   });
 
