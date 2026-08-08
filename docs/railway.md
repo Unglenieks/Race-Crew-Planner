@@ -56,11 +56,11 @@ service receives the web values plus the two Convex deployment references it
 needs to publish functions during its build; all other Convex secrets remain on
 the Convex services.
 
-| Owner            | Required variables                                                                                                                                                                         |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Owner            | Required variables                                                                                                                                                                                                                                                                                    |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Web              | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`, `NEXT_PUBLIC_APP_ENV`, `NEXT_PUBLIC_RELEASE_SHA`, `CONVEX_SELF_HOSTED_URL` and `CONVEX_SELF_HOSTED_ADMIN_KEY` (both Railway references to `convex-backend`) |
-| Convex backend   | `CONVEX_CLOUD_ORIGIN`, `CONVEX_SITE_ORIGIN`, `CONVEX_SELF_HOSTED_URL` (a reference to `CONVEX_CLOUD_ORIGIN`), `CONVEX_SELF_HOSTED_ADMIN_KEY`, `POSTGRES_URL`, `INSTANCE_SECRET`, `CLERK_JWT_ISSUER_DOMAIN`, object-storage endpoint/credentials/bucket names, Convex deployment/admin secrets |
-| Convex dashboard | `NEXT_PUBLIC_DEPLOYMENT_URL`, dashboard/operator authentication settings                                                                                                                   |
+| Convex backend   | `CONVEX_CLOUD_ORIGIN`, `CONVEX_SITE_ORIGIN`, `CONVEX_SELF_HOSTED_URL` (a reference to `CONVEX_CLOUD_ORIGIN`), `CONVEX_SELF_HOSTED_ADMIN_KEY`, `POSTGRES_URL`, `INSTANCE_SECRET`, `CLERK_JWT_ISSUER_DOMAIN`, object-storage endpoint/credentials/bucket names, Convex deployment/admin secrets         |
+| Convex dashboard | `NEXT_PUBLIC_DEPLOYMENT_URL`, dashboard/operator authentication settings                                                                                                                                                                                                                              |
 
 ### Convex admin key on the web service
 
@@ -77,6 +77,15 @@ Set `NEXT_PUBLIC_APP_ENV` to the Railway environment name and
 `NEXT_PUBLIC_RELEASE_SHA` to the deployed commit SHA at build time. Use distinct
 Clerk applications/keys and distinct PostHog projects (or an equivalent hard
 environment boundary) for development, preview, and production.
+
+Shared preview and production web services must use Clerk production-instance
+credentials (`pk_live_` plus its matching secret key). Replace credentials only
+through Railway variables or the Clerk dashboard; never paste their values into
+a PR, command output, or repository file. PostHog must be configured as a pair:
+the public `phc_` project key and exactly `https://us.i.posthog.com` or
+`https://eu.i.posthog.com`. The application remains inert when either value is
+missing or invalid; `app.posthog.com` is not an ingest host and causes rejected
+requests.
 
 ### Convex runtime configuration
 
@@ -108,8 +117,9 @@ inside Railway and keeps the admin key out of local configuration.
 ## Health, backups, and recovery
 
 - The `web` service must pass `GET /health` before Railway treats a deployment
-  as healthy. Verify its deployed commit SHA and health endpoint after every
-  promotion.
+  as healthy. It returns `503` with non-secret issue codes when a deployed Clerk
+  key is missing/development-only or PostHog configuration is partial/invalid.
+  Verify its deployed commit SHA and health endpoint after every promotion.
 - Keep Convex, Postgres, and bucket access private. Do not add public TCP
   proxies for them.
 - Enable and verify daily Postgres volume backups before production traffic.

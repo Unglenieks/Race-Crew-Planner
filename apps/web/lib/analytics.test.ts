@@ -9,15 +9,25 @@ describe("readAnalyticsConfig", () => {
     ).toBeUndefined();
   });
 
-  it("uses safe defaults for optional public configuration", () => {
+  it("stays disabled when the host is missing", () => {
     expect(
       readAnalyticsConfig({ NEXT_PUBLIC_POSTHOG_KEY: "phc_test_key" }),
-    ).toEqual({
-      apiKey: "phc_test_key",
-      host: "https://us.i.posthog.com",
-      environment: "development",
-      release: "unknown",
-    });
+    ).toBeUndefined();
+  });
+
+  it("rejects malformed keys and non-ingest hosts", () => {
+    expect(
+      readAnalyticsConfig({
+        NEXT_PUBLIC_POSTHOG_KEY: "wrong",
+        NEXT_PUBLIC_POSTHOG_HOST: "https://us.i.posthog.com",
+      }),
+    ).toBeUndefined();
+    expect(
+      readAnalyticsConfig({
+        NEXT_PUBLIC_POSTHOG_KEY: "phc_test_key",
+        NEXT_PUBLIC_POSTHOG_HOST: "https://app.posthog.com",
+      }),
+    ).toBeUndefined();
   });
 
   it("keeps explicit host, environment, and release tagging", () => {
