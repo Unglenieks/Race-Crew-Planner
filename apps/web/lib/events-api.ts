@@ -359,15 +359,76 @@ export type PlanSection = {
 export type PlanExport = {
   _id: string;
   filterDay?: string;
+  /** Undefined identifies a brief made before the versioned crew-brief model. */
+  schemaVersion?: number;
+  eventName?: string;
   timeZone: string;
   items: Array<{
     itineraryItemId: string;
     title: string;
     scheduledFor: string;
     location?: string;
+    scheduledUntil?: string;
+    timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
+    section?: { name: string; kind: "day" | "session" | "leg" };
+    tags?: string[];
+    venue?: PlanExportVenue;
+    assignedTo?: string;
+    notes?: string;
   }>;
+  appendices?: {
+    venues: PlanExportVenue[];
+    officialContacts: PlanExportContact[];
+    travel: PlanExportTravel[];
+    fuel: PlanExportVenue[];
+    weather: PlanExportVenue[];
+    supportServices: PlanExportVenue[];
+  };
+  inclusionOptions?: CrewBriefInclusionOptions;
+  logistics?: {
+    documentAccessCodes: Array<{
+      label: string;
+      kind: "document" | "accessCode";
+      value: string;
+    }>;
+  };
   generatedAt: number;
+  generatedByName?: string;
   isSuperseded?: boolean;
+};
+export type CrewBriefInclusionOptions = {
+  profile: boolean;
+  rallyFuel: boolean;
+  service: boolean;
+  weather: boolean;
+  travelRoutes: boolean;
+  supportServices: boolean;
+  documentAccessCodes: boolean;
+  externalContactIds: string[];
+};
+export type PlanExportVenue = {
+  name: string;
+  address?: string;
+  accessNotes?: string;
+  hours?: string;
+  contactDetail?: string;
+  notes?: string;
+  tags?: string[];
+};
+export type PlanExportContact = {
+  name: string;
+  role?: string;
+  email?: string;
+  phoneNumber?: string;
+  contactDetail?: string;
+  notes?: string;
+};
+export type PlanExportTravel = {
+  from: string;
+  to: string;
+  estimate: string;
+  calculation?: string;
+  routeNote?: string;
 };
 
 /**
@@ -1032,7 +1093,11 @@ export const planSectionsApi = {
 export const planExportsApi = {
   create: makeFunctionReference<
     "mutation",
-    { eventId: string; filterDay?: string },
+    {
+      eventId: string;
+      filterDay?: string;
+      inclusionOptions?: CrewBriefInclusionOptions;
+    },
     Omit<PlanExport, "isSuperseded">
   >("planExports:create"),
   list: makeFunctionReference<"query", { eventId: string }, PlanExport[]>(
