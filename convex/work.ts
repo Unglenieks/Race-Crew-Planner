@@ -347,10 +347,23 @@ export const setCompletionOffline = mutation({
     completed: v.boolean(),
     operationId: v.string(),
     expectedUpdatedAt: v.number(),
+    expectedStatus: v.union(
+      v.literal("open"),
+      v.literal("inProgress"),
+      v.literal("blocked"),
+      v.literal("completed"),
+    ),
   },
   handler: async (
     ctx,
-    { eventId, itemId, completed, operationId, expectedUpdatedAt },
+    {
+      eventId,
+      itemId,
+      completed,
+      operationId,
+      expectedUpdatedAt,
+      expectedStatus,
+    },
   ) => {
     const { identity } = await requireEventMembership(ctx, eventId);
     const existing = await ctx.db
@@ -359,9 +372,22 @@ export const setCompletionOffline = mutation({
         q.eq("eventId", eventId).eq("operationId", operationId),
       )
       .unique();
-    if (existing !== null) return { replayed: true };
+    if (existing !== null) return { outcome: "replayed" as const };
     const item = await requireWorkItem(ctx, eventId, itemId);
-    if (item.updatedAt !== expectedUpdatedAt) {
+    const requestedStatus = completed ? "completed" : "open";
+    if (item.status === requestedStatus) {
+      await ctx.db.insert("offlineOperations", {
+        eventId,
+        operationId,
+        createdBy: identity.subject,
+        createdAt: Date.now(),
+      });
+      return { outcome: "alreadyApplied" as const };
+    }
+    if (
+      item.updatedAt !== expectedUpdatedAt ||
+      item.status !== expectedStatus
+    ) {
       throw new Error("Work item changed while this update was offline");
     }
     await ctx.db.patch(itemId, {
@@ -386,7 +412,7 @@ export const setCompletionOffline = mutation({
       objectLabel: item.title,
       href: `/events/${eventId}/work/${itemId}`,
     });
-    return { replayed: false };
+    return { outcome: "applied" as const };
   },
 });
 

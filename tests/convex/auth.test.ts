@@ -35,6 +35,7 @@ import {
   get as getWorkItem,
   listAssignees as listWorkAssignees,
   setCompletion as setWorkItemCompletion,
+  setCompletionOffline as setWorkItemCompletionOffline,
   validatedWorkItemInput,
 } from "../../convex/work";
 import {
@@ -1287,6 +1288,124 @@ describe("Convex authorization helpers", () => {
         title: "Load spare wheel",
       }),
     ).rejects.toThrow("Forbidden");
+  });
+
+  it("replays unchanged offline completion and handles idempotent repeats", async () => {
+    const patches: Array<Record<string, unknown>> = [];
+    const inserts: Array<{ table: string; value: Record<string, unknown> }> =
+      [];
+    let ledgerExists = false;
+    let item: Record<string, unknown> | null = {
+      _id: "workItems:one",
+      eventId: "events:one",
+      title: "Check radio",
+      status: "open",
+      updatedAt: 42,
+    };
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: (table: string) => ({
+          withIndex: () => ({
+            unique: async () =>
+              table === "eventMemberships"
+                ? { role: "crew" }
+                : ledgerExists
+                  ? { operationId: "operation:one" }
+                  : null,
+          }),
+        }),
+        get: async () => item,
+        patch: async (_id: string, value: Record<string, unknown>) => {
+          patches.push(value);
+        },
+        insert: async (table: string, value: Record<string, unknown>) => {
+          inserts.push({ table, value });
+          if (table === "offlineOperations") ledgerExists = true;
+          return `${table}:one`;
+        },
+      },
+    };
+    const args = {
+      eventId: "events:one" as never,
+      itemId: "workItems:one" as never,
+      completed: true,
+      operationId: "operation:one",
+      expectedUpdatedAt: 42,
+      expectedStatus: "open" as const,
+    };
+    await expect(
+      setWorkItemCompletionOffline._handler(context as never, args),
+    ).resolves.toEqual({ outcome: "applied" });
+    expect(patches).toContainEqual(
+      expect.objectContaining({ status: "completed" }),
+    );
+    await expect(
+      setWorkItemCompletionOffline._handler(context as never, args),
+    ).resolves.toEqual({ outcome: "replayed" });
+    expect(patches).toHaveLength(1);
+
+    ledgerExists = false;
+    patches.length = 0;
+    item = { ...item, status: "completed", updatedAt: 99 };
+    await expect(
+      setWorkItemCompletionOffline._handler(context as never, {
+        ...args,
+        operationId: "operation:already",
+      }),
+    ).resolves.toEqual({ outcome: "alreadyApplied" });
+    expect(patches).toEqual([]);
+  });
+
+  it("keeps genuine offline conflicts and deleted work visible", async () => {
+    let item: Record<string, unknown> | null = {
+      eventId: "events:one",
+      title: "Check radio",
+      status: "inProgress",
+      updatedAt: 43,
+    };
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|crew_123",
+          subject: "crew_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: (table: string) => ({
+          withIndex: () => ({
+            unique: async () =>
+              table === "eventMemberships" ? { role: "crew" } : null,
+          }),
+        }),
+        get: async () => item,
+      },
+    };
+    const args = {
+      eventId: "events:one" as never,
+      itemId: "workItems:one" as never,
+      completed: true,
+      operationId: "operation:conflict",
+      expectedUpdatedAt: 42,
+      expectedStatus: "open" as const,
+    };
+    await expect(
+      setWorkItemCompletionOffline._handler(context as never, args),
+    ).rejects.toThrow("changed while this update was offline");
+    item = null;
+    await expect(
+      setWorkItemCompletionOffline._handler(context as never, {
+        ...args,
+        operationId: "operation:deleted",
+      }),
+    ).rejects.toThrow("Work item not found");
   });
 
   it("does not expose a work item from another event through its detail query", async () => {
