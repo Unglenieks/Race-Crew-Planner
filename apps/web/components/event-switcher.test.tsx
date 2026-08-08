@@ -12,6 +12,12 @@ const mutations = {
 };
 const push = vi.fn();
 let events: unknown[] = [];
+const claimAuthenticatedInvitations = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
+    claimedCount: 0,
+    requiresVerifiedEmail: false,
+  }),
+);
 
 vi.hoisted(() => {
   process.env.NEXT_PUBLIC_CONVEX_URL = "https://example.convex.cloud";
@@ -43,6 +49,9 @@ vi.mock("convex/react", () => ({
   },
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("@/lib/invitations-client", () => ({
+  claimAuthenticatedInvitations,
+}));
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: React.ComponentProps<"a">) => (
     <a href={href} {...props}>
@@ -104,6 +113,10 @@ describe("EventSwitcher first run", () => {
 
   it("shows one actionable message when the account has no verified email", async () => {
     mutations.claim.mockResolvedValueOnce({
+      claimedCount: 0,
+      requiresVerifiedEmail: true,
+    });
+    claimAuthenticatedInvitations.mockResolvedValueOnce({
       claimedCount: 0,
       requiresVerifiedEmail: true,
     });

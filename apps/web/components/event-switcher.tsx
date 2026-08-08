@@ -33,6 +33,7 @@ import {
   timeZoneOptions,
 } from "@/lib/time-zones";
 import { useHydrated } from "@/lib/use-hydrated";
+import { claimAuthenticatedInvitations } from "@/lib/invitations-client";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const hasConvexConnection =
@@ -282,7 +283,6 @@ function ConnectedEventSwitcher() {
   const { isLoaded, isSignedIn } = useAuth();
   const events = useQuery(eventsApi.list, isSignedIn ? {} : "skip");
   const syncProfile = useMutation(invitationsApi.syncProfile);
-  const claimInvitations = useMutation(invitationsApi.claim);
   const createSample = useMutation(eventsApi.createSample);
   const removeSample = useMutation(eventsApi.removeSample);
   const archiveEvent = useMutation(eventsApi.archive);
@@ -305,10 +305,10 @@ function ConnectedEventSwitcher() {
   useEffect(() => {
     if (!isSignedIn) return;
     void syncProfile()
-      .then(() => claimInvitations())
+      .then(() => claimAuthenticatedInvitations())
       .then((result) => setNeedsVerifiedEmail(result.requiresVerifiedEmail))
       .catch(() => undefined);
-  }, [claimInvitations, isSignedIn, syncProfile]);
+  }, [isSignedIn, syncProfile]);
 
   if (!isLoaded || (isSignedIn && events === undefined)) {
     return (

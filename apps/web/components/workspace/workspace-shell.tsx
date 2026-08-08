@@ -16,6 +16,7 @@ import { MobileWorkspaceNavigation } from "@/components/workspace/mobile-workspa
 import { WorkspaceTopbar } from "@/components/workspace/workspace-topbar";
 import { eventsApi, invitationsApi } from "@/lib/events-api";
 import { findScreenByPath, roleSatisfies } from "@/lib/screens";
+import { claimAuthenticatedInvitations } from "@/lib/invitations-client";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const hasConvexConnection =
@@ -63,17 +64,16 @@ function ConnectedShell({
   const { isLoaded, isSignedIn } = useAuth();
   const events = useQuery(eventsApi.list, isSignedIn ? {} : "skip");
   const syncProfile = useMutation(invitationsApi.syncProfile);
-  const claimInvitations = useMutation(invitationsApi.claim);
   const pathname = usePathname();
   const [needsVerifiedEmail, setNeedsVerifiedEmail] = useState(false);
 
   useEffect(() => {
     if (!isSignedIn) return;
     void syncProfile()
-      .then(() => claimInvitations())
+      .then(() => claimAuthenticatedInvitations())
       .then((result) => setNeedsVerifiedEmail(result.requiresVerifiedEmail))
       .catch(() => undefined);
-  }, [claimInvitations, isSignedIn, syncProfile]);
+  }, [isSignedIn, syncProfile]);
 
   if (!isLoaded || (isSignedIn && events === undefined)) {
     return <ShellLoading />;

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import {
+  internalMutation,
   mutation,
   query,
   type MutationCtx,
@@ -34,6 +35,57 @@ async function requireOwner(
   return identity;
 }
 
+async function claimForVerifiedEmail(
+  ctx: MutationCtx,
+  userId: string,
+  verifiedEmail: string,
+) {
+  const email = normalizedEmail(verifiedEmail);
+  const invitations = await ctx.db
+    .query("eventInvitations")
+    .withIndex("by_email_status", (index) =>
+      index.eq("email", email).eq("status", "pending"),
+    )
+    .collect();
+  for (const invitation of invitations) {
+    const membership = await ctx.db
+      .query("eventMemberships")
+      .withIndex("by_eventId_userId", (index) =>
+        index.eq("eventId", invitation.eventId).eq("userId", userId),
+      )
+      .unique();
+    if (membership === null) {
+      await ctx.db.insert("eventMemberships", {
+        eventId: invitation.eventId,
+        userId,
+        role: invitation.role,
+        createdAt: Date.now(),
+      });
+    } else if (membership.role === "crew" && invitation.role === "manager") {
+      await ctx.db.patch(membership._id, { role: "manager" });
+    }
+    await ctx.db.patch(invitation._id, {
+      status: "accepted",
+      acceptedBy: userId,
+      acceptedAt: Date.now(),
+    });
+  }
+
+  const profile = await ctx.db
+    .query("userProfiles")
+    .withIndex("by_userId", (index) => index.eq("userId", userId))
+    .unique();
+  if (profile === null)
+    await ctx.db.insert("userProfiles", {
+      userId,
+      email,
+      updatedAt: Date.now(),
+    });
+  else await ctx.db.patch(profile._id, { email, updatedAt: Date.now() });
+
+  return { claimedCount: invitations.length, requiresVerifiedEmail: false };
+}
+
 /** Stores only profile data asserted by verified Clerk JWT claims. */
 export const syncProfile = mutation({
   args: {},
@@ -51,39 +103,16 @@ export const claim = mutation({
     if (!identity.emailVerified || identity.email === undefined) {
       return { claimedCount: 0, requiresVerifiedEmail: true };
     }
-    const email = normalizedEmail(identity.email);
-    const invitations = await ctx.db
-      .query("eventInvitations")
-      .withIndex("by_email_status", (index) =>
-        index.eq("email", email).eq("status", "pending"),
-      )
-      .collect();
-    for (const invitation of invitations) {
-      const membership = await ctx.db
-        .query("eventMemberships")
-        .withIndex("by_eventId_userId", (index) =>
-          index
-            .eq("eventId", invitation.eventId)
-            .eq("userId", identity.subject),
-        )
-        .unique();
-      if (membership === null) {
-        await ctx.db.insert("eventMemberships", {
-          eventId: invitation.eventId,
-          userId: identity.subject,
-          role: invitation.role,
-          createdAt: Date.now(),
-        });
-      } else if (membership.role === "crew" && invitation.role === "manager") {
-        await ctx.db.patch(membership._id, { role: "manager" });
-      }
-      await ctx.db.patch(invitation._id, {
-        status: "accepted",
-        acceptedBy: identity.subject,
-        acceptedAt: Date.now(),
-      });
-    }
-    return { claimedCount: invitations.length, requiresVerifiedEmail: false };
+    return await claimForVerifiedEmail(ctx, identity.subject, identity.email);
+  },
+});
+
+/** Server-only fallback using Clerk Backend API verified primary-email data. */
+export const claimVerifiedEmail = internalMutation({
+  args: { userId: v.string(), email: v.string() },
+  handler: async (ctx, { userId, email }) => {
+    if (!userId.trim()) throw new Error("A Clerk user is required");
+    return await claimForVerifiedEmail(ctx, userId, email);
   },
 });
 

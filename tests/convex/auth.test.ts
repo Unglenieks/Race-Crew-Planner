@@ -26,6 +26,7 @@ import {
 } from "../../convex/itinerary";
 import {
   claim as claimInvitations,
+  claimVerifiedEmail,
   create as createInvitation,
   normalizedEmail,
 } from "../../convex/invitations";
@@ -1927,6 +1928,58 @@ describe("Convex authorization helpers", () => {
       {},
     );
     expect(result).toEqual({ claimedCount: 0, requiresVerifiedEmail: true });
+  });
+
+  it("claims through the server-only verified primary-email fallback", async () => {
+    const patches: Array<Record<string, unknown>> = [];
+    const inserts: Array<{ table: string; value: Record<string, unknown> }> =
+      [];
+    const context = {
+      db: {
+        query: (table: string) => ({
+          withIndex: () => ({
+            collect: async () =>
+              table === "eventInvitations"
+                ? [
+                    {
+                      _id: "eventInvitations:one",
+                      eventId: "events:one",
+                      role: "crew",
+                    },
+                  ]
+                : [],
+            unique: async () => null,
+          }),
+        }),
+        insert: async (table: string, value: Record<string, unknown>) => {
+          inserts.push({ table, value });
+          return `${table}:one`;
+        },
+        patch: async (_id: string, value: Record<string, unknown>) => {
+          patches.push(value);
+        },
+      },
+    };
+
+    const result = await claimVerifiedEmail._handler(context as never, {
+      userId: "user_123",
+      email: " Person@Example.com ",
+    });
+
+    expect(result).toEqual({
+      claimedCount: 1,
+      requiresVerifiedEmail: false,
+    });
+    expect(inserts).toContainEqual({
+      table: "userProfiles",
+      value: expect.objectContaining({
+        userId: "user_123",
+        email: "person@example.com",
+      }),
+    });
+    expect(patches).toContainEqual(
+      expect.objectContaining({ status: "accepted", acceptedBy: "user_123" }),
+    );
   });
 
   it("uses a safe label for a missing profile", async () => {
