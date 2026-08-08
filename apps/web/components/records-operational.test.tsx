@@ -1,0 +1,63 @@
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/components/workspace/event-workspace", () => ({
+  useEventWorkspace: () => ({
+    event: { id: "events:one" },
+    role: "crew",
+  }),
+}));
+vi.mock("@/lib/events-api", () => ({
+  recordsApi: {
+    get: "records:get",
+    listCategories: "records:listCategories",
+    listTypes: "records:listTypes",
+    saveVenueDetails: "records:saveVenueDetails",
+    assignCategory: "records:assignCategory",
+    removeCategory: "records:removeCategory",
+  },
+}));
+vi.mock("convex/react", () => ({
+  useQuery: (reference: string) => {
+    if (reference === "records:get")
+      return {
+        _id: "eventRecords:one",
+        name: "Service vehicle",
+        type: "vehicle",
+        notes: "Original notes\nSecond line",
+        fieldValues: {
+          operational_status: "Ready",
+          future_boolean: "true",
+          manual: "https://example.com/manual",
+        },
+        fields: [
+          {
+            _id: "eventRecordFields:status",
+            key: "operational_status",
+            label: "Operational status",
+            type: "select",
+            order: 0,
+          },
+        ],
+        categories: [],
+        travelContexts: [],
+      };
+    return [];
+  },
+  useMutation: () => vi.fn(),
+}));
+
+import { RecordDetail } from "./records-operational";
+
+describe("RecordDetail fields", () => {
+  it("shows notes, configured values, links, and unknown future fields", () => {
+    render(<RecordDetail recordId="eventRecords:one" />);
+    expect(screen.getByText(/Original notes/)).toBeDefined();
+    expect(screen.getByText("Operational status")).toBeDefined();
+    expect(screen.getByText("Ready")).toBeDefined();
+    expect(screen.getByText("Yes")).toBeDefined();
+    expect(
+      screen.getByRole("link", { name: "https://example.com/manual" }),
+    ).toBeDefined();
+  });
+});

@@ -414,6 +414,7 @@ export const recordsApi = {
     EventRecord & {
       categories: RecordCategory[];
       travelContexts: TravelContext[];
+      fields: RecordField[];
     }
   >("records:get"),
   saveVenueDetails: makeFunctionReference<
