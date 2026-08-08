@@ -14,6 +14,8 @@ const field = v.object({
   label: v.string(),
   type: v.union(
     v.literal("text"),
+    v.literal("shortText"),
+    v.literal("longText"),
     v.literal("number"),
     v.literal("date"),
     v.literal("select"),
@@ -34,6 +36,8 @@ export type FormField = {
   label: string;
   type:
     | "text"
+    | "shortText"
+    | "longText"
     | "number"
     | "date"
     | "select"
@@ -49,6 +53,24 @@ export type FormField = {
 };
 export type Answers = Record<string, unknown>;
 
+export function fieldIdFromLabel(label: string, used: ReadonlySet<string>) {
+  const base =
+    label
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .replace(/^[^a-z]+/, "")
+      .slice(0, 36) || "field";
+  let candidate = base;
+  let suffix = 2;
+  while (used.has(candidate)) {
+    const marker = `_${suffix++}`;
+    candidate = `${base.slice(0, 40 - marker.length)}${marker}`;
+  }
+  return candidate;
+}
+
 function hasAnswer(value: unknown) {
   return !(
     value === undefined ||
@@ -63,8 +85,8 @@ export function validateFields(fields: FormField[]) {
     throw new Error("A form needs between 1 and 30 fields");
   const ids = new Set<string>();
   return fields.map((item) => {
-    const id = item.id.trim();
     const label = item.label.trim();
+    const id = item.id.trim() || fieldIdFromLabel(label, ids);
     const instructions = item.instructions?.trim();
     if (!/^[a-z][a-z0-9_]{0,39}$/.test(id) || ids.has(id))
       throw new Error("Each field needs a unique identifier");
@@ -119,6 +141,8 @@ const issueMessages: Record<string, string> = {
 function invalidMessage(type: FormField["type"]) {
   switch (type) {
     case "text":
+    case "shortText":
+    case "longText":
       return "Enter text.";
     case "number":
       return "Enter a number.";
@@ -144,6 +168,8 @@ function invalidMessage(type: FormField["type"]) {
 function isValidAnswer(item: FormField, value: unknown) {
   switch (item.type) {
     case "text":
+    case "shortText":
+    case "longText":
       return typeof value === "string";
     case "number":
       return typeof value === "number" && Number.isFinite(value);
@@ -416,6 +442,61 @@ export const listMySubmissions = query({
         index.eq("eventId", eventId).eq("createdBy", identity.subject),
       )
       .collect();
+  },
+});
+
+const submissionStatus = v.union(v.literal("draft"), v.literal("submitted"));
+
+/** Lists visible submission records; managers see the event, crew see their own. */
+export const listSubmissions = query({
+  args: { eventId: v.id("events"), status: v.optional(submissionStatus) },
+  handler: async (ctx, { eventId, status }) => {
+    const { identity, membership } = await requireMembership(ctx, eventId);
+    const submissions =
+      membership.role === "owner" || membership.role === "manager"
+        ? await ctx.db
+            .query("formSubmissions")
+            .withIndex("by_eventId", (index) => index.eq("eventId", eventId))
+            .collect()
+        : await ctx.db
+            .query("formSubmissions")
+            .withIndex("by_eventId_createdBy", (index) =>
+              index.eq("eventId", eventId).eq("createdBy", identity.subject),
+            )
+            .collect();
+    return submissions
+      .filter(
+        (submission) => status === undefined || submission.status === status,
+      )
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .map((submission) => ({
+        ...submission,
+        canEdit:
+          submission.status === "draft" &&
+          submission.createdBy === identity.subject,
+      }));
+  },
+});
+
+/** Reads one immutable snapshot after enforcing event visibility in Convex. */
+export const getSubmission = query({
+  args: { eventId: v.id("events"), submissionId: v.id("formSubmissions") },
+  handler: async (ctx, { eventId, submissionId }) => {
+    const { identity, membership } = await requireMembership(ctx, eventId);
+    const submission = await ctx.db.get(submissionId);
+    if (
+      submission === null ||
+      submission.eventId !== eventId ||
+      (membership.role === "crew" && submission.createdBy !== identity.subject)
+    ) {
+      throw new Error("Inspection submission not found");
+    }
+    return {
+      ...submission,
+      canEdit:
+        submission.status === "draft" &&
+        submission.createdBy === identity.subject,
+    };
   },
 });
 

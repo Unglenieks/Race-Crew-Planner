@@ -28,7 +28,8 @@ import { EmptyState } from "@/components/ui/data-display";
 import { Input } from "@/components/ui/input";
 
 const fieldTypes: Array<{ value: FormField["type"]; label: string }> = [
-  { value: "text", label: "Text" },
+  { value: "shortText", label: "Short text" },
+  { value: "longText", label: "Long text" },
   { value: "number", label: "Number" },
   { value: "date", label: "Date" },
   { value: "select", label: "Choose one" },
@@ -40,22 +41,51 @@ const fieldTypes: Array<{ value: FormField["type"]; label: string }> = [
   { value: "photo", label: "Stored photo" },
 ];
 const starterFields: FormField[] = [
-  { id: "item", label: "Item inspected", type: "text", required: true },
+  { id: "item", label: "Item inspected", type: "shortText", required: true },
   { id: "passed", label: "Passed inspection", type: "boolean", required: true },
-  { id: "notes", label: "Notes", type: "text", required: false },
+  { id: "notes", label: "Notes", type: "longText", required: false },
 ];
 
-type BuilderField = FormField & { builderKey: string };
+type BuilderField = FormField & { builderKey: string; manualId: boolean };
+
+function generatedFieldId(
+  label: string,
+  fields: BuilderField[],
+  currentIndex: number,
+) {
+  const used = new Set(
+    fields
+      .filter((_, index) => index !== currentIndex)
+      .map((field) => field.id),
+  );
+  const base =
+    label
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .replace(/^[^a-z]+/, "")
+      .slice(0, 36) || "field";
+  let candidate = base;
+  let suffix = 2;
+  while (used.has(candidate)) {
+    const marker = `_${suffix++}`;
+    candidate = `${base.slice(0, 40 - marker.length)}${marker}`;
+  }
+  return candidate;
+}
 
 function newField(existing: BuilderField[]): BuilderField {
   let index = existing.length + 1;
-  while (existing.some((field) => field.id === `field_${index}`)) index += 1;
+  while (existing.some((field) => field.id === `new_field_${index}`))
+    index += 1;
   return {
     builderKey: `field-${Date.now()}-${index}`,
-    id: `field_${index}`,
+    id: `new_field_${index}`,
     label: "New field",
-    type: "text",
+    type: "shortText",
     required: false,
+    manualId: false,
   };
 }
 
@@ -75,6 +105,7 @@ function TemplateBuilder({
     (template?.fields ?? starterFields).map((field, index) => ({
       ...field,
       builderKey: `initial-${index}`,
+      manualId: template !== undefined,
     })),
   );
   const [error, setError] = useState<string | null>(null);
@@ -118,8 +149,9 @@ function TemplateBuilder({
     }
     setWorking(true);
     const submittedFields = fields.map((builderField) => {
-      const { builderKey, ...field } = builderField;
+      const { builderKey, manualId, ...field } = builderField;
       void builderKey;
+      void manualId;
       return field;
     });
     try {
@@ -178,20 +210,15 @@ function TemplateBuilder({
                     Label
                     <Input
                       value={field.label}
-                      onChange={(event) =>
-                        updateField(index, { label: event.target.value })
-                      }
-                      required
-                    />
-                  </label>
-                  <label className="grid gap-1 text-sm text-muted">
-                    Identifier
-                    <Input
-                      value={field.id}
-                      onChange={(event) =>
-                        updateField(index, { id: event.target.value })
-                      }
-                      pattern="[a-z][a-z0-9_]{0,39}"
+                      onChange={(event) => {
+                        const label = event.target.value;
+                        updateField(index, {
+                          label,
+                          ...(field.manualId
+                            ? {}
+                            : { id: generatedFieldId(label, fields, index) }),
+                        });
+                      }}
                       required
                     />
                   </label>
@@ -227,6 +254,32 @@ function TemplateBuilder({
                     />
                   </label>
                 </div>
+                <details>
+                  <summary className="cursor-pointer text-sm font-medium text-muted">
+                    Advanced
+                  </summary>
+                  <label className="mt-2 grid gap-1 text-sm text-muted">
+                    Field identifier
+                    <Input
+                      value={field.id}
+                      onChange={(event) =>
+                        setFields((current) =>
+                          current.map((candidate, currentIndex) =>
+                            currentIndex === index
+                              ? {
+                                  ...candidate,
+                                  id: event.target.value,
+                                  manualId: true,
+                                }
+                              : candidate,
+                          ),
+                        )
+                      }
+                      pattern="[a-z][a-z0-9_]{0,39}"
+                      required
+                    />
+                  </label>
+                </details>
                 {field.type === "select" || field.type === "multiSelect" ? (
                   <label className="grid gap-1 text-sm text-muted">
                     Choices, separated by commas
@@ -686,7 +739,20 @@ function SubmissionForm({
                     })}
                   </div>
                 ) : null}
-                {field.type === "text" ? (
+                {field.type === "shortText" ? (
+                  <Input
+                    ref={(element) => {
+                      fields.current[field.id] = element;
+                    }}
+                    id={`form-${template._id}-${field.id}`}
+                    value={String(answers[field.id] ?? "")}
+                    onChange={(event) =>
+                      setAnswer(field.id, event.target.value)
+                    }
+                    aria-invalid={Boolean(fieldErrors[field.id])}
+                  />
+                ) : null}
+                {field.type === "text" || field.type === "longText" ? (
                   <textarea
                     ref={(element) => {
                       fields.current[field.id] = element;
@@ -770,6 +836,132 @@ function SubmissionForm({
   );
 }
 
+function answerText(value: unknown) {
+  if (value === undefined || value === null || value === "")
+    return "Not answered";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (Array.isArray(value)) return value.join(", ") || "Not answered";
+  return String(value);
+}
+
+function SubmissionRecords({ eventId }: { eventId: string }) {
+  const [status, setStatus] = useState<"all" | "draft" | "submitted">("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const submissions = useQuery(formsApi.listSubmissions, {
+    eventId,
+    ...(status === "all" ? {} : { status }),
+  });
+  const selected = useQuery(
+    formsApi.getSubmission,
+    selectedId === null ? "skip" : { eventId, submissionId: selectedId },
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Inspection records</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <label className="grid max-w-xs gap-1 text-sm font-medium text-ink">
+          Show
+          <select
+            value={status}
+            onChange={(event) => {
+              setStatus(event.target.value as typeof status);
+              setSelectedId(null);
+            }}
+            className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+          >
+            <option value="all">All records</option>
+            <option value="draft">Drafts</option>
+            <option value="submitted">Submitted</option>
+          </select>
+        </label>
+        {submissions === undefined ? (
+          <p className="text-sm text-muted" role="status">
+            Loading inspection records…
+          </p>
+        ) : submissions.length === 0 ? (
+          <p className="text-sm text-muted">No matching inspection records.</p>
+        ) : (
+          <ul className="grid gap-2">
+            {submissions.map((submission) => (
+              <li
+                key={submission._id}
+                className="flex flex-wrap items-center gap-3 rounded-lg border border-line p-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-ink">
+                    {submission.templateName}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {submission.status === "draft" ? "Draft" : "Submitted"} · v
+                    {submission.templateVersion} · updated{" "}
+                    {new Intl.DateTimeFormat(undefined, {
+                      dateStyle: "medium",
+                    }).format(submission.updatedAt)}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setSelectedId(submission._id)}
+                >
+                  {submission.status === "draft"
+                    ? "Open draft details"
+                    : "Review submission"}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {selectedId !== null && selected === undefined ? (
+          <p className="text-sm text-muted" role="status">
+            Loading record details…
+          </p>
+        ) : selected === undefined ? null : (
+          <section
+            className="grid gap-3 rounded-lg border border-line p-4"
+            aria-label="Inspection record detail"
+          >
+            <div>
+              <h3 className="font-semibold text-ink">
+                {selected.templateName} · v{selected.templateVersion}
+              </h3>
+              <p className="text-sm text-muted">
+                {selected.status === "draft"
+                  ? "Draft — editable only by its author"
+                  : "Submitted snapshot — read only"}
+              </p>
+            </div>
+            <dl className="grid gap-3">
+              {selected.fields.map((field) => (
+                <div key={field.id}>
+                  <dt className="text-sm font-medium text-ink">
+                    {field.label}
+                  </dt>
+                  <dd className="mt-1 whitespace-pre-wrap text-sm text-muted">
+                    {answerText(selected.answers[field.id])}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            {selected.canEdit ? (
+              <a
+                className="w-fit text-sm font-semibold text-green-ink underline"
+                href={`#inspection-${selected.templateId}`}
+              >
+                Continue this draft
+              </a>
+            ) : null}
+          </section>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function FormsInspections({
   eventId,
   role,
@@ -790,6 +982,7 @@ export function FormsInspections({
   const canBuild = role === "owner" || role === "manager";
   return (
     <div className="grid gap-4">
+      <SubmissionRecords eventId={eventId} />
       {builder ? (
         <TemplateBuilder
           // Keying by template forces a remount when the operator switches which
@@ -853,20 +1046,22 @@ export function FormsInspections({
                     </Button>
                   ) : null}
                 </div>
-                <SubmissionForm
-                  eventId={eventId}
-                  template={template}
-                  draft={submissions.find(
-                    (submission) =>
-                      submission.status === "draft" &&
-                      submission.templateId === template._id,
-                  )}
-                  lastSubmission={submissions.find(
-                    (submission) =>
-                      submission.status === "submitted" &&
-                      submission.templateId === template._id,
-                  )}
-                />
+                <div id={`inspection-${template._id}`}>
+                  <SubmissionForm
+                    eventId={eventId}
+                    template={template}
+                    draft={submissions.find(
+                      (submission) =>
+                        submission.status === "draft" &&
+                        submission.templateId === template._id,
+                    )}
+                    lastSubmission={submissions.find(
+                      (submission) =>
+                        submission.status === "submitted" &&
+                        submission.templateId === template._id,
+                    )}
+                  />
+                </div>
               </div>
             ))
           )}

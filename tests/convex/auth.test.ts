@@ -70,6 +70,9 @@ import {
   blockingIssues,
   codedIssues,
   createTemplate,
+  fieldIdFromLabel,
+  getSubmission,
+  listSubmissions,
   listTemplates,
   missingRequiredFields,
   saveDraft,
@@ -690,6 +693,25 @@ describe("Convex authorization helpers", () => {
     expect(() => validateFields([{ ...fields[0] }, { ...fields[0] }])).toThrow(
       "unique identifier",
     );
+  });
+
+  it("generates stable field identifiers with collision handling", () => {
+    const used = new Set<string>();
+    const first = fieldIdFromLabel("Brake condition", used);
+    used.add(first);
+    expect(first).toBe("brake_condition");
+    expect(fieldIdFromLabel("Brake condition", used)).toBe("brake_condition_2");
+    expect(
+      validateFields([
+        { id: "", label: "Driver name", type: "shortText", required: true },
+        { id: "notes", label: "Notes", type: "longText", required: false },
+        { id: "legacy", label: "Legacy", type: "text", required: false },
+      ]),
+    ).toMatchObject([
+      { id: "driver_name", type: "shortText" },
+      { id: "notes", type: "longText" },
+      { id: "legacy", type: "text" },
+    ]);
   });
 
   it("validates structured form answers against the captured field schema", () => {
@@ -2077,6 +2099,94 @@ describe("regressions found reviewing the outage integration", () => {
         answers: { temp: "hot" },
       }),
     ).rejects.toThrow("Temperature");
+  });
+
+  it("enforces submission visibility and draft edit ownership in Convex", async () => {
+    const identity = {
+      tokenIdentifier: "issuer|crew_123",
+      subject: "crew_123",
+      issuer: "issuer",
+    };
+    const ownDraft = {
+      _id: "formSubmissions:own",
+      eventId: "events:one",
+      templateId: "formTemplates:one",
+      templateName: "Vehicle",
+      templateVersion: 1,
+      fields: [],
+      answers: {},
+      status: "draft",
+      createdBy: "crew_123",
+      createdAt: 1,
+      updatedAt: 2,
+    };
+    const context = {
+      auth: { getUserIdentity: async () => identity },
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            unique: async () => ({ role: "crew" }),
+            collect: async () => [ownDraft],
+          }),
+        }),
+        get: async (id: string) =>
+          id === "formSubmissions:own"
+            ? ownDraft
+            : { ...ownDraft, _id: id, createdBy: "another_user" },
+      },
+    };
+    await expect(
+      listSubmissions._handler(context as never, {
+        eventId: "events:one" as never,
+        status: "draft",
+      }),
+    ).resolves.toEqual([expect.objectContaining({ canEdit: true })]);
+    await expect(
+      getSubmission._handler(context as never, {
+        eventId: "events:one" as never,
+        submissionId: "formSubmissions:other" as never,
+      }),
+    ).rejects.toThrow("Inspection submission not found");
+  });
+
+  it("does not allow submitted answers to be altered", async () => {
+    let getCall = 0;
+    const context = managerContext(
+      {
+        get: async () => {
+          getCall += 1;
+          return getCall === 1
+            ? {
+                _id: "formTemplates:one",
+                eventId: "events:one",
+                name: "Vehicle",
+                version: 1,
+                fields: [],
+              }
+            : {
+                _id: "formSubmissions:one",
+                eventId: "events:one",
+                templateId: "formTemplates:one",
+                createdBy: "crew_123",
+                status: "submitted",
+              };
+        },
+      },
+      "crew",
+    );
+    context.auth.getUserIdentity = async () => ({
+      tokenIdentifier: "issuer|crew_123",
+      subject: "crew_123",
+      issuer: "issuer",
+    });
+    await expect(
+      saveDraft._handler(context as never, {
+        eventId: "events:one" as never,
+        templateId: "formTemplates:one" as never,
+        submissionId: "formSubmissions:one" as never,
+        answers: {},
+      }),
+    ).rejects.toThrow("Draft form not found");
   });
 
   it("keeps a superseded template reachable while its draft is unfinished", async () => {
