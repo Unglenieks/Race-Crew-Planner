@@ -9,7 +9,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   itineraryApi,
   recordsApi,
@@ -91,6 +91,22 @@ export function ItineraryPlan({
   const [isRestoring, setIsRestoring] = useState(false);
   const [undoItem, setUndoItem] = useState<ItineraryItem | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isCreatorOpen, setIsCreatorOpen] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const hasUnsavedChanges =
+    JSON.stringify(draft) !== JSON.stringify(emptyDraft);
+
+  useEffect(() => {
+    if (isCreatorOpen) titleInputRef.current?.focus();
+  }, [isCreatorOpen]);
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (!isCreatorOpen || !hasUnsavedChanges) return;
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasUnsavedChanges, isCreatorOpen]);
 
   const days = useMemo(
     () =>
@@ -151,6 +167,7 @@ export function ItineraryPlan({
     try {
       await createItem(input);
       setDraft(emptyDraft);
+      setIsCreatorOpen(false);
     } catch {
       setError(
         "We could not save this movement. Your changes were not saved; please try again.",
@@ -214,9 +231,16 @@ export function ItineraryPlan({
                 {eventName} · times are in {timeZone}
               </p>
             </div>
-            <Badge variant={canEdit ? "success" : "neutral"}>
-              {canEdit ? "Can edit" : "View only"}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant={canEdit ? "success" : "neutral"}>
+                {canEdit ? "Can edit" : "View only"}
+              </Badge>
+              {canEdit ? (
+                <Button size="sm" onClick={() => setIsCreatorOpen(true)}>
+                  Add movement
+                </Button>
+              ) : null}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -432,7 +456,7 @@ export function ItineraryPlan({
         </CardContent>
       </Card>
 
-      {canEdit ? (
+      {canEdit && isCreatorOpen ? (
         <Card>
           <CardHeader>
             <div>
@@ -539,6 +563,7 @@ export function ItineraryPlan({
                 </label>
                 <Input
                   id="movement-title"
+                  ref={titleInputRef}
                   value={draft.title}
                   onChange={(event) => updateDraft("title", event.target.value)}
                   maxLength={160}
@@ -589,6 +614,20 @@ export function ItineraryPlan({
                     <CalendarPlus className="h-4 w-4" aria-hidden="true" />
                   )}
                   Add movement
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      !hasUnsavedChanges ||
+                      window.confirm("Discard this movement draft?")
+                    ) {
+                      setDraft(emptyDraft);
+                      setIsCreatorOpen(false);
+                    }
+                  }}
+                >
+                  Cancel
                 </Button>
               </div>
             </form>

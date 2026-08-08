@@ -9,7 +9,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   workApi,
@@ -99,6 +99,7 @@ export function WorkChecklist({
     completed: boolean;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   const openCount = useMemo(
     () => (items ?? []).filter((item) => item.status !== "completed").length,
@@ -118,6 +119,18 @@ export function WorkChecklist({
   const initialDraft =
     editingItem === null ? emptyDraft : itemToDraft(editingItem);
   const hasUnsavedChanges = !isSameDraft(draft, initialDraft);
+
+  useEffect(() => {
+    if (isEditorOpen) titleInputRef.current?.focus();
+  }, [isEditorOpen]);
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (!isEditorOpen || !hasUnsavedChanges) return;
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasUnsavedChanges, isEditorOpen]);
 
   function cancelEditing() {
     setEditingItem(null);
@@ -431,6 +444,7 @@ export function WorkChecklist({
                 </label>
                 <Input
                   id="work-title"
+                  ref={titleInputRef}
                   value={draft.title}
                   onChange={(event) =>
                     setDraft((current) => ({
@@ -542,15 +556,19 @@ export function WorkChecklist({
                   ) : null}
                   {editingItem === null ? "Add work item" : "Save work item"}
                 </Button>
-                {editingItem === null ? null : (
-                  <Button
-                    type="button"
-                    onClick={cancelEditing}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                )}
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      !hasUnsavedChanges ||
+                      window.confirm("Discard these work-item changes?")
+                    )
+                      cancelEditing();
+                  }}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </Button>
               </div>
             </form>
           </CardContent>

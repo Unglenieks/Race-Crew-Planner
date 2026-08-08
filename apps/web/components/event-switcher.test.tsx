@@ -91,6 +91,9 @@ describe("EventSwitcher first run", () => {
       },
     ];
     render(<EventSwitcher />);
+    expect(screen.queryByLabelText("Event name")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Create event" }));
+    expect(screen.getByLabelText("Event name")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /remove sample/i }));
     await vi.waitFor(() =>
       expect(mutations.removeSample).toHaveBeenCalledWith({

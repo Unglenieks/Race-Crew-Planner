@@ -95,25 +95,26 @@ export function AnalyticsProvider({
       {analyticsConfig !== undefined && consent === "pending" ? (
         <aside
           aria-label="Analytics consent"
-          className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-xl rounded-xl border border-line bg-card p-4 shadow-lg"
+          className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-card/95 px-4 py-3 shadow-lg backdrop-blur"
         >
-          <p className="text-sm font-semibold text-ink">Usage analytics</p>
-          <p className="mt-1 text-sm leading-relaxed text-muted">
-            Help improve Race Planner with the documented usage events. We never
-            send credentials, race data, crew details, notes, or other protected
-            content.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => updateConsent("granted")}>
-              Allow analytics
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => updateConsent("denied")}
-            >
-              Decline
-            </Button>
+          <div className="mx-auto flex max-w-5xl flex-col gap-3 sm:flex-row sm:items-center">
+            <p className="min-w-0 flex-1 text-sm leading-relaxed text-muted">
+              <span className="font-semibold text-ink">Usage analytics.</span>{" "}
+              Share documented usage events only—never credentials, race data,
+              crew details, or notes.
+            </p>
+            <div className="flex shrink-0 gap-2">
+              <Button size="sm" onClick={() => updateConsent("granted")}>
+                Allow analytics
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => updateConsent("denied")}
+              >
+                Decline
+              </Button>
+            </div>
           </div>
         </aside>
       ) : null}
