@@ -137,6 +137,7 @@ export const publish = mutation({
       scheduledFor: item.scheduledFor,
       scheduledUntil: item.scheduledUntil,
       location: item.location,
+      recordId: item.recordId,
       notes: item.notes,
       movementTypeLabel: structured.movementTypeLabel,
       tagLabels: structured.tags.map((tag) => tag.name),
@@ -155,6 +156,9 @@ export const publish = mutation({
       previousLocation: hasLastChangedSnapshot
         ? item.lastChangedLocation
         : prior?.location,
+      previousRecordId: hasLastChangedSnapshot
+        ? item.lastChangedRecordId
+        : prior?.recordId,
       previousNotes: hasLastChangedSnapshot
         ? item.lastChangedNotes
         : prior?.notes,
@@ -188,6 +192,7 @@ export const publish = mutation({
       lastChangedScheduledFor: undefined,
       lastChangedScheduledUntil: undefined,
       lastChangedLocation: undefined,
+      lastChangedRecordId: undefined,
       lastChangedNotes: undefined,
       lastChangedMovementTypeLabel: undefined,
       lastChangedTagLabels: undefined,

@@ -22,6 +22,7 @@ const workspaceRoot = join(__dirname, "..", "app", "events", "[eventId]");
  */
 const nonNavigableSegments = new Set([
   "plan/publish",
+  "plan/reconcile",
   "plan/sections",
   "records/types",
 ]);

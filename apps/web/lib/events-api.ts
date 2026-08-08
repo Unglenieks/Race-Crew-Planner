@@ -194,6 +194,7 @@ export type PublishedPlanChange = {
   title: string;
   scheduledFor: string;
   scheduledUntil?: string;
+  recordId?: string;
   previousTitle?: string;
   previousScheduledFor?: string;
   previousScheduledUntil?: string;
@@ -203,6 +204,7 @@ export type PublishedPlanChange = {
   previousMovementTypeLabel?: string;
   previousTagLabels?: string[];
   previousAssignmentLabels?: string[];
+  previousRecordId?: string;
   reason: string;
   severity: "routine" | "critical";
   publishedAt: number;
@@ -391,6 +393,47 @@ export const itineraryApi = {
     },
     string
   >("itinerary:create"),
+  createWithVenue: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      title: string;
+      scheduledFor: string;
+      scheduledUntil?: string;
+      location?: string;
+      notes?: string;
+      movementTypeId?: string | null;
+      sectionId?: string;
+      operationalDay?: string;
+      displayTime?: "standard" | "2400";
+      timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
+      venueName: string;
+      venueAddress?: string;
+    },
+    string
+  >("itinerary:createWithVenue"),
+  listUnlinked: makeFunctionReference<
+    "query",
+    { eventId: string },
+    Array<{
+      itemId: string;
+      title: string;
+      location?: string;
+      candidates: Array<{
+        recordId: string;
+        name: string;
+        type: string;
+        address?: string;
+        match: "exact" | "fuzzy";
+        score: number;
+      }>;
+    }>
+  >("itinerary:listUnlinked"),
+  reconcileLinks: makeFunctionReference<
+    "mutation",
+    { eventId: string; links: Array<{ itemId: string; recordId: string }> },
+    null
+  >("itinerary:reconcileLinks"),
   update: makeFunctionReference<
     "mutation",
     {

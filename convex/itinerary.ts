@@ -8,6 +8,7 @@ import {
 import type { Id } from "./_generated/dataModel";
 import { requireIdentity, requireRole } from "./auth";
 import { isLocationRecord } from "./records";
+import { validatedRecordInput } from "./records";
 import { writeAudit } from "./audit";
 import { movementStructuredFields } from "./movements";
 import {
@@ -159,7 +160,7 @@ async function requireLocationRecord(
   eventId: Id<"events">,
   recordId: Id<"eventRecords"> | undefined,
 ) {
-  if (recordId === undefined) return;
+  if (recordId === undefined) return undefined;
   const record = await ctx.db.get(recordId);
   if (
     record === null ||
@@ -168,6 +169,24 @@ async function requireLocationRecord(
   ) {
     throw new Error("Location record not found");
   }
+  return record;
+}
+
+function movementChangeSnapshot(existing: {
+  title: string;
+  scheduledFor: string;
+  scheduledUntil?: string;
+  location?: string;
+  recordId?: Id<"eventRecords">;
+}) {
+  return {
+    lastChangedTitle: existing.title,
+    lastChangedScheduledFor: existing.scheduledFor,
+    lastChangedScheduledUntil: existing.scheduledUntil,
+    lastChangedLocation: existing.location,
+    lastChangedRecordId: existing.recordId,
+    lastChangedAt: Date.now(),
+  };
 }
 
 async function requireMovementType(
@@ -332,7 +351,11 @@ export const create = mutation({
     requireRole(membership.role, ["owner", "manager"]);
     const timeZone = await requireEventTimeZone(ctx, args.eventId);
     const item = validatedItineraryInput(args, timeZone);
-    await requireLocationRecord(ctx, args.eventId, args.recordId);
+    const record = await requireLocationRecord(
+      ctx,
+      args.eventId,
+      args.recordId,
+    );
     await requireMovementType(ctx, args.eventId, args.movementTypeId);
     await requireSection(ctx, args.eventId, args.sectionId);
     const now = Date.now();
@@ -344,8 +367,81 @@ export const create = mutation({
         item.timeKind === "range" ? item.scheduledUntil : undefined,
       recordId: args.recordId,
       movementTypeId: item.movementTypeId ?? undefined,
+      // The record is canonical. This label deliberately snapshots the location
+      // at authoring time, so renamed venues do not rewrite historic plans.
+      location: item.location ?? record?.name,
       createdAt: now,
       updatedAt: now,
+    });
+    await writeAudit(ctx, {
+      eventId: args.eventId,
+      actorId: identity.subject,
+      kind: "movement.created",
+      message: `Created movement: ${item.title}`,
+      objectType: "movement",
+      objectId: itemId,
+      objectLabel: item.title,
+      href: `/events/${args.eventId}/plan/${itemId}`,
+      createdAt: now,
+    });
+    return itemId;
+  },
+});
+
+/**
+ * Creates the location record and movement in one Convex transaction. A failed
+ * movement write rolls back the record too, so this flow cannot leave an orphan
+ * venue behind.
+ */
+export const createWithVenue = mutation({
+  args: {
+    ...itineraryArgs,
+    venueName: v.string(),
+    venueAddress: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { identity, membership } = await requireEventMembership(
+      ctx,
+      args.eventId,
+    );
+    requireRole(membership.role, ["owner", "manager"]);
+    const timeZone = await requireEventTimeZone(ctx, args.eventId);
+    const item = validatedItineraryInput(args, timeZone);
+    await requireMovementType(ctx, args.eventId, args.movementTypeId);
+    await requireSection(ctx, args.eventId, args.sectionId);
+    const venue = validatedRecordInput({
+      name: args.venueName,
+      type: "venue",
+      address: args.venueAddress,
+    });
+    const now = Date.now();
+    const recordId = await ctx.db.insert("eventRecords", {
+      eventId: args.eventId,
+      ...venue,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const itemId = await ctx.db.insert("itineraryItems", {
+      eventId: args.eventId,
+      ...item,
+      scheduledUntil:
+        item.timeKind === "range" ? item.scheduledUntil : undefined,
+      recordId,
+      location: item.location ?? venue.name,
+      movementTypeId: item.movementTypeId ?? undefined,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await writeAudit(ctx, {
+      eventId: args.eventId,
+      actorId: identity.subject,
+      kind: "record.created",
+      message: `Created and linked venue: ${venue.name}`,
+      objectType: "record",
+      objectId: recordId,
+      objectLabel: venue.name,
+      href: `/events/${args.eventId}/records/${recordId}`,
+      createdAt: now,
     });
     await writeAudit(ctx, {
       eventId: args.eventId,
@@ -377,7 +473,11 @@ export const update = mutation({
       throw new Error("Movement not found");
     }
 
-    await requireLocationRecord(ctx, args.eventId, args.recordId);
+    const record = await requireLocationRecord(
+      ctx,
+      args.eventId,
+      args.recordId,
+    );
     await requireMovementType(ctx, args.eventId, args.movementTypeId);
 
     const timeZone = await requireEventTimeZone(ctx, args.eventId);
@@ -390,17 +490,14 @@ export const update = mutation({
         item.timeKind === "range" ? item.scheduledUntil : undefined,
       recordId: args.recordId,
       movementTypeId: item.movementTypeId ?? undefined,
-      lastChangedTitle: existing.title,
-      lastChangedScheduledFor: existing.scheduledFor,
-      lastChangedScheduledUntil: existing.scheduledUntil,
-      lastChangedLocation: existing.location,
+      location: item.location ?? record?.name,
+      ...movementChangeSnapshot(existing),
       lastChangedNotes: existing.notes,
       lastChangedMovementTypeLabel: previousStructured.movementTypeLabel,
       lastChangedTagLabels: previousStructured.tags.map((tag) => tag.name),
       lastChangedAssignmentLabels: previousStructured.assignments.map(
         (assignment) => assignment.label,
       ),
-      lastChangedAt: Date.now(),
       updatedAt: Date.now(),
     });
     await writeAudit(ctx, {
@@ -413,5 +510,137 @@ export const update = mutation({
       objectLabel: item.title,
       href: `/events/${args.eventId}/plan/${args.itemId}`,
     });
+  },
+});
+
+export function normalizedVenueName(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/\b(st|str)\.?\b/g, "street")
+    .replace(/\b(rd)\.?\b/g, "road")
+    .replace(/\b(ave|av)\.?\b/g, "avenue")
+    .replace(/\b(blvd)\.?\b/g, "boulevard")
+    .replace(/\b(ctr)\.?\b/g, "center")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function fuzzyVenueScore(left: string, right: string) {
+  const leftTokens = new Set(
+    normalizedVenueName(left).split(" ").filter(Boolean),
+  );
+  const rightTokens = new Set(
+    normalizedVenueName(right).split(" ").filter(Boolean),
+  );
+  if (leftTokens.size === 0 || rightTokens.size === 0) return 0;
+  const shared = [...leftTokens].filter((token) =>
+    rightTokens.has(token),
+  ).length;
+  return shared / new Set([...leftTokens, ...rightTokens]).size;
+}
+
+/** Lists unlinked movements with review-only exact and fuzzy venue suggestions. */
+export const listUnlinked = query({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    await requireEventMembership(ctx, eventId);
+    const [items, records] = await Promise.all([
+      ctx.db
+        .query("itineraryItems")
+        .withIndex("by_eventId_scheduledFor", (q) => q.eq("eventId", eventId))
+        .collect(),
+      ctx.db
+        .query("eventRecords")
+        .withIndex("by_eventId_name", (q) => q.eq("eventId", eventId))
+        .collect(),
+    ]);
+    const locations = [] as typeof records;
+    for (const record of records) {
+      if (await isLocationRecord(ctx, record)) locations.push(record);
+    }
+    return items
+      .filter(
+        (item) => item.archivedAt === undefined && item.recordId === undefined,
+      )
+      .map((item) => {
+        const normalized = normalizedVenueName(item.location ?? "");
+        const candidates = locations
+          .map((record) => {
+            const exact = normalizedVenueName(record.name) === normalized;
+            const score = exact
+              ? 1
+              : fuzzyVenueScore(item.location ?? "", record.name);
+            return {
+              recordId: record._id,
+              name: record.name,
+              type: record.type,
+              address: record.address,
+              match: exact ? ("exact" as const) : ("fuzzy" as const),
+              score,
+            };
+          })
+          .filter((candidate) => candidate.score >= 0.5)
+          .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+        return {
+          itemId: item._id,
+          title: item.title,
+          location: item.location,
+          candidates,
+        };
+      });
+  },
+});
+
+/** Applies only explicit human-approved venue links; it never auto-links matches. */
+export const reconcileLinks = mutation({
+  args: {
+    eventId: v.id("events"),
+    links: v.array(
+      v.object({
+        itemId: v.id("itineraryItems"),
+        recordId: v.id("eventRecords"),
+      }),
+    ),
+  },
+  handler: async (ctx, { eventId, links }) => {
+    const { identity, membership } = await requireEventMembership(ctx, eventId);
+    requireRole(membership.role, ["owner", "manager"]);
+    if (links.length === 0 || links.length > 100)
+      throw new Error("Choose between 1 and 100 links to approve");
+    if (new Set(links.map((link) => link.itemId)).size !== links.length)
+      throw new Error("A movement can only be linked once per approval");
+    const now = Date.now();
+    for (const link of links) {
+      const item = await ctx.db.get(link.itemId);
+      if (
+        item === null ||
+        item.eventId !== eventId ||
+        item.archivedAt !== undefined ||
+        item.recordId !== undefined
+      )
+        throw new Error("Movement is no longer available for reconciliation");
+      await requireLocationRecord(ctx, eventId, link.recordId);
+      await ctx.db.patch(link.itemId, {
+        recordId: link.recordId,
+        ...movementChangeSnapshot(item),
+        lastChangedNotes: item.notes,
+        updatedAt: now,
+      });
+      await writeAudit(ctx, {
+        eventId,
+        actorId: identity.subject,
+        kind: "movement.updated",
+        message: `Linked venue to movement: ${item.title}`,
+        objectType: "movement",
+        objectId: link.itemId,
+        objectLabel: item.title,
+        href: `/events/${eventId}/plan/${link.itemId}`,
+        createdAt: now,
+      });
+    }
   },
 });
