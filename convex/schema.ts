@@ -528,6 +528,102 @@ export default defineSchema({
         ),
       }),
     ),
+    /** Explicit choices made before this private crew brief was generated. */
+    inclusionOptions: v.optional(
+      v.object({
+        profile: v.boolean(),
+        rallyFuel: v.boolean(),
+        service: v.boolean(),
+        weather: v.boolean(),
+        travelRoutes: v.boolean(),
+        supportServices: v.boolean(),
+        documentAccessCodes: v.boolean(),
+        externalContactIds: v.array(v.id("externalContacts")),
+      }),
+    ),
+    /** Logistics values frozen with the brief. Never resolve these from live data. */
+    logistics: v.optional(
+      v.object({
+        profile: v.optional(
+          v.object({
+            carNumber: v.optional(v.string()),
+            makeModel: v.optional(v.string()),
+            fuelCapacityGallons: v.optional(v.number()),
+            stageMpg: v.optional(v.number()),
+            transitMpg: v.optional(v.number()),
+          }),
+        ),
+        legs: v.array(
+          v.object({
+            name: v.string(),
+            stageCount: v.number(),
+            stageMiles: v.number(),
+            transitMiles: v.number(),
+            startOrder: v.optional(v.number()),
+            precedingCar: v.optional(v.string()),
+            plannedFuelGallons: v.optional(v.number()),
+            formula: v.string(),
+            overrideReason: v.optional(v.string()),
+          }),
+        ),
+        services: v.array(
+          v.object({
+            name: v.string(),
+            scheduledStart: v.string(),
+            scheduledEnd: v.string(),
+            allowedDurationMinutes: v.number(),
+            fuelContext: v.optional(v.string()),
+            serviceContext: v.optional(v.string()),
+          }),
+        ),
+        weather: v.array(
+          v.object({
+            forecastDate: v.string(),
+            conditions: v.string(),
+            temperatureLow: v.optional(v.number()),
+            temperatureHigh: v.optional(v.number()),
+            precipitationPercent: v.optional(v.number()),
+            windMph: v.optional(v.number()),
+            source: v.string(),
+            asOf: v.number(),
+          }),
+        ),
+        travel: v.array(
+          v.object({
+            from: v.string(),
+            to: v.string(),
+            distanceMiles: v.optional(v.number()),
+            expectedDurationMinutes: v.optional(v.number()),
+            source: v.optional(v.string()),
+            routeNotes: v.optional(v.string()),
+          }),
+        ),
+        supportServices: v.array(
+          v.object({
+            name: v.string(),
+            address: v.optional(v.string()),
+            categories: v.array(v.string()),
+          }),
+        ),
+        documentAccessCodes: v.array(
+          v.object({
+            label: v.string(),
+            kind: v.union(v.literal("document"), v.literal("accessCode")),
+            value: v.string(),
+          }),
+        ),
+        contacts: v.array(
+          v.object({
+            contactId: v.id("externalContacts"),
+            title: v.string(),
+            name: v.string(),
+            organization: v.optional(v.string()),
+            phone: v.optional(v.string()),
+            email: v.optional(v.string()),
+          }),
+        ),
+      }),
+    ),
     generatedAt: v.number(),
     generatedBy: v.string(),
     generatedByName: v.optional(v.string()),

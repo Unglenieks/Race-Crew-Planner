@@ -8,6 +8,7 @@ import {
 } from "./_generated/server";
 import { requireIdentity } from "./auth";
 import { resolveUserProfile } from "./userProfiles";
+import { calculateFuel } from "./logistics";
 
 export const crewBriefSchemaVersion = 1;
 
@@ -60,7 +61,93 @@ type CrewBriefAppendices = {
 type CrewBrief = {
   items: ExportItem[];
   appendices: CrewBriefAppendices;
+  logistics: {
+    profile?: {
+      carNumber?: string;
+      makeModel?: string;
+      fuelCapacityGallons?: number;
+      stageMpg?: number;
+      transitMpg?: number;
+    };
+    legs: Array<{
+      name: string;
+      stageCount: number;
+      stageMiles: number;
+      transitMiles: number;
+      startOrder?: number;
+      precedingCar?: string;
+      plannedFuelGallons?: number;
+      formula: string;
+      overrideReason?: string;
+    }>;
+    services: Array<{
+      name: string;
+      scheduledStart: string;
+      scheduledEnd: string;
+      allowedDurationMinutes: number;
+      fuelContext?: string;
+      serviceContext?: string;
+    }>;
+    weather: Array<{
+      forecastDate: string;
+      conditions: string;
+      temperatureLow?: number;
+      temperatureHigh?: number;
+      precipitationPercent?: number;
+      windMph?: number;
+      source: string;
+      asOf: number;
+    }>;
+    travel: Array<{
+      from: string;
+      to: string;
+      distanceMiles?: number;
+      expectedDurationMinutes?: number;
+      source?: string;
+      routeNotes?: string;
+    }>;
+    supportServices: Array<{
+      name: string;
+      address?: string;
+      categories: string[];
+    }>;
+    documentAccessCodes: Array<{
+      label: string;
+      kind: "document" | "accessCode";
+      value: string;
+    }>;
+    contacts: Array<{
+      contactId: Id<"externalContacts">;
+      title: string;
+      name: string;
+      organization?: string;
+      phone?: string;
+      email?: string;
+    }>;
+  };
 };
+
+const inclusionOptionsValidator = v.object({
+  profile: v.boolean(),
+  rallyFuel: v.boolean(),
+  service: v.boolean(),
+  weather: v.boolean(),
+  travelRoutes: v.boolean(),
+  supportServices: v.boolean(),
+  documentAccessCodes: v.boolean(),
+  externalContactIds: v.array(v.id("externalContacts")),
+});
+type InclusionOptions = typeof inclusionOptionsValidator.type;
+const defaultOptions = (): InclusionOptions => ({
+  profile: false,
+  rallyFuel: false,
+  service: false,
+  weather: false,
+  travelRoutes: false,
+  supportServices: false,
+  documentAccessCodes: false,
+  externalContactIds: [],
+});
 
 async function requireEventMembership(
   ctx: QueryCtx | MutationCtx,
@@ -173,6 +260,7 @@ async function currentBrief(
   ctx: QueryCtx | MutationCtx,
   eventId: Id<"events">,
   filterDay: string | undefined,
+  suppliedOptions: InclusionOptions = defaultOptions(),
 ): Promise<CrewBrief> {
   const [
     items,
@@ -185,6 +273,11 @@ async function currentBrief(
     travel,
     memberships,
     invitations,
+    profile,
+    legs,
+    serviceIntervals,
+    weatherForecasts,
+    contacts,
   ] = await Promise.all([
     ctx.db
       .query("itineraryItems")
@@ -228,6 +321,30 @@ async function currentBrief(
       .collect(),
     ctx.db
       .query("eventInvitations")
+      .withIndex("by_eventId", (index) => index.eq("eventId", eventId))
+      .collect(),
+    ctx.db
+      .query("eventLogisticsProfiles")
+      .withIndex("by_eventId", (index) => index.eq("eventId", eventId))
+      .unique(),
+    ctx.db
+      .query("rallyLegs")
+      .withIndex("by_eventId_order", (index) => index.eq("eventId", eventId))
+      .collect(),
+    ctx.db
+      .query("serviceIntervals")
+      .withIndex("by_eventId_scheduledStart", (index) =>
+        index.eq("eventId", eventId),
+      )
+      .collect(),
+    ctx.db
+      .query("weatherForecasts")
+      .withIndex("by_eventId_forecastDate", (index) =>
+        index.eq("eventId", eventId),
+      )
+      .collect(),
+    ctx.db
+      .query("externalContacts")
       .withIndex("by_eventId", (index) => index.eq("eventId", eventId))
       .collect(),
   ]);
@@ -326,79 +443,207 @@ async function currentBrief(
   const venues = recordSnapshots
     .filter(({ record }) => isLocationRecord(record, locationTypes))
     .map(({ venue }) => venue);
-  const officialContacts = [
-    ...recordSnapshots
-      .filter(({ record }) => ["person", "organization"].includes(record.type))
-      .map(({ record }) => ({
-        name: record.name,
-        contactDetail: record.contactDetail,
-        notes: record.notes,
-      })),
-    ...memberships.map((membership) => {
-      const profile = profiles.get(membership.userId);
-      return {
-        name: profile?.name ?? "Profile pending",
-        role: membership.role,
-        email: profile?.email,
-        phoneNumber: profile?.phoneNumber,
-      };
-    }),
-    ...invitations
-      .filter((invitation) => invitation.status === "pending")
-      .map((invitation) => ({
-        name: invitation.email,
-        role: `${invitation.role} (pending)`,
-        email: invitation.email,
-      })),
-  ];
+  // Contacts are private by default. Only explicitly selected external contacts
+  // enter the snapshot; app members and invitations are never export contacts.
+  const selectedContacts = contacts.filter((contact) =>
+    suppliedOptions.externalContactIds.includes(contact._id),
+  );
+  const logistics = {
+    ...(suppliedOptions.profile && profile
+      ? {
+          profile: {
+            carNumber: profile.carNumber,
+            makeModel: profile.makeModel,
+            fuelCapacityGallons: profile.fuelCapacityGallons,
+            stageMpg: profile.stageMpg,
+            transitMpg: profile.transitMpg,
+          },
+        }
+      : {}),
+    legs: suppliedOptions.rallyFuel
+      ? legs.map((leg) => {
+          const fuel = calculateFuel({
+            ...leg,
+            stageMpg: profile?.stageMpg,
+            transitMpg: profile?.transitMpg,
+            reservePercent:
+              leg.reservePercent ?? profile?.defaultFuelReservePercent ?? 0,
+            capacityGallons: profile?.fuelCapacityGallons,
+            overrideGallons: leg.fuelOverrideGallons,
+          });
+          return {
+            name: leg.name,
+            stageCount: leg.stageCount,
+            stageMiles: leg.stageMiles,
+            transitMiles: leg.transitMiles,
+            startOrder: leg.startOrder,
+            precedingCar: leg.precedingCar,
+            ...(fuel.available
+              ? { plannedFuelGallons: fuel.plannedFuelGallons }
+              : {}),
+            formula: fuel.formula,
+            overrideReason: leg.fuelOverrideReason,
+          };
+        })
+      : [],
+    services: suppliedOptions.service
+      ? serviceIntervals.map(
+          ({
+            name,
+            scheduledStart,
+            scheduledEnd,
+            allowedDurationMinutes,
+            fuelContext,
+            serviceContext,
+          }) => ({
+            name,
+            scheduledStart,
+            scheduledEnd,
+            allowedDurationMinutes,
+            fuelContext,
+            serviceContext,
+          }),
+        )
+      : [],
+    weather: suppliedOptions.weather
+      ? weatherForecasts.map(
+          ({
+            forecastDate,
+            conditions,
+            temperatureLow,
+            temperatureHigh,
+            precipitationPercent,
+            windMph,
+            source,
+            asOf,
+          }) => ({
+            forecastDate,
+            conditions,
+            temperatureLow,
+            temperatureHigh,
+            precipitationPercent,
+            windMph,
+            source,
+            asOf,
+          }),
+        )
+      : [],
+    travel: suppliedOptions.travelRoutes
+      ? travel.flatMap((entry) => {
+          const from = recordById.get(entry.fromRecordId);
+          const to = recordById.get(entry.toRecordId);
+          return !from || !to
+            ? []
+            : [
+                {
+                  from: from.name,
+                  to: to.name,
+                  distanceMiles: entry.distanceMiles,
+                  expectedDurationMinutes: entry.expectedDurationMinutes,
+                  source: entry.source,
+                  routeNotes: entry.routeNotes ?? entry.routeNote,
+                },
+              ];
+        })
+      : [],
+    supportServices: suppliedOptions.supportServices
+      ? records
+          .filter((record) => (record.supportCategories?.length ?? 0) > 0)
+          .map((record) => ({
+            name: record.name,
+            address: record.address,
+            categories: record.supportCategories ?? [],
+          }))
+      : [],
+    documentAccessCodes: suppliedOptions.documentAccessCodes
+      ? (profile?.documentAccessCodes ?? [])
+      : [],
+    contacts: selectedContacts.map(
+      ({ _id, title, name, organization, phone, email }) => ({
+        contactId: _id,
+        title,
+        name,
+        organization,
+        phone,
+        email,
+      }),
+    ),
+  };
 
   return {
     items: snapshotItems,
     appendices: {
       venues,
-      officialContacts,
-      travel: travel.flatMap((entry) => {
-        const from = recordById.get(entry.fromRecordId);
-        const to = recordById.get(entry.toRecordId);
-        return from === undefined || to === undefined
-          ? []
-          : [
-              {
-                from: from.name,
-                to: to.name,
-                estimate: entry.estimate,
-                calculation: entry.calculation,
-                routeNote: entry.routeNote,
-              },
-            ];
-      }),
-      fuel: recordSnapshots
-        .filter(({ record, tags }) => hasTag(record, tags, "fuel"))
-        .map(({ venue }) => venue),
-      weather: recordSnapshots
-        .filter(({ record, tags }) => hasTag(record, tags, "weather"))
-        .map(({ venue }) => venue),
-      supportServices: recordSnapshots
-        .filter(
-          ({ record, tags }) =>
-            record.type === "service" || hasTag(record, tags, "support"),
-        )
-        .map(({ venue }) => venue),
+      officialContacts: selectedContacts.map((contact) => ({
+        name: contact.name,
+        role: contact.title,
+        email: contact.email,
+        phoneNumber: contact.phone,
+        contactDetail: contact.organization,
+      })),
+      travel: suppliedOptions.travelRoutes
+        ? travel.flatMap((entry) => {
+            const from = recordById.get(entry.fromRecordId);
+            const to = recordById.get(entry.toRecordId);
+            return from === undefined || to === undefined
+              ? []
+              : [
+                  {
+                    from: from.name,
+                    to: to.name,
+                    estimate:
+                      entry.estimate ??
+                      (entry.expectedDurationMinutes === undefined
+                        ? "Duration not recorded"
+                        : `${entry.expectedDurationMinutes} min`),
+                    calculation: entry.calculation,
+                    routeNote: entry.routeNote,
+                  },
+                ];
+          })
+        : [],
+      fuel: suppliedOptions.rallyFuel
+        ? recordSnapshots
+            .filter(({ record, tags }) => hasTag(record, tags, "fuel"))
+            .map(({ venue }) => venue)
+        : [],
+      weather: suppliedOptions.weather
+        ? recordSnapshots
+            .filter(({ record, tags }) => hasTag(record, tags, "weather"))
+            .map(({ venue }) => venue)
+        : [],
+      supportServices: suppliedOptions.supportServices
+        ? recordSnapshots
+            .filter(
+              ({ record, tags }) =>
+                record.type === "service" || hasTag(record, tags, "support"),
+            )
+            .map(({ venue }) => venue)
+        : [],
     },
+    logistics,
   };
 }
 
 /** Saves a versioned, self-contained crew brief for later printing or sharing. */
 export const create = mutation({
-  args: { eventId: v.id("events"), filterDay: v.optional(v.string()) },
-  handler: async (ctx, { eventId, filterDay: rawFilterDay }) => {
+  args: {
+    eventId: v.id("events"),
+    filterDay: v.optional(v.string()),
+    inclusionOptions: v.optional(inclusionOptionsValidator),
+  },
+  handler: async (
+    ctx,
+    { eventId, filterDay: rawFilterDay, inclusionOptions: suppliedOptions },
+  ) => {
     const identity = await requireEventMembership(ctx, eventId);
     const filterDay = validatedFilterDay(rawFilterDay);
     const event = await ctx.db.get(eventId);
     if (event === null || event.archivedAt !== undefined) {
       throw new Error("Event not found");
     }
-    const brief = await currentBrief(ctx, eventId, filterDay);
+    const inclusionOptions = suppliedOptions ?? defaultOptions();
+    const brief = await currentBrief(ctx, eventId, filterDay, inclusionOptions);
     const generatedAt = Date.now();
     const generatedByName = identity.name ?? identity.email ?? identity.subject;
     const snapshot = {
@@ -412,6 +657,8 @@ export const create = mutation({
       generatedByName,
       items: brief.items,
       appendices: brief.appendices,
+      inclusionOptions,
+      logistics: brief.logistics,
     };
     const exportId = await ctx.db.insert("planExports", snapshot);
     return { _id: exportId, ...snapshot };
@@ -429,22 +676,27 @@ export const list = query({
         index.eq("eventId", eventId),
       )
       .collect();
-    const currentByFilter = new Map<string, ExportItem[]>();
     return await Promise.all(
       exports.reverse().map(async (record) => {
-        const key = record.filterDay ?? "all";
-        let current = currentByFilter.get(key);
-        if (current === undefined) {
-          current = (await currentBrief(ctx, eventId, record.filterDay)).items;
-          currentByFilter.set(key, current);
-        }
+        const current = await currentBrief(
+          ctx,
+          eventId,
+          record.filterDay,
+          record.inclusionOptions ?? defaultOptions(),
+        );
         return {
           ...record,
-          isSuperseded: !sameItems(
-            record.items,
-            current,
-            record.schemaVersion !== undefined,
-          ),
+          isSuperseded:
+            !sameItems(
+              record.items,
+              current.items,
+              record.schemaVersion !== undefined,
+            ) ||
+            (record.schemaVersion !== undefined &&
+              (JSON.stringify(record.appendices ?? {}) !==
+                JSON.stringify(current.appendices) ||
+                JSON.stringify(record.logistics ?? {}) !==
+                  JSON.stringify(current.logistics))),
         };
       }),
     );

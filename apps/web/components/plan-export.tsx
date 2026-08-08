@@ -7,6 +7,8 @@ import {
   type ItineraryItem,
   type PlanExport as PlanExportRecord,
   type PlanExportVenue,
+  type CrewBriefInclusionOptions,
+  logisticsApi,
   planExportsApi,
 } from "@/lib/events-api";
 import { Button } from "@/components/ui/button";
@@ -188,6 +190,11 @@ export function planExportCsv(exported: SavedExport) {
       venue.name,
       venueDetails(venue).join(" · "),
     ]),
+    ...(exported.logistics?.documentAccessCodes ?? []).map((entry) => [
+      entry.kind === "accessCode" ? "Access code" : "Document",
+      entry.label,
+      entry.value,
+    ]),
   ];
   if (appendixRows.length > 0)
     lines.push([], ["Appendix", "Entry", "Details"], ...appendixRows);
@@ -363,7 +370,8 @@ function CrewBrief({ exported }: { exported: SavedExport }) {
 
       {details.officialContacts.length === 0 &&
       appendixSections.length === 0 &&
-      details.travel.length === 0 ? null : (
+      details.travel.length === 0 &&
+      (exported.logistics?.documentAccessCodes.length ?? 0) === 0 ? null : (
         <section
           className="mt-8 border-t-2 border-black pt-4"
           aria-labelledby="brief-appendices"
@@ -372,6 +380,23 @@ function CrewBrief({ exported }: { exported: SavedExport }) {
             Appendices
           </h2>
           <div className="mt-3 grid gap-5 text-xs sm:grid-cols-2">
+            {(exported.logistics?.documentAccessCodes.length ?? 0) ===
+            0 ? null : (
+              <section>
+                <h3 className="font-bold">Documents and access</h3>
+                <ul className="mt-2 grid gap-2">
+                  {exported.logistics?.documentAccessCodes.map((entry) => (
+                    <li
+                      key={`${entry.kind}-${entry.label}`}
+                      className="break-inside-avoid"
+                    >
+                      <strong>{entry.label}</strong>
+                      <p className="text-muted">{entry.value}</p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             {details.officialContacts.length === 0 ? null : (
               <section>
                 <h3 className="font-bold">Official contacts</h3>
@@ -458,9 +483,21 @@ export function PlanExport({
   const [isExporting, setIsExporting] = useState(false);
   const [activeExport, setActiveExport] = useState<SavedExport>();
   const [printRequest, setPrintRequest] = useState(0);
+  const [options, setOptions] = useState<CrewBriefInclusionOptions>({
+    profile: false,
+    rallyFuel: false,
+    service: false,
+    weather: false,
+    travelRoutes: false,
+    supportServices: false,
+    documentAccessCodes: false,
+    externalContactIds: [],
+  });
+  const [privacyConfirmed, setPrivacyConfirmed] = useState(false);
   const printedRequest = useRef(0);
   const createExport = useMutation(planExportsApi.create);
   const exports = useQuery(planExportsApi.list, { eventId });
+  const logistics = useQuery(logisticsApi.getOverview, { eventId });
 
   useEffect(() => {
     if (
@@ -480,6 +517,11 @@ export function PlanExport({
       const exported = await createExport({
         eventId,
         ...(selectedDay === "all" ? {} : { filterDay: selectedDay }),
+        ...(Object.values(options).some((value) =>
+          Array.isArray(value) ? value.length > 0 : value,
+        )
+          ? { inclusionOptions: options }
+          : {}),
       });
       setActiveExport(exported);
       if (action === "print") {
@@ -539,7 +581,12 @@ export function PlanExport({
               type="button"
               className="ml-auto"
               onClick={() => void createSnapshot("print")}
-              disabled={isExporting}
+              disabled={
+                isExporting ||
+                ((options.documentAccessCodes ||
+                  options.externalContactIds.length > 0) &&
+                  !privacyConfirmed)
+              }
             >
               <Printer className="h-4 w-4" aria-hidden="true" />
               {isExporting ? "Preparing brief…" : "Generate & print crew brief"}
@@ -548,12 +595,107 @@ export function PlanExport({
               type="button"
               variant="secondary"
               onClick={() => void createSnapshot("csv")}
-              disabled={isExporting}
+              disabled={
+                isExporting ||
+                ((options.documentAccessCodes ||
+                  options.externalContactIds.length > 0) &&
+                  !privacyConfirmed)
+              }
             >
               <Download className="h-4 w-4" aria-hidden="true" />
               Export CSV snapshot
             </Button>
           </div>
+          <fieldset className="grid gap-2 rounded-lg border border-line p-3 text-sm">
+            <legend className="px-1 font-medium">
+              Include in this snapshot
+            </legend>
+            <p className="text-muted">
+              Movements are always included. Selections are frozen into the
+              printable and CSV brief.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(
+                [
+                  ["profile", "Car profile"],
+                  ["rallyFuel", "Rally & fuel summary"],
+                  ["service", "Service summary"],
+                  ["weather", "Weather summary"],
+                  ["travelRoutes", "Travel-route appendix"],
+                  ["supportServices", "Support-service appendix"],
+                  ["documentAccessCodes", "Document/access-code appendix"],
+                ] as const
+              ).map(([key, text]) => (
+                <label key={key} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={options[key]}
+                    onChange={(event) => {
+                      setOptions((current) => ({
+                        ...current,
+                        [key]: event.target.checked,
+                      }));
+                      setPrivacyConfirmed(false);
+                    }}
+                  />
+                  {text}
+                </label>
+              ))}
+            </div>
+            {logistics === undefined || Array.isArray(logistics) ? null : (
+              <div className="grid gap-1 border-t border-line pt-2">
+                <p className="font-medium">
+                  External contacts (details are opt-in)
+                </p>
+                {logistics.contacts.length === 0 ? (
+                  <p className="text-muted">No external contacts recorded.</p>
+                ) : (
+                  logistics.contacts.map((contact) => (
+                    <label
+                      key={contact._id}
+                      className="flex items-center gap-2"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={options.externalContactIds.includes(
+                          contact._id,
+                        )}
+                        onChange={(event) => {
+                          setOptions((current) => ({
+                            ...current,
+                            externalContactIds: event.target.checked
+                              ? [...current.externalContactIds, contact._id]
+                              : current.externalContactIds.filter(
+                                  (id) => id !== contact._id,
+                                ),
+                          }));
+                          setPrivacyConfirmed(false);
+                        }}
+                      />
+                      {contact.name} · {contact.title}
+                    </label>
+                  ))
+                )}
+              </div>
+            )}
+            {options.documentAccessCodes ||
+            options.externalContactIds.length > 0 ? (
+              <label className="flex items-start gap-2 rounded bg-warning-bg p-2 text-warning-tx">
+                <input
+                  type="checkbox"
+                  checked={privacyConfirmed}
+                  onChange={(event) =>
+                    setPrivacyConfirmed(event.target.checked)
+                  }
+                />
+                <span>
+                  <b>Privacy check:</b> this brief includes selected contact
+                  details and/or access codes. Confirm recipients are authorized
+                  before generation.
+                </span>
+              </label>
+            ) : null}
+          </fieldset>
           {message === undefined ? null : (
             <p role="alert" className="text-sm text-muted">
               {message}

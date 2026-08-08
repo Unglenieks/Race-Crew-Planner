@@ -384,9 +384,27 @@ export type PlanExport = {
     weather: PlanExportVenue[];
     supportServices: PlanExportVenue[];
   };
+  inclusionOptions?: CrewBriefInclusionOptions;
+  logistics?: {
+    documentAccessCodes: Array<{
+      label: string;
+      kind: "document" | "accessCode";
+      value: string;
+    }>;
+  };
   generatedAt: number;
   generatedByName?: string;
   isSuperseded?: boolean;
+};
+export type CrewBriefInclusionOptions = {
+  profile: boolean;
+  rallyFuel: boolean;
+  service: boolean;
+  weather: boolean;
+  travelRoutes: boolean;
+  supportServices: boolean;
+  documentAccessCodes: boolean;
+  externalContactIds: string[];
 };
 export type PlanExportVenue = {
   name: string;
@@ -1075,7 +1093,11 @@ export const planSectionsApi = {
 export const planExportsApi = {
   create: makeFunctionReference<
     "mutation",
-    { eventId: string; filterDay?: string },
+    {
+      eventId: string;
+      filterDay?: string;
+      inclusionOptions?: CrewBriefInclusionOptions;
+    },
     Omit<PlanExport, "isSuperseded">
   >("planExports:create"),
   list: makeFunctionReference<"query", { eventId: string }, PlanExport[]>(
