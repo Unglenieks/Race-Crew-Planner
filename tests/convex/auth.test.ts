@@ -156,10 +156,17 @@ describe("Convex authorization helpers", () => {
           eventId: "events:one",
           generatedBy: "crew",
           filterDay: "2026-08-10",
+          schemaVersion: 1,
+          appendices: expect.objectContaining({
+            venues: [],
+            officialContacts: [],
+            travel: [],
+          }),
           items: [
             expect.objectContaining({
               itineraryItemId: "itineraryItems:included",
               title: "Start",
+              timeKind: "exact",
             }),
           ],
         }),
