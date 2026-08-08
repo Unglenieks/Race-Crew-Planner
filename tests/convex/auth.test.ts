@@ -93,6 +93,7 @@ import {
   sameItems,
   validatedFilterDay,
 } from "../../convex/planExports";
+import { calculateFuel, createLeg, updateLeg } from "../../convex/logistics";
 
 const owner: ApplicationRole = "owner";
 
@@ -2526,5 +2527,78 @@ describe("regressions found reviewing the outage integration", () => {
       ["formTemplates:v1", true],
       ["formTemplates:v2", false],
     ]);
+  });
+
+  it("calculates fuel from stage and transit mileage without persisting totals", () => {
+    const fuel = calculateFuel({
+      stageMiles: 100,
+      transitMiles: 50,
+      stageMpg: 10,
+      transitMpg: 20,
+      reservePercent: 10,
+      capacityGallons: 13,
+    });
+    expect(fuel).toMatchObject({
+      available: true,
+      stageFuelGallons: 10,
+      transitFuelGallons: 2.5,
+      formula: "(100 mi ÷ 10 MPG + 50 mi ÷ 20 MPG) × (1 + 10%)",
+    });
+    if (fuel.available) {
+      expect(fuel.calculatedPlannedFuelGallons).toBeCloseTo(13.75);
+      expect(fuel.plannedFuelGallons).toBeCloseTo(13.75);
+      expect(fuel.capacityShortfallGallons).toBeCloseTo(0.75);
+    }
+  });
+
+  it("requires an override reason and enforces logistics authorization and event ownership", async () => {
+    const leg = {
+      eventId: "events:one" as never,
+      name: "Leg 1",
+      order: 1,
+      stageCount: 3,
+      stageMiles: 45,
+      transitMiles: 20,
+      fuelOverrideGallons: 9,
+    };
+    const manager = managerContext({}, "owner");
+    await expect(createLeg._handler(manager as never, leg)).rejects.toThrow(
+      "override reason",
+    );
+
+    const crew = managerContext({}, "crew");
+    await expect(
+      createLeg._handler(crew as never, {
+        ...leg,
+        fuelOverrideReason: "Known detour",
+      }),
+    ).rejects.toThrow("Forbidden");
+
+    const crossEvent = managerContext(
+      { get: async () => ({ eventId: "events:other" }) },
+      "owner",
+    );
+    await expect(
+      updateLeg._handler(crossEvent as never, {
+        ...leg,
+        legId: "rallyLegs:other" as never,
+        fuelOverrideReason: "Known detour",
+      }),
+    ).rejects.toThrow("Rally leg not found");
+  });
+
+  it("rejects a movement reference to logistics owned by another event", async () => {
+    const context = managerContext(
+      { get: async () => ({ eventId: "events:other" }) },
+      "manager",
+    );
+    await expect(
+      createItineraryItem._handler(context as never, {
+        eventId: "events:one" as never,
+        title: "Transit to service",
+        scheduledFor: "2026-10-16T08:30",
+        travelContextId: "travelContexts:other" as never,
+      }),
+    ).rejects.toThrow("Travel context not found");
   });
 });

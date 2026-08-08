@@ -191,6 +191,11 @@ export const createSample = mutation({
 const eventTables = [
   "eventRecordCategoryAssignments",
   "travelContexts",
+  "eventLogisticsProfiles",
+  "rallyLegs",
+  "serviceIntervals",
+  "weatherForecasts",
+  "externalContacts",
   "workItemComments",
   "planChangeRecipients",
   "planChanges",

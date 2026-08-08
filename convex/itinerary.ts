@@ -17,6 +17,8 @@ const itineraryArgs = {
   scheduledUntil: v.optional(v.string()),
   location: v.optional(v.string()),
   recordId: v.optional(v.id("eventRecords")),
+  travelContextId: v.optional(v.id("travelContexts")),
+  serviceIntervalId: v.optional(v.id("serviceIntervals")),
   notes: v.optional(v.string()),
   sectionId: v.optional(v.id("planSections")),
   timeKind: v.optional(
@@ -37,6 +39,8 @@ type ItineraryInput = {
   location?: string;
   notes?: string;
   sectionId?: Id<"planSections">;
+  travelContextId?: Id<"travelContexts">;
+  serviceIntervalId?: Id<"serviceIntervals">;
   timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
 };
 
@@ -62,6 +66,8 @@ export function validatedItineraryInput({
   location,
   notes,
   sectionId,
+  travelContextId,
+  serviceIntervalId,
   timeKind,
 }: ItineraryInput) {
   const normalizedTitle = title.trim();
@@ -100,6 +106,8 @@ export function validatedItineraryInput({
     location: optionalText(location, 160),
     notes: optionalText(notes, 1000),
     ...(sectionId === undefined ? {} : { sectionId }),
+    ...(travelContextId === undefined ? {} : { travelContextId }),
+    ...(serviceIntervalId === undefined ? {} : { serviceIntervalId }),
     ...(timeKind === undefined ? {} : { timeKind }),
   };
 }
@@ -136,6 +144,23 @@ async function requireLocationRecord(
     !(await isLocationRecord(ctx, record))
   ) {
     throw new Error("Location record not found");
+  }
+}
+async function requireLogisticsReferences(
+  ctx: MutationCtx,
+  eventId: Id<"events">,
+  travelContextId: Id<"travelContexts"> | undefined,
+  serviceIntervalId: Id<"serviceIntervals"> | undefined,
+) {
+  if (travelContextId !== undefined) {
+    const travel = await ctx.db.get(travelContextId);
+    if (travel === null || travel.eventId !== eventId)
+      throw new Error("Travel context not found");
+  }
+  if (serviceIntervalId !== undefined) {
+    const service = await ctx.db.get(serviceIntervalId);
+    if (service === null || service.eventId !== eventId)
+      throw new Error("Service interval not found");
   }
 }
 
@@ -252,6 +277,12 @@ export const create = mutation({
     requireRole(membership.role, ["owner", "manager"]);
     const item = validatedItineraryInput(args);
     await requireLocationRecord(ctx, args.eventId, args.recordId);
+    await requireLogisticsReferences(
+      ctx,
+      args.eventId,
+      args.travelContextId,
+      args.serviceIntervalId,
+    );
     const now = Date.now();
 
     const itemId = await ctx.db.insert("itineraryItems", {
@@ -260,6 +291,8 @@ export const create = mutation({
       scheduledUntil:
         item.timeKind === "range" ? item.scheduledUntil : undefined,
       recordId: args.recordId,
+      travelContextId: args.travelContextId,
+      serviceIntervalId: args.serviceIntervalId,
       createdAt: now,
       updatedAt: now,
     });
@@ -294,6 +327,12 @@ export const update = mutation({
     }
 
     await requireLocationRecord(ctx, args.eventId, args.recordId);
+    await requireLogisticsReferences(
+      ctx,
+      args.eventId,
+      args.travelContextId,
+      args.serviceIntervalId,
+    );
 
     const item = validatedItineraryInput(args);
     await ctx.db.patch(args.itemId, {
@@ -301,6 +340,8 @@ export const update = mutation({
       scheduledUntil:
         item.timeKind === "range" ? item.scheduledUntil : undefined,
       recordId: args.recordId,
+      travelContextId: args.travelContextId,
+      serviceIntervalId: args.serviceIntervalId,
       lastChangedTitle: existing.title,
       lastChangedScheduledFor: existing.scheduledFor,
       lastChangedScheduledUntil: existing.scheduledUntil,

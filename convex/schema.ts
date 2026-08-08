@@ -68,6 +68,9 @@ export default defineSchema({
     scheduledUntil: v.optional(v.string()),
     location: v.optional(v.string()),
     recordId: v.optional(v.id("eventRecords")),
+    /** Optional operational context, validated by itinerary mutations. */
+    travelContextId: v.optional(v.id("travelContexts")),
+    serviceIntervalId: v.optional(v.id("serviceIntervals")),
     notes: v.optional(v.string()),
     /** Snapshot immediately before the latest edit, used by contextual publish. */
     lastChangedTitle: v.optional(v.string()),
@@ -106,6 +109,20 @@ export default defineSchema({
     accessNotes: v.optional(v.string()),
     hours: v.optional(v.string()),
     contactDetail: v.optional(v.string()),
+    /** Operational support capabilities at this canonical location. */
+    supportCategories: v.optional(
+      v.array(
+        v.union(
+          v.literal("fuel"),
+          v.literal("grocery"),
+          v.literal("parts"),
+          v.literal("tire"),
+          v.literal("medical"),
+          v.literal("towing"),
+          v.literal("other"),
+        ),
+      ),
+    ),
     /** Values for event-configured directory fields, keyed by the stable field key. */
     fieldValues: v.optional(v.record(v.string(), v.string())),
     confirmationStatus: v.optional(
@@ -188,9 +205,16 @@ export default defineSchema({
     eventId: v.id("events"),
     fromRecordId: v.id("eventRecords"),
     toRecordId: v.id("eventRecords"),
-    estimate: v.string(),
+    /** Legacy free-text estimate retained until each row is reviewed. */
+    estimate: v.optional(v.string()),
     calculation: v.optional(v.string()),
     routeNote: v.optional(v.string()),
+    distanceMiles: v.optional(v.number()),
+    expectedDurationMinutes: v.optional(v.number()),
+    source: v.optional(v.string()),
+    routeNotes: v.optional(v.string()),
+    /** Legacy or incomplete rows are surfaced for review. */
+    requiresReview: v.optional(v.boolean()),
     createdBy: v.string(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -198,6 +222,75 @@ export default defineSchema({
     .index("by_eventId", ["eventId"])
     .index("by_fromRecordId", ["fromRecordId"])
     .index("by_toRecordId", ["toRecordId"]),
+  eventLogisticsProfiles: defineTable({
+    eventId: v.id("events"),
+    carNumber: v.optional(v.string()),
+    makeModel: v.optional(v.string()),
+    fuelCapacityGallons: v.optional(v.number()),
+    stageMpg: v.optional(v.number()),
+    transitMpg: v.optional(v.number()),
+    defaultFuelReservePercent: v.number(),
+    documentAccessCodes: v.array(
+      v.object({
+        label: v.string(),
+        kind: v.union(v.literal("document"), v.literal("accessCode")),
+        value: v.string(),
+      }),
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_eventId", ["eventId"]),
+  rallyLegs: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    order: v.number(),
+    stageCount: v.number(),
+    stageMiles: v.number(),
+    transitMiles: v.number(),
+    startOrder: v.optional(v.number()),
+    precedingCar: v.optional(v.string()),
+    reservePercent: v.optional(v.number()),
+    fuelOverrideGallons: v.optional(v.number()),
+    fuelOverrideReason: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_eventId_order", ["eventId", "order"]),
+  serviceIntervals: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    scheduledStart: v.string(),
+    scheduledEnd: v.string(),
+    allowedDurationMinutes: v.number(),
+    fuelContext: v.optional(v.string()),
+    serviceContext: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_eventId_scheduledStart", ["eventId", "scheduledStart"]),
+  weatherForecasts: defineTable({
+    eventId: v.id("events"),
+    forecastDate: v.string(),
+    conditions: v.string(),
+    temperatureLow: v.optional(v.number()),
+    temperatureHigh: v.optional(v.number()),
+    precipitationPercent: v.optional(v.number()),
+    windMph: v.optional(v.number()),
+    source: v.string(),
+    asOf: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_eventId_forecastDate", ["eventId", "forecastDate"]),
+  externalContacts: defineTable({
+    eventId: v.id("events"),
+    title: v.string(),
+    name: v.string(),
+    organization: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    email: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_eventId", ["eventId"]),
   workItems: defineTable({
     eventId: v.id("events"),
     title: v.string(),
@@ -425,6 +518,7 @@ export default defineSchema({
       v.literal("record.updated"),
       v.literal("record.vocabularyChanged"),
       v.literal("record.travelUpdated"),
+      v.literal("logistics.updated"),
       v.literal("file.uploaded"),
       v.literal("file.removed"),
       v.literal("workTemplate.created"),
