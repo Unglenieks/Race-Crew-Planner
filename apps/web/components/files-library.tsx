@@ -63,6 +63,7 @@ export function FilesLibrary({
   const [target, setTarget] = useState("");
   const [targetQuery, setTargetQuery] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<{
     id: string;
     name: string;
@@ -135,11 +136,14 @@ export function FilesLibrary({
 
   async function deleteFile(fileId: string) {
     setError(null);
+    setIsRemoving(true);
     try {
       await remove({ eventId, fileId });
       setRemoveTarget(null);
     } catch {
       setError("The file could not be removed. It is still available.");
+    } finally {
+      setIsRemoving(false);
     }
   }
 
@@ -166,6 +170,7 @@ export function FilesLibrary({
           title="Remove file?"
           description={`Remove ${removeTarget.name} from this event. This evidence file will no longer be available from the library.`}
           confirmLabel="Remove file"
+          isPending={isRemoving}
           onCancel={() => setRemoveTarget(null)}
           onConfirm={() => void deleteFile(removeTarget.id)}
         />

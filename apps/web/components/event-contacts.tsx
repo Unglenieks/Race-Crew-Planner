@@ -70,6 +70,7 @@ export function EventContacts({ eventId }: { eventId: string }) {
 
   async function onRevoke(invitationId: string) {
     setError(null);
+    setMessage(null);
     setBusyId(invitationId);
     try {
       await revoke({ eventId, invitationId });
@@ -96,6 +97,7 @@ export function EventContacts({ eventId }: { eventId: string }) {
 
   async function remove(id: string) {
     setError(null);
+    setMessage(null);
     setBusyId(id);
     try {
       await removeMember({ eventId, membershipId: id });
