@@ -236,9 +236,17 @@ export function ItineraryPlan({
                 {canEdit ? "Can edit" : "View only"}
               </Badge>
               {canEdit ? (
-                <Button size="sm" onClick={() => setIsCreatorOpen(true)}>
-                  Add movement
-                </Button>
+                <div className="flex gap-2">
+                  <Link
+                    className="inline-flex min-h-11 items-center rounded-lg border border-btnline bg-card px-3 text-xs font-semibold text-ink2 hover:bg-soft"
+                    href={`/events/${eventId}/plan/import`}
+                  >
+                    Import plan
+                  </Link>
+                  <Button size="sm" onClick={() => setIsCreatorOpen(true)}>
+                    Add movement
+                  </Button>
+                </div>
               ) : null}
             </div>
           </div>

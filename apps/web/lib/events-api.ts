@@ -281,6 +281,52 @@ export type PlanExport = {
   generatedAt: number;
   isSuperseded?: boolean;
 };
+export type PlanImportIssue = {
+  severity: "error" | "warning";
+  field: string;
+  message: string;
+};
+export type PlanImportRow = {
+  _id: string;
+  sourcePage?: number;
+  sourceRow: number;
+  rawValues: Record<string, string>;
+  operationalDay?: string;
+  normalizedDate?: string;
+  normalizedTime?: string;
+  normalizedEndTime?: string;
+  placeText?: string;
+  proposedVenueId?: string;
+  description: string;
+  rawPersonnel?: string;
+  resolvedAssignments: string[];
+  proposedMovementType:
+    "exact" | "approximate" | "range" | "allDay" | "unspecified";
+  proposedTags: string[];
+  fieldConfidence: {
+    date: number;
+    time: number;
+    place: number;
+    description: number;
+    personnel: number;
+    movementType: number;
+    tags: number;
+  };
+  issues: PlanImportIssue[];
+  warningsAccepted: boolean;
+  importedMovementId?: string;
+};
+export type PlanImport = {
+  _id: string;
+  sourceKind: "pdf" | "csv" | "xlsx" | "pasted";
+  sourceName: string;
+  sourceFileId?: string;
+  status: "reviewing" | "committed" | "rolledBack";
+  detectedSections: string[];
+  createdAt: number;
+  committedMovementCount?: number;
+  rows?: PlanImportRow[];
+};
 
 /**
  * Typed references for the event feature while the environment-owned Convex
@@ -374,6 +420,48 @@ export const itineraryApi = {
     { eventId: string; itemId: string },
     null
   >("itinerary:restore"),
+};
+
+export const planImportsApi = {
+  list: makeFunctionReference<"query", { eventId: string }, PlanImport[]>(
+    "planImports:list",
+  ),
+  get: makeFunctionReference<
+    "query",
+    { eventId: string; importId: string },
+    PlanImport & { rows: PlanImportRow[] }
+  >("planImports:get"),
+  stage: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      sourceKind: PlanImport["sourceKind"];
+      sourceName: string;
+      sourceFileId?: string;
+      detectedSections: string[];
+      rows: Array<Omit<PlanImportRow, "_id" | "importedMovementId">>;
+    },
+    string
+  >("planImports:stage"),
+  updateRow: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      importId: string;
+      rowId: string;
+    } & Omit<PlanImportRow, "_id" | "importedMovementId">,
+    null
+  >("planImports:updateRow"),
+  commit: makeFunctionReference<
+    "mutation",
+    { eventId: string; importId: string },
+    { importId: string; movementCount: number }
+  >("planImports:commit"),
+  rollback: makeFunctionReference<
+    "mutation",
+    { eventId: string; importId: string },
+    { movementCount: number }
+  >("planImports:rollback"),
 };
 
 export const recordsApi = {

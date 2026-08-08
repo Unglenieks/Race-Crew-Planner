@@ -10,6 +10,7 @@ import {
   Printer,
   Route,
   Rows3,
+  TableProperties,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -29,6 +30,7 @@ export type ScreenId =
   | "today"
   | "attention"
   | "plan"
+  | "plan-import"
   | "plan-export"
   | "work"
   | "work-templates"
@@ -92,6 +94,16 @@ export const screens: ScreenDefinition[] = [
     description: "The shared schedule of movements for this event.",
     icon: Route,
     minRole: "crew",
+  },
+  {
+    id: "plan-import",
+    segment: "plan/import",
+    label: "Import plan",
+    shortLabel: "Import",
+    description:
+      "Stage, review, and safely commit a schedule from a file or pasted table.",
+    icon: TableProperties,
+    minRole: "manager",
   },
   {
     id: "plan-export",
@@ -195,7 +207,7 @@ export const screenGroups: ScreenGroup[] = [
   { label: null, screenIds: ["today", "attention"] },
   {
     label: "Plan",
-    screenIds: ["plan", "plan-export"],
+    screenIds: ["plan", "plan-import", "plan-export"],
   },
   {
     label: "Work",

@@ -19,15 +19,17 @@
     "convex": "1.43.0",
     "lucide-react": "^1.28.0",
     "next": "16.3.0",
+    "pdfjs-dist": "^6.2.108",
     "posthog-js": "^1.413.2",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
-    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
