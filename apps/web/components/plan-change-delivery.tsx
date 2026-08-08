@@ -50,6 +50,18 @@ function ChangeStatus({
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-ink">{change.title}</p>
           <p className="mt-1 text-sm text-muted">{change.reason}</p>
+          {change.movementTypeLabel === undefined &&
+          (change.tagLabels ?? []).length === 0 &&
+          (change.assignmentLabels ?? []).length === 0 ? null : (
+            <p className="mt-1 text-xs text-muted">
+              {[change.movementTypeLabel, ...(change.tagLabels ?? [])]
+                .filter((value): value is string => value !== undefined)
+                .join(" · ")}
+              {(change.assignmentLabels ?? []).length === 0
+                ? ""
+                : ` · Assigned: ${change.assignmentLabels?.join(", ")}`}
+            </p>
+          )}
           <p className="mt-1 text-xs text-muted">
             Published by {change.publishedByName} ·{" "}
             {displayTime(change.publishedAt)}
@@ -63,6 +75,20 @@ function ChangeStatus({
         <p className="rounded-md bg-topbg px-3 py-2 text-xs text-muted">
           Previous instruction: {change.previousScheduledFor} ·{" "}
           {change.previousTitle}
+          {change.previousMovementTypeLabel === undefined &&
+          (change.previousTagLabels ?? []).length === 0 &&
+          (change.previousAssignmentLabels ?? []).length === 0
+            ? ""
+            : ` · ${[
+                change.previousMovementTypeLabel,
+                ...(change.previousTagLabels ?? []),
+              ]
+                .filter((value): value is string => value !== undefined)
+                .join(" · ")}${
+                (change.previousAssignmentLabels ?? []).length === 0
+                  ? ""
+                  : ` · Assigned: ${change.previousAssignmentLabels?.join(", ")}`
+              }`}
         </p>
       )}
       {needsMyAcknowledgement ? (

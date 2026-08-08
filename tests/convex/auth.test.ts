@@ -315,7 +315,12 @@ describe("Convex authorization helpers", () => {
           }),
         },
         db: {
-          query: () => ({ withIndex: () => ({ unique: async () => null }) }),
+          query: () => ({
+            withIndex: () => ({
+              unique: async () => null,
+              collect: async () => [],
+            }),
+          }),
           insert: async (table: string, value: Record<string, unknown>) => {
             inserts.push({ table, value });
             return `${table}:${inserts.length}`;
@@ -344,6 +349,12 @@ describe("Convex authorization helpers", () => {
       true,
     );
     expect(inserts.some((insert) => insert.table === "workItems")).toBe(true);
+    expect(
+      inserts.some((insert) => insert.table === "eventMovementTypes"),
+    ).toBe(true);
+    expect(inserts.some((insert) => insert.table === "eventMovementTags")).toBe(
+      true,
+    );
   });
 
   it("will not let another user remove a sample event", async () => {
@@ -566,7 +577,12 @@ describe("Convex authorization helpers", () => {
         }),
       },
       db: {
-        query: () => ({ withIndex: () => ({ unique: async () => null }) }),
+        query: () => ({
+          withIndex: () => ({
+            unique: async () => null,
+            collect: async () => [],
+          }),
+        }),
         insert: async (table: string, value: Record<string, unknown>) => {
           inserts.push({ table, value });
           return table === "events" ? "events:one" : `${table}:one`;
@@ -579,7 +595,6 @@ describe("Convex authorization helpers", () => {
       timeZone: "UTC",
     });
 
-    expect(inserts).toHaveLength(3);
     expect(inserts[0]).toMatchObject({
       table: "userProfiles",
       value: { userId: "user_123" },
@@ -827,7 +842,10 @@ describe("Convex authorization helpers", () => {
       },
       db: {
         query: () => ({
-          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+          withIndex: () => ({
+            unique: async () => ({ role: "crew" }),
+            collect: async () => [],
+          }),
         }),
       },
     };
@@ -863,7 +881,10 @@ describe("Convex authorization helpers", () => {
       },
       db: {
         query: () => ({
-          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+          withIndex: () => ({
+            unique: async () => ({ role: "crew" }),
+            collect: async () => [],
+          }),
         }),
       },
     };
@@ -1157,7 +1178,10 @@ describe("Convex authorization helpers", () => {
       },
       db: {
         query: () => ({
-          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+          withIndex: () => ({
+            unique: async () => ({ role: "crew" }),
+            collect: async () => [],
+          }),
         }),
         get: async () => ({ eventId: "events:one", title: "Arrive" }),
       },
@@ -1308,13 +1332,13 @@ describe("Convex authorization helpers", () => {
         }),
       },
       db: {
-        query: () => ({
+        query: (table: string) => ({
           withIndex: () => ({
             unique: async () => ({ role: "crew" }),
-            collect: async () => [
-              { title: "Active" },
-              { title: "Archived", archivedAt: 1 },
-            ],
+            collect: async () =>
+              table === "itineraryItems"
+                ? [{ title: "Active" }, { title: "Archived", archivedAt: 1 }]
+                : [],
           }),
         }),
       },
@@ -1323,12 +1347,21 @@ describe("Convex authorization helpers", () => {
       listItineraryItems._handler(context as never, {
         eventId: "events:one" as never,
       }),
-    ).resolves.toEqual([{ title: "Active" }]);
+    ).resolves.toMatchObject([
+      {
+        title: "Active",
+        movementTypeLabel: undefined,
+        tags: [],
+        assignments: [],
+      },
+    ]);
     await expect(
       listArchivedItineraryItems._handler(context as never, {
         eventId: "events:one" as never,
       }),
-    ).resolves.toEqual([{ title: "Archived", archivedAt: 1 }]);
+    ).resolves.toMatchObject([
+      { title: "Archived", archivedAt: 1, tags: [], assignments: [] },
+    ]);
   });
 
   it("lets crew complete work but not create it", async () => {

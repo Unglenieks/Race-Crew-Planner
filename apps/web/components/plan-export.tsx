@@ -45,10 +45,13 @@ export function planExportCsv(
     ["Event timezone", exported.timeZone],
     ["Filter", exported.filterDay ?? "All plan days"],
     [],
-    ["Scheduled for", "Movement", "Location"],
+    ["Scheduled for", "Movement", "Type", "Tags", "Assignments", "Location"],
     ...exported.items.map((item) => [
       item.scheduledFor,
       item.title,
+      item.movementTypeLabel ?? "",
+      (item.tagLabels ?? []).join("; "),
+      (item.assignmentLabels ?? []).join("; "),
       item.location ?? "",
     ]),
   ];
@@ -174,6 +177,23 @@ export function PlanExport({
                 <p className="font-semibold text-ink">
                   {item.scheduledFor.replace("T", " · ")} · {item.title}
                 </p>
+                {item.movementTypeLabel === undefined ? null : (
+                  <p className="mt-1 text-sm text-muted">
+                    {item.movementTypeLabel}
+                    {item.tags === undefined || item.tags.length === 0
+                      ? ""
+                      : ` · ${item.tags.map((tag) => tag.name).join(", ")}`}
+                  </p>
+                )}
+                {item.assignments === undefined ||
+                item.assignments.length === 0 ? null : (
+                  <p className="mt-1 text-sm text-muted">
+                    Assigned:{" "}
+                    {item.assignments
+                      .map((assignment) => assignment.label)
+                      .join(", ")}
+                  </p>
+                )}
                 {item.location === undefined ? null : (
                   <p className="mt-1 text-sm text-muted">{item.location}</p>
                 )}

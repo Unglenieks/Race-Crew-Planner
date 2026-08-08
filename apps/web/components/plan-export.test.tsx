@@ -62,6 +62,24 @@ describe("PlanExport", () => {
     ).toContain('"Generated","2026-08-10T12:00:00.000Z"');
   });
 
+  it("keeps structured labels in the exported brief", () => {
+    expect(
+      planExportCsv({
+        _id: "planExports:structured",
+        timeZone: "America/Chicago",
+        generatedAt: Date.UTC(2026, 7, 10, 12),
+        items: [
+          {
+            ...exportItems[0],
+            movementTypeLabel: "Time control",
+            tagLabels: ["MTC", "Service A"],
+            assignmentLabels: ["RRC", "Driver"],
+          },
+        ],
+      }),
+    ).toContain('"Time control","MTC; Service A","RRC; Driver"');
+  });
+
   it("saves the filtered export before downloading it", async () => {
     create.mockResolvedValueOnce({
       _id: "planExports:one",

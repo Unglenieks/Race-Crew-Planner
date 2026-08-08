@@ -75,6 +75,11 @@ export function OfflineManager({ eventId }: { eventId: string }) {
         title: item.title,
         scheduledFor: item.scheduledFor,
         location: item.location,
+        movementTypeLabel: item.movementTypeLabel,
+        tagLabels: item.tags?.map((tag) => tag.name),
+        assignmentLabels: item.assignments?.map(
+          (assignment) => assignment.label,
+        ),
       })),
       work: work.map((item) => ({
         id: item._id,

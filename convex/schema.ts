@@ -69,12 +69,17 @@ export default defineSchema({
     location: v.optional(v.string()),
     recordId: v.optional(v.id("eventRecords")),
     notes: v.optional(v.string()),
+    /** Event-local operational classification, separate from permission roles. */
+    movementTypeId: v.optional(v.id("eventMovementTypes")),
     /** Snapshot immediately before the latest edit, used by contextual publish. */
     lastChangedTitle: v.optional(v.string()),
     lastChangedScheduledFor: v.optional(v.string()),
     lastChangedScheduledUntil: v.optional(v.string()),
     lastChangedLocation: v.optional(v.string()),
     lastChangedNotes: v.optional(v.string()),
+    lastChangedMovementTypeLabel: v.optional(v.string()),
+    lastChangedTagLabels: v.optional(v.array(v.string())),
+    lastChangedAssignmentLabels: v.optional(v.array(v.string())),
     lastChangedAt: v.optional(v.number()),
     sectionId: v.optional(v.id("planSections")),
     timeKind: v.optional(
@@ -93,6 +98,66 @@ export default defineSchema({
   })
     .index("by_eventId", ["eventId"])
     .index("by_eventId_scheduledFor", ["eventId", "scheduledFor"]),
+  /** Configurable movement classifications such as departure and service. */
+  eventMovementTypes: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    order: v.number(),
+    archivedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_eventId_order", ["eventId", "order"])
+    .index("by_eventId_name", ["eventId", "name"]),
+  /** Event-local teams are operational targets, never permission groups. */
+  eventTeams: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    archivedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_eventId_name", ["eventId", "name"]),
+  /** Operational jobs are distinct from owner/manager/crew application roles. */
+  eventOperationalRoles: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    archivedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_eventId_name", ["eventId", "name"]),
+  /** Normalized event-local codes/tags, e.g. FCI, FCO, MTC, Service A. */
+  eventMovementTags: defineTable({
+    eventId: v.id("events"),
+    name: v.string(),
+    archivedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_eventId_name", ["eventId", "name"]),
+  movementTagAssignments: defineTable({
+    eventId: v.id("events"),
+    itineraryItemId: v.id("itineraryItems"),
+    tagId: v.id("eventMovementTags"),
+    createdAt: v.number(),
+  })
+    .index("by_itemId", ["itineraryItemId"])
+    .index("by_eventId_itemId", ["eventId", "itineraryItemId"]),
+  /** Labels are captured here so later team/job/profile renames cannot rewrite history. */
+  movementAssignments: defineTable({
+    eventId: v.id("events"),
+    itineraryItemId: v.id("itineraryItems"),
+    targetKind: v.union(
+      v.literal("member"),
+      v.literal("team"),
+      v.literal("operationalRole"),
+    ),
+    targetUserId: v.optional(v.string()),
+    teamId: v.optional(v.id("eventTeams")),
+    operationalRoleId: v.optional(v.id("eventOperationalRoles")),
+    label: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_itemId", ["itineraryItemId"])
+    .index("by_eventId_itemId", ["eventId", "itineraryItemId"]),
   eventRecords: defineTable({
     eventId: v.id("events"),
     name: v.string(),
@@ -284,11 +349,17 @@ export default defineSchema({
     scheduledUntil: v.optional(v.string()),
     location: v.optional(v.string()),
     notes: v.optional(v.string()),
+    movementTypeLabel: v.optional(v.string()),
+    tagLabels: v.optional(v.array(v.string())),
+    assignmentLabels: v.optional(v.array(v.string())),
     previousTitle: v.optional(v.string()),
     previousScheduledFor: v.optional(v.string()),
     previousScheduledUntil: v.optional(v.string()),
     previousLocation: v.optional(v.string()),
     previousNotes: v.optional(v.string()),
+    previousMovementTypeLabel: v.optional(v.string()),
+    previousTagLabels: v.optional(v.array(v.string())),
+    previousAssignmentLabels: v.optional(v.array(v.string())),
     reason: v.string(),
     severity: v.union(v.literal("routine"), v.literal("critical")),
     publishedBy: v.string(),
@@ -327,6 +398,9 @@ export default defineSchema({
         title: v.string(),
         scheduledFor: v.string(),
         location: v.optional(v.string()),
+        movementTypeLabel: v.optional(v.string()),
+        tagLabels: v.optional(v.array(v.string())),
+        assignmentLabels: v.optional(v.array(v.string())),
       }),
     ),
     generatedAt: v.number(),

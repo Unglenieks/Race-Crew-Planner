@@ -9,6 +9,7 @@ import type { Id } from "./_generated/dataModel";
 import { requireIdentity, requireRole } from "./auth";
 import { isLocationRecord } from "./records";
 import { writeAudit } from "./audit";
+import { movementStructuredFields } from "./movements";
 
 const itineraryArgs = {
   eventId: v.id("events"),
@@ -18,6 +19,7 @@ const itineraryArgs = {
   location: v.optional(v.string()),
   recordId: v.optional(v.id("eventRecords")),
   notes: v.optional(v.string()),
+  movementTypeId: v.optional(v.union(v.id("eventMovementTypes"), v.null())),
   sectionId: v.optional(v.id("planSections")),
   timeKind: v.optional(
     v.union(
@@ -38,6 +40,7 @@ type ItineraryInput = {
   notes?: string;
   sectionId?: Id<"planSections">;
   timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
+  movementTypeId?: Id<"eventMovementTypes"> | null;
 };
 
 function optionalText(value: string | undefined, maximum: number) {
@@ -63,6 +66,7 @@ export function validatedItineraryInput({
   notes,
   sectionId,
   timeKind,
+  movementTypeId,
 }: ItineraryInput) {
   const normalizedTitle = title.trim();
 
@@ -101,6 +105,7 @@ export function validatedItineraryInput({
     notes: optionalText(notes, 1000),
     ...(sectionId === undefined ? {} : { sectionId }),
     ...(timeKind === undefined ? {} : { timeKind }),
+    ...(movementTypeId === undefined ? {} : { movementTypeId }),
   };
 }
 
@@ -139,6 +144,22 @@ async function requireLocationRecord(
   }
 }
 
+async function requireMovementType(
+  ctx: MutationCtx,
+  eventId: Id<"events">,
+  movementTypeId: Id<"eventMovementTypes"> | null | undefined,
+) {
+  if (movementTypeId === undefined || movementTypeId === null) return;
+  const type = await ctx.db.get(movementTypeId);
+  if (
+    type === null ||
+    type.eventId !== eventId ||
+    type.archivedAt !== undefined
+  ) {
+    throw new Error("Movement type not found");
+  }
+}
+
 /** Lists active movements in chronological event-local order. */
 export const list = query({
   args: { eventId: v.id("events") },
@@ -150,7 +171,14 @@ export const list = query({
       .withIndex("by_eventId_scheduledFor", (q) => q.eq("eventId", eventId))
       .collect();
 
-    return items.filter((item) => item.archivedAt === undefined);
+    return await Promise.all(
+      items
+        .filter((item) => item.archivedAt === undefined)
+        .map(async (item) => ({
+          ...item,
+          ...(await movementStructuredFields(ctx, item)),
+        })),
+    );
   },
 });
 
@@ -163,7 +191,14 @@ export const listArchived = query({
       .query("itineraryItems")
       .withIndex("by_eventId_scheduledFor", (q) => q.eq("eventId", eventId))
       .collect();
-    return items.filter((item) => item.archivedAt !== undefined);
+    return await Promise.all(
+      items
+        .filter((item) => item.archivedAt !== undefined)
+        .map(async (item) => ({
+          ...item,
+          ...(await movementStructuredFields(ctx, item)),
+        })),
+    );
   },
 });
 
@@ -176,7 +211,7 @@ export const get = query({
     if (item === null || item.eventId !== eventId) {
       throw new Error("Movement not found");
     }
-    return item;
+    return { ...item, ...(await movementStructuredFields(ctx, item)) };
   },
 });
 
@@ -252,6 +287,7 @@ export const create = mutation({
     requireRole(membership.role, ["owner", "manager"]);
     const item = validatedItineraryInput(args);
     await requireLocationRecord(ctx, args.eventId, args.recordId);
+    await requireMovementType(ctx, args.eventId, args.movementTypeId);
     const now = Date.now();
 
     const itemId = await ctx.db.insert("itineraryItems", {
@@ -260,6 +296,7 @@ export const create = mutation({
       scheduledUntil:
         item.timeKind === "range" ? item.scheduledUntil : undefined,
       recordId: args.recordId,
+      movementTypeId: item.movementTypeId ?? undefined,
       createdAt: now,
       updatedAt: now,
     });
@@ -294,18 +331,26 @@ export const update = mutation({
     }
 
     await requireLocationRecord(ctx, args.eventId, args.recordId);
+    await requireMovementType(ctx, args.eventId, args.movementTypeId);
 
     const item = validatedItineraryInput(args);
+    const previousStructured = await movementStructuredFields(ctx, existing);
     await ctx.db.patch(args.itemId, {
       ...item,
       scheduledUntil:
         item.timeKind === "range" ? item.scheduledUntil : undefined,
       recordId: args.recordId,
+      movementTypeId: item.movementTypeId ?? undefined,
       lastChangedTitle: existing.title,
       lastChangedScheduledFor: existing.scheduledFor,
       lastChangedScheduledUntil: existing.scheduledUntil,
       lastChangedLocation: existing.location,
       lastChangedNotes: existing.notes,
+      lastChangedMovementTypeLabel: previousStructured.movementTypeLabel,
+      lastChangedTagLabels: previousStructured.tags.map((tag) => tag.name),
+      lastChangedAssignmentLabels: previousStructured.assignments.map(
+        (assignment) => assignment.label,
+      ),
       lastChangedAt: Date.now(),
       updatedAt: Date.now(),
     });
