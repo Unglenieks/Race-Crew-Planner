@@ -12,6 +12,10 @@ import { writeAudit } from "./audit";
 const maximumFileSize = 10 * 1024 * 1024;
 const acceptedContentTypes = new Set([
   "application/pdf",
+  "text/csv",
+  "application/csv",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "image/jpeg",
   "image/png",
   "image/webp",
@@ -39,7 +43,9 @@ function safeName(value: string) {
 
 function acceptedFile(contentType: string, size: number) {
   if (!acceptedContentTypes.has(contentType))
-    throw new Error("Files must be a PDF, image, or plain-text file");
+    throw new Error(
+      "Files must be a PDF, spreadsheet, image, or plain-text file",
+    );
   if (size <= 0 || size > maximumFileSize)
     throw new Error("Files must be between 1 byte and 10 MB");
 }

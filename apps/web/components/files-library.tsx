@@ -15,7 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/data-display";
 
-const acceptedTypes = ".pdf,image/jpeg,image/png,image/webp,text/plain";
+const acceptedTypes =
+  ".pdf,.csv,.xlsx,image/jpeg,image/png,image/webp,text/plain";
 
 function readableSize(size: number) {
   return size < 1024 * 1024
@@ -124,8 +125,8 @@ export function FilesLibrary({
         <CardContent>
           <form className="grid gap-3" onSubmit={upload}>
             <p className="text-sm leading-relaxed text-muted">
-              PDF, image, or text file up to 10 MB. Uploads need a connection
-              and are not queued.
+              PDF, CSV, spreadsheet, image, or text file up to 10 MB. Use Plan
+              import to review schedule rows before adding them to the plan.
             </p>
             <label
               className="grid gap-1 text-sm font-medium text-ink"
