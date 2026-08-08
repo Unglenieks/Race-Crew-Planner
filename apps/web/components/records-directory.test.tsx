@@ -87,10 +87,16 @@ describe("RecordsDirectory", () => {
   it("keeps a failed record mutation visible in place", async () => {
     renderDirectory();
     mutations.create.mockRejectedValueOnce(new Error("offline"));
+    expect(screen.queryByLabelText("Name")).toBeNull();
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Add record" }).at(-1)!,
+    );
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Medical" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Add record" }));
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Add record" }).at(-1)!,
+    );
     expect((await screen.findByRole("alert")).textContent).toContain(
       "changes were not saved",
     );

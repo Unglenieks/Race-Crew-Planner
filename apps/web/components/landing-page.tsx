@@ -14,7 +14,7 @@ export function LandingPage() {
   const { isLoaded, isSignedIn } = useAuth();
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-7 py-16">
+    <main className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-7 pb-44 pt-16 sm:pb-32">
       <p className="font-mono text-[11px] uppercase tracking-wider text-green-ink">
         Race Planner
       </p>

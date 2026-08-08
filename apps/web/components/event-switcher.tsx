@@ -173,6 +173,15 @@ function CreateEventForm() {
   const [timeZone, setTimeZone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const hasUnsavedChanges = name.trim() !== "" || timeZone.trim() !== "";
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedChanges) return;
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasUnsavedChanges]);
   // The zone list comes from the runtime's own ICU data, which differs between
   // the server and the browser, so rendering it during SSR risks a hydration
   // mismatch. The server emits only the placeholder and the list appears once
@@ -215,6 +224,7 @@ function CreateEventForm() {
           required
           autoComplete="off"
           placeholder="e.g. Pine Ridge Rally"
+          autoFocus
         />
       </div>
       <div className="grid gap-1.5">
@@ -290,6 +300,7 @@ function ConnectedEventSwitcher() {
   const [pendingLifecycleEventId, setPendingLifecycleEventId] = useState<
     string | null
   >(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -497,14 +508,42 @@ function ConnectedEventSwitcher() {
           )}
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Create an event</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <CreateEventForm />
-        </CardContent>
-      </Card>
+      {isCreateOpen ? (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle>Create an event</CardTitle>
+              <Button
+                type="button"
+                onClick={() => {
+                  if (window.confirm("Discard this event draft?"))
+                    setIsCreateOpen(false);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <CreateEventForm />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Create another event</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => setIsCreateOpen(true)}
+            >
+              Create event
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -10,7 +10,7 @@ import {
   Table2,
 } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   recordsApi,
@@ -120,6 +120,8 @@ export function RecordsDirectory({
   const [editingRecord, setEditingRecord] = useState<EventRecord | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const visibleRecords = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
@@ -143,16 +145,37 @@ export function RecordsDirectory({
     editingRecord === null ? emptyDraft : recordToDraft(editingRecord);
   const hasUnsavedChanges = !isSameDraft(draft, initialDraft);
 
+  useEffect(() => {
+    if (isEditorOpen) nameInputRef.current?.focus();
+  }, [isEditorOpen]);
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (!isEditorOpen || !hasUnsavedChanges) return;
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasUnsavedChanges, isEditorOpen]);
+
   function cancelEditing() {
     setEditingRecord(null);
     setDraft(emptyDraft);
     setError(null);
+    setIsEditorOpen(false);
+  }
+
+  function beginAdding() {
+    setEditingRecord(null);
+    setDraft(emptyDraft);
+    setError(null);
+    setIsEditorOpen(true);
   }
 
   function beginEditing(record: EventRecord) {
     setEditingRecord(record);
     setDraft(recordToDraft(record));
     setError(null);
+    setIsEditorOpen(true);
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -272,6 +295,11 @@ export function RecordsDirectory({
               >
                 Configure records
               </Link>
+              {canManage ? (
+                <Button type="button" size="sm" onClick={beginAdding}>
+                  Add record
+                </Button>
+              ) : null}
               {canManage ? (
                 <Button
                   type="button"
@@ -739,7 +767,7 @@ export function RecordsDirectory({
         </Card>
       ) : null}
 
-      {canManage ? (
+      {canManage && isEditorOpen ? (
         <Card>
           <CardHeader>
             <div>
@@ -764,6 +792,7 @@ export function RecordsDirectory({
                 </label>
                 <Input
                   id="record-name"
+                  ref={nameInputRef}
                   value={draft.name}
                   onChange={(event) =>
                     setDraft((current) => ({
@@ -917,15 +946,19 @@ export function RecordsDirectory({
                   ) : null}
                   {editingRecord === null ? "Add record" : "Save record"}
                 </Button>
-                {editingRecord === null ? null : (
-                  <Button
-                    type="button"
-                    onClick={cancelEditing}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                )}
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      !hasUnsavedChanges ||
+                      window.confirm("Discard these record changes?")
+                    )
+                      cancelEditing();
+                  }}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </Button>
               </div>
             </form>
           </CardContent>
