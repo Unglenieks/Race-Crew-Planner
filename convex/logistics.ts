@@ -158,31 +158,55 @@ export const getOverview = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
     await member(ctx, eventId);
-    const [profile, legs, serviceIntervals, weatherForecasts, contacts] =
-      await Promise.all([
-        ctx.db
-          .query("eventLogisticsProfiles")
-          .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
-          .unique(),
-        ctx.db
-          .query("rallyLegs")
-          .withIndex("by_eventId_order", (q) => q.eq("eventId", eventId))
-          .collect(),
-        ctx.db
-          .query("serviceIntervals")
-          .withIndex("by_eventId_scheduledStart", (q) =>
-            q.eq("eventId", eventId),
-          )
-          .collect(),
-        ctx.db
-          .query("weatherForecasts")
-          .withIndex("by_eventId_forecastDate", (q) => q.eq("eventId", eventId))
-          .collect(),
-        ctx.db
-          .query("externalContacts")
-          .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
-          .collect(),
-      ]);
+    const [
+      profile,
+      legs,
+      serviceIntervals,
+      weatherForecasts,
+      contacts,
+      travelContexts,
+      records,
+      movements,
+    ] = await Promise.all([
+      ctx.db
+        .query("eventLogisticsProfiles")
+        .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
+        .unique(),
+      ctx.db
+        .query("rallyLegs")
+        .withIndex("by_eventId_order", (q) => q.eq("eventId", eventId))
+        .collect(),
+      ctx.db
+        .query("serviceIntervals")
+        .withIndex("by_eventId_scheduledStart", (q) => q.eq("eventId", eventId))
+        .collect(),
+      ctx.db
+        .query("weatherForecasts")
+        .withIndex("by_eventId_forecastDate", (q) => q.eq("eventId", eventId))
+        .collect(),
+      ctx.db
+        .query("externalContacts")
+        .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
+        .collect(),
+      ctx.db
+        .query("travelContexts")
+        .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
+        .collect(),
+      ctx.db
+        .query("eventRecords")
+        .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
+        .collect(),
+      ctx.db
+        .query("itineraryItems")
+        .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
+        .collect(),
+    ]);
+    const recordNames = new Map(
+      records.map((record) => [record._id, record.name]),
+    );
+    const activeMovements = movements.filter(
+      (movement) => movement.archivedAt === undefined,
+    );
     return {
       profile,
       legs: legs.map((leg) => ({
@@ -197,9 +221,34 @@ export const getOverview = query({
           overrideGallons: leg.fuelOverrideGallons,
         }),
       })),
-      serviceIntervals,
       weatherForecasts,
       contacts,
+      travelContexts: travelContexts.map((travel) => ({
+        ...travel,
+        fromName: recordNames.get(travel.fromRecordId) ?? "Unknown location",
+        toName: recordNames.get(travel.toRecordId) ?? "Unknown location",
+        requiresReview:
+          travel.requiresReview ??
+          (travel.distanceMiles === undefined ||
+            travel.expectedDurationMinutes === undefined),
+        movements: activeMovements
+          .filter((movement) => movement.travelContextId === travel._id)
+          .map((movement) => ({ _id: movement._id, title: movement.title })),
+      })),
+      serviceIntervals: serviceIntervals.map((service) => ({
+        ...service,
+        movements: activeMovements
+          .filter((movement) => movement.serviceIntervalId === service._id)
+          .map((movement) => ({ _id: movement._id, title: movement.title })),
+      })),
+      supportLocations: records
+        .filter((record) => (record.supportCategories?.length ?? 0) > 0)
+        .map((record) => ({
+          _id: record._id,
+          name: record.name,
+          address: record.address,
+          supportCategories: record.supportCategories ?? [],
+        })),
     };
   },
 });

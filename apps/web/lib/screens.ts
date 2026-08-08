@@ -5,6 +5,7 @@ import {
   FolderOpen,
   CloudOff,
   LayoutDashboard,
+  Gauge,
   MapPin,
   MessageSquare,
   Printer,
@@ -34,6 +35,7 @@ export type ScreenId =
   | "work-templates"
   | "records"
   | "travel"
+  | "logistics"
   | "files"
   | "offline"
   | "forms"
@@ -139,6 +141,15 @@ export const screens: ScreenDefinition[] = [
     minRole: "crew",
   },
   {
+    id: "logistics",
+    segment: "logistics",
+    label: "Rally logistics",
+    shortLabel: "Logistics",
+    description: "Car, legs, fuel, travel, service, weather, and support.",
+    icon: Gauge,
+    minRole: "crew",
+  },
+  {
     id: "files",
     segment: "files",
     label: "Files & sources",
@@ -201,7 +212,7 @@ export const screenGroups: ScreenGroup[] = [
     label: "Work",
     screenIds: ["work", "work-templates"],
   },
-  { label: "Records", screenIds: ["records", "travel", "files"] },
+  { label: "Records", screenIds: ["records", "travel", "logistics", "files"] },
   { label: "Forms", screenIds: ["forms"] },
   { label: "Trust & setup", screenIds: ["activity", "offline", "people"] },
 ];
