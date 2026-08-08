@@ -73,6 +73,13 @@ describe("EventSwitcher first run", () => {
     );
   });
 
+  it("defaults new events to the browser time zone with a searchable input", () => {
+    render(<EventSwitcher />);
+    const input = screen.getByLabelText("Event time zone") as HTMLInputElement;
+    expect(input.value.length).toBeGreaterThan(0);
+    expect(input.getAttribute("list")).toBe("event-time-zone-options");
+  });
+
   it("lets an owner remove their sample event from the event list", async () => {
     events = [
       {

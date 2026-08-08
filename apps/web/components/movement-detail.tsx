@@ -17,10 +17,12 @@ import {
   type ItineraryItem,
 } from "@/lib/events-api";
 import { locationRecords } from "@/lib/record-locations";
+import { formatEventDateTime } from "@/lib/time-zones";
 
 type Draft = {
   title: string;
   scheduledFor: string;
+  scheduledUntil: string;
   location: string;
   recordId: string;
   notes: string;
@@ -39,6 +41,7 @@ function toDraft(item: ItineraryItem): Draft {
   return {
     title: item.title,
     scheduledFor: item.scheduledFor,
+    scheduledUntil: item.scheduledUntil ?? "",
     location: item.location ?? "",
     recordId: item.recordId ?? "",
     notes: item.notes ?? "",
@@ -50,10 +53,12 @@ export function MovementDetail({
   eventId,
   itemId,
   role,
+  timeZone,
 }: {
   eventId: string;
   itemId: string;
   role: EventRole;
+  timeZone: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -135,6 +140,10 @@ export function MovementDetail({
         itemId,
         title: currentDraft.title,
         scheduledFor: currentDraft.scheduledFor,
+        scheduledUntil:
+          currentDraft.timeKind === "range"
+            ? currentDraft.scheduledUntil
+            : undefined,
         location: currentDraft.location || undefined,
         recordId: currentDraft.recordId || undefined,
         notes: currentDraft.notes || undefined,
@@ -246,6 +255,21 @@ export function MovementDetail({
                   </select>
                 </label>
               </div>
+              {currentDraft.timeKind === "range" ? (
+                <label className="grid gap-1.5 text-sm font-medium text-ink">
+                  End time
+                  <input
+                    type="datetime-local"
+                    value={currentDraft.scheduledUntil}
+                    min={currentDraft.scheduledFor || undefined}
+                    onChange={(event) =>
+                      updateDraft("scheduledUntil", event.target.value)
+                    }
+                    required
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm font-normal text-ink shadow-sm"
+                  />
+                </label>
+              ) : null}
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-1.5 text-sm font-medium text-ink">
                   Linked location
@@ -336,8 +360,17 @@ export function MovementDetail({
               <div>
                 <dt className="font-semibold text-ink">Time</dt>
                 <dd className="mt-1 text-muted">
-                  {item.scheduledFor || "Not specified"} ·{" "}
-                  {timeKindLabels[item.timeKind ?? "exact"]}
+                  {item.scheduledFor
+                    ? formatEventDateTime(item.scheduledFor, timeZone)
+                    : "Not specified"}{" "}
+                  · {timeKindLabels[item.timeKind ?? "exact"]}
+                  {item.timeKind === "range"
+                    ? ` → ${
+                        item.scheduledUntil === undefined
+                          ? "End time not recorded (legacy range)"
+                          : formatEventDateTime(item.scheduledUntil, timeZone)
+                      }`
+                    : ""}
                 </dd>
               </div>
               <div>

@@ -5,5 +5,12 @@ import { useEventWorkspace } from "@/components/workspace/event-workspace";
 
 export function MovementDetailScreen({ itemId }: { itemId: string }) {
   const { event, role } = useEventWorkspace();
-  return <MovementDetail eventId={event.id} itemId={itemId} role={role} />;
+  return (
+    <MovementDetail
+      eventId={event.id}
+      itemId={itemId}
+      role={role}
+      timeZone={event.timeZone}
+    />
+  );
 }

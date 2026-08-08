@@ -29,6 +29,7 @@ import { defaultScreenId, screenHref } from "@/lib/screens";
 import {
   eventTimeZones,
   localTimeZone,
+  timeZoneLabel,
   timeZoneOptions,
 } from "@/lib/time-zones";
 import { useHydrated } from "@/lib/use-hydrated";
@@ -169,9 +170,6 @@ function CreateEventForm() {
   const createEvent = useMutation(eventsApi.create);
   const router = useRouter();
   const [name, setName] = useState("");
-  // Starts empty on purpose. A pre-filled zone is the kind of default nobody
-  // reads, and an event silently created in the wrong zone mis-times every
-  // movement in it. `required` forces one deliberate choice.
   const [timeZone, setTimeZone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -184,6 +182,7 @@ function CreateEventForm() {
     () => (hydrated ? timeZoneOptions([localTimeZone()], eventTimeZones) : []),
     [hydrated],
   );
+  const selectedTimeZone = timeZone || (hydrated ? localTimeZone() : "");
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -191,7 +190,7 @@ function CreateEventForm() {
     setIsSubmitting(true);
 
     try {
-      const eventId = await createEvent({ name, timeZone });
+      const eventId = await createEvent({ name, timeZone: selectedTimeZone });
       router.push(screenHref(eventId, defaultScreenId));
     } catch {
       setError(
@@ -225,23 +224,25 @@ function CreateEventForm() {
         >
           Event time zone
         </label>
-        <select
+        <Input
           id="event-time-zone"
           name="timeZone"
-          value={timeZone}
+          list="event-time-zone-options"
+          value={selectedTimeZone}
           onChange={(event) => setTimeZone(event.target.value)}
           required
-          className="flex h-11 w-full rounded-lg border border-btnline bg-card px-3 py-2.5 text-sm font-medium text-ink shadow-sm focus-visible:border-focus focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
-        >
-          <option value="">Select a time zone</option>
-          {timeZoneOptions([timeZone].filter(Boolean), zoneOptions).map(
+          placeholder="Search city or region, e.g. America/New_York"
+          autoComplete="off"
+        />
+        <datalist id="event-time-zone-options">
+          {timeZoneOptions([selectedTimeZone].filter(Boolean), zoneOptions).map(
             (zone) => (
               <option key={zone} value={zone}>
-                {zone}
+                {timeZoneLabel(zone)}
               </option>
             ),
           )}
-        </select>
+        </datalist>
         <p className="text-xs text-muted">
           Use the zone the event runs in, which is usually the venue&apos;s
           local time. Times will use this zone throughout the event.

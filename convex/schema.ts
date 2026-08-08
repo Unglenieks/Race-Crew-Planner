@@ -64,12 +64,15 @@ export default defineSchema({
     title: v.string(),
     /** A local date/time in the event's declared IANA time zone. */
     scheduledFor: v.string(),
+    /** Local end date/time for range movements; legacy ranges may omit it. */
+    scheduledUntil: v.optional(v.string()),
     location: v.optional(v.string()),
     recordId: v.optional(v.id("eventRecords")),
     notes: v.optional(v.string()),
     /** Snapshot immediately before the latest edit, used by contextual publish. */
     lastChangedTitle: v.optional(v.string()),
     lastChangedScheduledFor: v.optional(v.string()),
+    lastChangedScheduledUntil: v.optional(v.string()),
     lastChangedLocation: v.optional(v.string()),
     lastChangedNotes: v.optional(v.string()),
     lastChangedAt: v.optional(v.number()),
@@ -258,10 +261,12 @@ export default defineSchema({
     itineraryItemId: v.id("itineraryItems"),
     title: v.string(),
     scheduledFor: v.string(),
+    scheduledUntil: v.optional(v.string()),
     location: v.optional(v.string()),
     notes: v.optional(v.string()),
     previousTitle: v.optional(v.string()),
     previousScheduledFor: v.optional(v.string()),
+    previousScheduledUntil: v.optional(v.string()),
     previousLocation: v.optional(v.string()),
     previousNotes: v.optional(v.string()),
     reason: v.string(),

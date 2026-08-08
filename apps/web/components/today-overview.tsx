@@ -4,41 +4,29 @@ import { CalendarClock, ChevronRight, ClipboardCheck } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
-import { itineraryApi } from "@/lib/events-api";
+import { itineraryApi, type ItineraryItem } from "@/lib/events-api";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  eventDateKey,
+  eventLocalDateTime,
+  formatEventDateTime,
+} from "@/lib/time-zones";
 
-function eventDay(timeZone: string, now: Date) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((item) => item.type === type)?.value;
-
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
-
-function eventLocalDateTime(timeZone: string, now: Date) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(now);
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((item) => item.type === type)?.value;
-
-  return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
-}
-
-function timeFromScheduledFor(scheduledFor: string) {
-  return scheduledFor.split("T")[1] ?? "Time to be confirmed";
+export function todayMovementState(
+  items: ItineraryItem[],
+  timeZone: string,
+  clock: Date,
+) {
+  const today = eventDateKey(timeZone, clock);
+  const now = eventLocalDateTime(timeZone, clock);
+  return {
+    today,
+    todaysItems: items.filter(
+      (item) => item.scheduledFor.split("T")[0] === today,
+    ),
+    nextItem: items.find((item) => item.scheduledFor >= now),
+  };
 }
 
 export function TodayOverview({
@@ -56,96 +44,99 @@ export function TodayOverview({
     return () => window.clearInterval(interval);
   }, []);
 
-  const today = useMemo(
-    () => eventDay(timeZone, new Date(clock)),
-    [clock, timeZone],
-  );
-  const now = useMemo(
-    () => eventLocalDateTime(timeZone, new Date(clock)),
-    [clock, timeZone],
-  );
-  const todaysItems = useMemo(
-    () => (items ?? []).filter((item) => item.scheduledFor.startsWith(today)),
-    [items, today],
-  );
-  const nextItem = useMemo(
-    () => (items ?? []).find((item) => item.scheduledFor >= now),
-    [items, now],
+  const state = useMemo(
+    () => todayMovementState(items ?? [], timeZone, new Date(clock)),
+    [clock, items, timeZone],
   );
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <CardTitle>Movements today</CardTitle>
-          <Badge variant="neutral">Event time: {timeZone}</Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        {items === undefined ? (
-          <p className="text-sm text-muted" role="status">
-            Loading today&apos;s movement plan…
-          </p>
-        ) : nextItem === undefined ? (
-          <div className="rounded-lg border border-line2 bg-topbg p-4">
-            <div className="flex items-start gap-3">
-              <CalendarClock
-                className="mt-0.5 h-5 w-5 shrink-0 text-green-ink"
-                aria-hidden="true"
-              />
-              <div>
-                <p className="font-semibold text-ink">
-                  No upcoming plan movements
-                </p>
-                <p className="mt-1 text-sm leading-relaxed text-muted">
-                  There are {todaysItems.length} movement
-                  {todaysItems.length === 1 ? "" : "s"} scheduled today, but
-                  nothing else is scheduled after the current event time.
-                </p>
-              </div>
-            </div>
+    <div className="grid gap-4">
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <CardTitle>Movements today</CardTitle>
+            <Badge variant="neutral">Event time: {timeZone}</Badge>
           </div>
-        ) : (
-          <Link
-            href={`/events/${eventId}/plan/${nextItem._id}`}
-            className="rounded-lg border border-success-ln bg-soft p-4 transition-colors hover:border-green focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
-          >
-            <div className="flex items-start gap-3">
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          {items === undefined ? (
+            <p className="text-sm text-muted" role="status">
+              Loading today&apos;s movement plan…
+            </p>
+          ) : state.todaysItems.length === 0 ? (
+            <p className="text-sm text-muted">
+              No movements are scheduled for {state.today} in the event time
+              zone.
+            </p>
+          ) : (
+            <ol className="divide-y divide-line">
+              {state.todaysItems.map((item) => (
+                <li key={item._id} className="py-3 first:pt-0 last:pb-0">
+                  <Link
+                    className="font-semibold text-ink underline-offset-4 hover:underline"
+                    href={`/events/${eventId}/plan/${item._id}`}
+                  >
+                    {item.title}
+                  </Link>
+                  <p className="mt-1 text-sm text-muted">
+                    {formatEventDateTime(item.scheduledFor, timeZone)}
+                    {item.location ? ` · ${item.location}` : ""}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          )}
+          <p className="flex items-center gap-2 border-t border-line pt-3 text-sm text-muted">
+            <ClipboardCheck
+              className="h-4 w-4 text-green-ink"
+              aria-hidden="true"
+            />
+            {items === undefined
+              ? "Checking the plan…"
+              : `${state.todaysItems.length} movement${state.todaysItems.length === 1 ? "" : "s"} scheduled today`}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Next upcoming movement</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {items === undefined ? (
+            <p className="text-sm text-muted" role="status">
+              Checking the next movement…
+            </p>
+          ) : state.nextItem === undefined ? (
+            <p className="text-sm text-muted">
+              No future movement is scheduled.
+            </p>
+          ) : (
+            <Link
+              href={`/events/${eventId}/plan/${state.nextItem._id}`}
+              className="flex items-start gap-3 rounded-lg border border-success-ln bg-soft p-4 focus-visible:outline-3 focus-visible:outline-focus"
+            >
               <CalendarClock
                 className="mt-0.5 h-5 w-5 shrink-0 text-green-ink"
                 aria-hidden="true"
               />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold uppercase tracking-wider text-green-ink">
-                  Next movement
-                </p>
-                <p className="mt-1 font-semibold text-ink">{nextItem.title}</p>
+                <p className="font-semibold text-ink">{state.nextItem.title}</p>
                 <p className="mt-1 text-sm text-muted">
-                  {timeFromScheduledFor(nextItem.scheduledFor)}
-                  {nextItem.location === undefined
-                    ? ""
-                    : ` · ${nextItem.location}`}
+                  {formatEventDateTime(state.nextItem.scheduledFor, timeZone)}
+                  {state.nextItem.location
+                    ? ` · ${state.nextItem.location}`
+                    : ""}
                 </p>
               </div>
               <ChevronRight
                 className="mt-1 h-5 w-5 shrink-0 text-green-ink"
                 aria-hidden="true"
               />
-            </div>
-          </Link>
-        )}
-        <div className="flex items-center gap-3 border-t border-line pt-4 text-sm text-muted">
-          <ClipboardCheck
-            className="h-4 w-4 shrink-0 text-green-ink"
-            aria-hidden="true"
-          />
-          <span>
-            {items === undefined
-              ? "Checking the plan…"
-              : `${todaysItems.length} movement${todaysItems.length === 1 ? "" : "s"} scheduled today`}
-          </span>
-        </div>
-      </CardContent>
-    </Card>
+            </Link>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

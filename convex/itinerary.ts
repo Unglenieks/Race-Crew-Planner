@@ -14,6 +14,7 @@ const itineraryArgs = {
   eventId: v.id("events"),
   title: v.string(),
   scheduledFor: v.string(),
+  scheduledUntil: v.optional(v.string()),
   location: v.optional(v.string()),
   recordId: v.optional(v.id("eventRecords")),
   notes: v.optional(v.string()),
@@ -32,6 +33,7 @@ const itineraryArgs = {
 type ItineraryInput = {
   title: string;
   scheduledFor: string;
+  scheduledUntil?: string;
   location?: string;
   notes?: string;
   sectionId?: Id<"planSections">;
@@ -56,6 +58,7 @@ function optionalText(value: string | undefined, maximum: number) {
 export function validatedItineraryInput({
   title,
   scheduledFor,
+  scheduledUntil,
   location,
   notes,
   sectionId,
@@ -77,9 +80,23 @@ export function validatedItineraryInput({
     throw new Error("A valid planned date and time is required");
   }
 
+  if (timeKind === "range") {
+    if (
+      scheduledUntil === undefined ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(scheduledUntil) ||
+      Number.isNaN(Date.parse(`${scheduledUntil}:00Z`))
+    ) {
+      throw new Error("A range movement needs a valid end date and time");
+    }
+    if (scheduledUntil <= scheduledFor) {
+      throw new Error("Range end time must be after its start time");
+    }
+  }
+
   return {
     title: normalizedTitle,
     scheduledFor,
+    ...(timeKind === "range" ? { scheduledUntil } : {}),
     location: optionalText(location, 160),
     notes: optionalText(notes, 1000),
     ...(sectionId === undefined ? {} : { sectionId }),
@@ -240,6 +257,8 @@ export const create = mutation({
     const itemId = await ctx.db.insert("itineraryItems", {
       eventId: args.eventId,
       ...item,
+      scheduledUntil:
+        item.timeKind === "range" ? item.scheduledUntil : undefined,
       recordId: args.recordId,
       createdAt: now,
       updatedAt: now,
@@ -279,9 +298,12 @@ export const update = mutation({
     const item = validatedItineraryInput(args);
     await ctx.db.patch(args.itemId, {
       ...item,
+      scheduledUntil:
+        item.timeKind === "range" ? item.scheduledUntil : undefined,
       recordId: args.recordId,
       lastChangedTitle: existing.title,
       lastChangedScheduledFor: existing.scheduledFor,
+      lastChangedScheduledUntil: existing.scheduledUntil,
       lastChangedLocation: existing.location,
       lastChangedNotes: existing.notes,
       lastChangedAt: Date.now(),
