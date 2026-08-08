@@ -8,6 +8,7 @@ import {
 } from "./_generated/server";
 import { requireIdentity } from "./auth";
 import { resolveUserProfile } from "./userProfiles";
+import { writeAudit } from "./audit";
 
 async function requireMember(
   ctx: QueryCtx | MutationCtx,
@@ -59,22 +60,25 @@ export const list = query({
         .withIndex("by_eventId_createdAt", (index) =>
           index.eq("eventId", eventId),
         )
-        .collect(),
+        .order("desc")
+        .take(100),
       ctx.db
         .query("eventComments")
         .withIndex("by_eventId_createdAt", (index) =>
           index.eq("eventId", eventId),
         )
-        .collect(),
+        .order("desc")
+        .take(100),
       ctx.db
         .query("eventSources")
         .withIndex("by_eventId_createdAt", (index) =>
           index.eq("eventId", eventId),
         )
-        .collect(),
+        .order("desc")
+        .take(100),
     ]);
     const namedActivity = await Promise.all(
-      activity.reverse().map(async (entry) => {
+      activity.map(async (entry) => {
         const profile = await resolveUserProfile(ctx, entry.actorId);
         return {
           ...entry,
@@ -85,12 +89,12 @@ export const list = query({
     return {
       activity: namedActivity,
       comments: await Promise.all(
-        comments.reverse().map(async (comment) => ({
+        comments.map(async (comment) => ({
           ...comment,
           authorName: (await resolveUserProfile(ctx, comment.authorId)).name,
         })),
       ),
-      sources: sources.reverse(),
+      sources,
     };
   },
 });
@@ -107,10 +111,10 @@ export const addComment = mutation({
       authorId: identity.subject,
       createdAt: now,
     });
-    await ctx.db.insert("eventActivity", {
+    await writeAudit(ctx, {
       eventId,
       actorId: identity.subject,
-      kind: "comment",
+      kind: "comment.added",
       message: "Added a comment",
       createdAt: now,
     });
@@ -137,11 +141,14 @@ export const addSource = mutation({
       authorId: identity.subject,
       createdAt: now,
     });
-    await ctx.db.insert("eventActivity", {
+    await writeAudit(ctx, {
       eventId,
       actorId: identity.subject,
-      kind: "source",
+      kind: "source.added",
       message: `Added source: ${sourceTitle}`,
+      objectType: "source",
+      objectId: id,
+      objectLabel: sourceTitle,
       createdAt: now,
     });
     return id;

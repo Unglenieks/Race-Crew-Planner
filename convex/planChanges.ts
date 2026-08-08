@@ -8,6 +8,7 @@ import {
 } from "./_generated/server";
 import { requireIdentity, requireRole } from "./auth";
 import { resolveUserProfile } from "./userProfiles";
+import { writeAudit } from "./audit";
 
 const severity = v.union(v.literal("routine"), v.literal("critical"));
 const deliveryStates = [
@@ -169,6 +170,17 @@ export const publish = mutation({
       lastChangedNotes: undefined,
       lastChangedAt: undefined,
     });
+    await writeAudit(ctx, {
+      eventId,
+      actorId: identity.subject,
+      kind: "movement.published",
+      message: `Published movement change: ${item.title}`,
+      objectType: "movement",
+      objectId: itemId,
+      objectLabel: item.title,
+      href: `/events/${eventId}/plan/${itemId}#published-changes`,
+      createdAt: now,
+    });
     return changeId;
   },
 });
@@ -288,6 +300,19 @@ export const markOpened = mutation({
         state: "opened",
         openedAt: Date.now(),
       });
+      const change = await ctx.db.get(recipient.changeId);
+      if (change !== null) {
+        await writeAudit(ctx, {
+          eventId,
+          actorId: identity.subject,
+          kind: "planChange.opened",
+          message: `Opened plan change: ${change.title}`,
+          objectType: "movement",
+          objectId: change.itineraryItemId,
+          objectLabel: change.title,
+          href: `/events/${eventId}/plan/${change.itineraryItemId}#published-changes`,
+        });
+      }
     }
   },
 });
@@ -345,6 +370,19 @@ export const acknowledge = mutation({
       acknowledgedAt: Date.now(),
       acknowledgedBy: identity.subject,
     });
+    const change = await ctx.db.get(recipient.changeId);
+    if (change !== null) {
+      await writeAudit(ctx, {
+        eventId,
+        actorId: identity.subject,
+        kind: "planChange.acknowledged",
+        message: `Acknowledged plan change: ${change.title}`,
+        objectType: "movement",
+        objectId: change.itineraryItemId,
+        objectLabel: change.title,
+        href: `/events/${eventId}/plan/${change.itineraryItemId}#published-changes`,
+      });
+    }
   },
 });
 
@@ -372,6 +410,19 @@ export const acknowledgeElsewhere = mutation({
       acknowledgedBy: identity.subject,
       acknowledgementNote: normalizedNote(note),
     });
+    const change = await ctx.db.get(recipient.changeId);
+    if (change !== null) {
+      await writeAudit(ctx, {
+        eventId,
+        actorId: identity.subject,
+        kind: "planChange.acknowledged",
+        message: `Recorded acknowledgement for: ${change.title}`,
+        objectType: "movement",
+        objectId: change.itineraryItemId,
+        objectLabel: change.title,
+        href: `/events/${eventId}/plan/${change.itineraryItemId}#published-changes`,
+      });
+    }
   },
 });
 

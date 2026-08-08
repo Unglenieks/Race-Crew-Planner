@@ -7,6 +7,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireIdentity, requireRole } from "./auth";
+import { writeAudit } from "./audit";
 
 const maximumFileSize = 10 * 1024 * 1024;
 const acceptedContentTypes = new Set([
@@ -94,7 +95,8 @@ export const save = mutation({
     if (metadata === null) throw new Error("Uploaded file not found");
     const contentType = metadata.contentType ?? "";
     acceptedFile(contentType, metadata.size);
-    return await ctx.db.insert("eventFiles", {
+    const name = safeName(args.name);
+    const fileId = await ctx.db.insert("eventFiles", {
       eventId: args.eventId,
       ...(args.recordId === undefined ? {} : { recordId: args.recordId }),
       ...(args.workItemId === undefined ? {} : { workItemId: args.workItemId }),
@@ -102,12 +104,23 @@ export const save = mutation({
         ? {}
         : { itineraryItemId: args.itineraryItemId }),
       storageId: args.storageId,
-      name: safeName(args.name),
+      name,
       contentType,
       size: metadata.size,
       uploadedBy: identity.subject,
       createdAt: Date.now(),
     });
+    await writeAudit(ctx, {
+      eventId: args.eventId,
+      actorId: identity.subject,
+      kind: "file.uploaded",
+      message: `Uploaded file: ${name}`,
+      objectType: "file",
+      objectId: fileId,
+      objectLabel: name,
+      href: `/events/${args.eventId}/files`,
+    });
+    return fileId;
   },
 });
 
@@ -132,13 +145,23 @@ export const list = query({
 export const remove = mutation({
   args: { eventId: v.id("events"), fileId: v.id("eventFiles") },
   handler: async (ctx, { eventId, fileId }) => {
-    const { membership } = await member(ctx, eventId);
+    const { identity, membership } = await member(ctx, eventId);
     requireRole(membership.role, ["owner", "manager"]);
     const file = await ctx.db.get(fileId);
     if (file === null || file.eventId !== eventId)
       throw new Error("File not found");
     await ctx.storage.delete(file.storageId);
     await ctx.db.delete(fileId);
+    await writeAudit(ctx, {
+      eventId,
+      actorId: identity.subject,
+      kind: "file.removed",
+      message: `Removed file: ${file.name}`,
+      objectType: "file",
+      objectId: fileId,
+      objectLabel: file.name,
+      href: `/events/${eventId}/files`,
+    });
   },
 });
 

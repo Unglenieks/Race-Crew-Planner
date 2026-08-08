@@ -7,6 +7,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireIdentity, requireRole } from "./auth";
+import { writeAudit } from "./audit";
 
 /** Built-ins preserve the directory and plan semantics while teams add their own vocabulary. */
 export const recordTypes = [
@@ -392,7 +393,7 @@ export const create = mutation({
     fieldValues: v.optional(v.record(v.string(), v.string())),
   },
   handler: async (ctx, args) => {
-    await manager(ctx, args.eventId);
+    const { identity } = await manager(ctx, args.eventId);
     const input = validatedRecordInput(args);
     const fieldValues =
       args.fieldValues === undefined
@@ -403,7 +404,7 @@ export const create = mutation({
         ? undefined
         : await typeInEvent(ctx, args.eventId, args.recordTypeId);
     const now = Date.now();
-    return await ctx.db.insert("eventRecords", {
+    const recordId = await ctx.db.insert("eventRecords", {
       eventId: args.eventId,
       ...input,
       ...(configuredType === undefined
@@ -413,6 +414,18 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     });
+    await writeAudit(ctx, {
+      eventId: args.eventId,
+      actorId: identity.subject,
+      kind: "record.created",
+      message: `Created record: ${input.name}`,
+      objectType: "record",
+      objectId: recordId,
+      objectLabel: input.name,
+      href: `/events/${args.eventId}/records/${recordId}`,
+      createdAt: now,
+    });
+    return recordId;
   },
 });
 
@@ -433,7 +446,7 @@ export const update = mutation({
     fieldValues: v.optional(v.record(v.string(), v.string())),
   },
   handler: async (ctx, args) => {
-    await manager(ctx, args.eventId);
+    const { identity } = await manager(ctx, args.eventId);
     const existing = await recordInEvent(ctx, args.eventId, args.recordId);
     const input = validatedRecordInput(args);
     const fieldValues =
@@ -460,6 +473,16 @@ export const update = mutation({
         : { recordTypeId: configuredType._id, type: configuredType.name }),
       ...(args.fieldValues === undefined ? {} : { fieldValues }),
       updatedAt: Date.now(),
+    });
+    await writeAudit(ctx, {
+      eventId: args.eventId,
+      actorId: identity.subject,
+      kind: "record.updated",
+      message: `Updated record: ${input.name}`,
+      objectType: "record",
+      objectId: args.recordId,
+      objectLabel: input.name,
+      href: `/events/${args.eventId}/records/${args.recordId}`,
     });
   },
 });
@@ -501,6 +524,16 @@ export const saveVenueDetails = mutation({
       verifiedAt: Date.now(),
       verifiedBy: identity.subject,
       updatedAt: Date.now(),
+    });
+    await writeAudit(ctx, {
+      eventId: args.eventId,
+      actorId: identity.subject,
+      kind: "record.updated",
+      message: `Updated venue details: ${record.name}`,
+      objectType: "record",
+      objectId: args.recordId,
+      objectLabel: record.name,
+      href: `/events/${args.eventId}/records/${args.recordId}`,
     });
   },
 });
@@ -749,16 +782,38 @@ export const saveTravel = mutation({
       routeNote: optionalText(args.routeNote, 1000),
       updatedAt: Date.now(),
     };
-    if (args.travelId === undefined)
-      return await ctx.db.insert("travelContexts", {
+    if (args.travelId === undefined) {
+      const travelId = await ctx.db.insert("travelContexts", {
         eventId: args.eventId,
         ...data,
         createdBy: identity.subject,
         createdAt: data.updatedAt,
       });
+      await writeAudit(ctx, {
+        eventId: args.eventId,
+        actorId: identity.subject,
+        kind: "record.travelUpdated",
+        message: `Added travel context: ${from.name} to ${to.name}`,
+        objectType: "travel",
+        objectId: travelId,
+        objectLabel: `${from.name} to ${to.name}`,
+        href: `/events/${args.eventId}/records/travel`,
+      });
+      return travelId;
+    }
     const existing = await ctx.db.get(args.travelId);
     if (existing === null || existing.eventId !== args.eventId)
       throw new Error("Travel context not found");
     await ctx.db.patch(args.travelId, data);
+    await writeAudit(ctx, {
+      eventId: args.eventId,
+      actorId: identity.subject,
+      kind: "record.travelUpdated",
+      message: `Updated travel context: ${from.name} to ${to.name}`,
+      objectType: "travel",
+      objectId: args.travelId,
+      objectLabel: `${from.name} to ${to.name}`,
+      href: `/events/${args.eventId}/records/travel`,
+    });
   },
 });

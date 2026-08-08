@@ -8,6 +8,7 @@ import {
 } from "./_generated/server";
 import { requireIdentity, requireRole } from "./auth";
 import { validatedWorkItemInput } from "./work";
+import { writeAudit } from "./audit";
 
 const priority = v.union(
   v.literal("low"),
@@ -108,14 +109,26 @@ export const create = mutation({
     const { identity, membership } = await requireEventMembership(ctx, eventId);
     requireRole(membership.role, ["owner", "manager"]);
     const now = Date.now();
-    return await ctx.db.insert("workTemplates", {
+    const templateName = validatedName(name);
+    const templateId = await ctx.db.insert("workTemplates", {
       eventId,
-      name: validatedName(name),
+      name: templateName,
       items: validatedItems(items),
       createdBy: identity.subject,
       createdAt: now,
       updatedAt: now,
     });
+    await writeAudit(ctx, {
+      eventId,
+      actorId: identity.subject,
+      kind: "workTemplate.created",
+      message: `Created work template: ${templateName}`,
+      objectType: "workTemplate",
+      objectId: templateId,
+      objectLabel: templateName,
+      href: `/events/${eventId}/work/templates`,
+    });
+    return templateId;
   },
 });
 
@@ -123,7 +136,7 @@ export const create = mutation({
 export const apply = mutation({
   args: { eventId: v.id("events"), templateId: v.id("workTemplates") },
   handler: async (ctx, { eventId, templateId }) => {
-    const { membership } = await requireEventMembership(ctx, eventId);
+    const { identity, membership } = await requireEventMembership(ctx, eventId);
     requireRole(membership.role, ["owner", "manager"]);
     const template = await ctx.db.get(templateId);
     if (
@@ -134,7 +147,7 @@ export const apply = mutation({
       throw new Error("Template not found");
     }
     const now = Date.now();
-    return await Promise.all(
+    const itemIds = await Promise.all(
       template.items.map((item) =>
         ctx.db.insert("workItems", {
           eventId,
@@ -145,6 +158,17 @@ export const apply = mutation({
         }),
       ),
     );
+    await writeAudit(ctx, {
+      eventId,
+      actorId: identity.subject,
+      kind: "workTemplate.applied",
+      message: `Applied work template: ${template.name} (${itemIds.length} items)`,
+      objectType: "workTemplate",
+      objectId: templateId,
+      objectLabel: template.name,
+      href: `/events/${eventId}/work`,
+    });
+    return itemIds;
   },
 });
 
@@ -152,7 +176,7 @@ export const apply = mutation({
 export const archive = mutation({
   args: { eventId: v.id("events"), templateId: v.id("workTemplates") },
   handler: async (ctx, { eventId, templateId }) => {
-    const { membership } = await requireEventMembership(ctx, eventId);
+    const { identity, membership } = await requireEventMembership(ctx, eventId);
     requireRole(membership.role, ["owner", "manager"]);
     const template = await ctx.db.get(templateId);
     if (template === null || template.eventId !== eventId) {
@@ -162,6 +186,15 @@ export const archive = mutation({
       archivedAt: Date.now(),
       updatedAt: Date.now(),
     });
+    await writeAudit(ctx, {
+      eventId,
+      actorId: identity.subject,
+      kind: "workTemplate.archived",
+      message: `Archived work template: ${template.name}`,
+      objectType: "workTemplate",
+      objectId: templateId,
+      objectLabel: template.name,
+    });
   },
 });
 
@@ -169,16 +202,27 @@ export const archive = mutation({
 export const restore = mutation({
   args: { eventId: v.id("events"), templateId: v.id("workTemplates") },
   handler: async (ctx, { eventId, templateId }) => {
-    const { membership } = await requireEventMembership(ctx, eventId);
+    const { identity, membership } = await requireEventMembership(ctx, eventId);
     requireRole(membership.role, ["owner", "manager"]);
     const template = await ctx.db.get(templateId);
     if (template === null || template.eventId !== eventId)
       throw new Error("Template not found");
-    if (template.archivedAt !== undefined)
+    if (template.archivedAt !== undefined) {
       await ctx.db.patch(templateId, {
         archivedAt: undefined,
         updatedAt: Date.now(),
       });
+      await writeAudit(ctx, {
+        eventId,
+        actorId: identity.subject,
+        kind: "workTemplate.restored",
+        message: `Restored work template: ${template.name}`,
+        objectType: "workTemplate",
+        objectId: templateId,
+        objectLabel: template.name,
+        href: `/events/${eventId}/work/templates`,
+      });
+    }
   },
 });
 

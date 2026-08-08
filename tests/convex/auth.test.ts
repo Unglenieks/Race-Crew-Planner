@@ -233,18 +233,20 @@ describe("Convex authorization helpers", () => {
         name: "service-park.jpg",
       },
     );
-    expect(inserts).toEqual([
-      {
-        table: "eventFiles",
-        value: expect.objectContaining({
-          eventId: "events:one",
-          recordId: "eventRecords:one",
-          contentType: "image/jpeg",
-          size: 1024,
-          uploadedBy: "crew",
-        }),
-      },
-    ]);
+    expect(inserts).toContainEqual({
+      table: "eventFiles",
+      value: expect.objectContaining({
+        eventId: "events:one",
+        recordId: "eventRecords:one",
+        contentType: "image/jpeg",
+        size: 1024,
+        uploadedBy: "crew",
+      }),
+    });
+    expect(inserts).toContainEqual({
+      table: "eventActivity",
+      value: expect.objectContaining({ kind: "file.uploaded" }),
+    });
   });
 
   it("rejects a file from another event and limits removal to managers", async () => {
@@ -603,6 +605,56 @@ describe("Convex authorization helpers", () => {
     });
   });
 
+  it("writes one attributable audit entry with a movement transaction", async () => {
+    const inserts: Array<{ table: string; value: Record<string, unknown> }> =
+      [];
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|manager_123",
+          subject: "manager_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({ unique: async () => ({ role: "manager" }) }),
+        }),
+        insert: async (table: string, value: Record<string, unknown>) => {
+          inserts.push({ table, value });
+          return table === "itineraryItems"
+            ? "itineraryItems:one"
+            : "eventActivity:one";
+        },
+      },
+    };
+    await createItineraryItem._handler(context as never, {
+      eventId: "events:one" as never,
+      title: "Crew call",
+      scheduledFor: "2026-08-10T08:00",
+    });
+    expect(inserts.filter((entry) => entry.table === "eventActivity")).toEqual([
+      {
+        table: "eventActivity",
+        value: expect.objectContaining({
+          actorId: "manager_123",
+          kind: "movement.created",
+          objectLabel: "Crew call",
+        }),
+      },
+    ]);
+
+    inserts.length = 0;
+    await expect(
+      createItineraryItem._handler(context as never, {
+        eventId: "events:one" as never,
+        title: "",
+        scheduledFor: "2026-08-10T08:00",
+      }),
+    ).rejects.toThrow("Movement description");
+    expect(inserts).toEqual([]);
+  });
+
   it("rejects an incomplete or invalid movement", () => {
     expect(() =>
       validatedItineraryInput({ title: "", scheduledFor: "2026-10-16T08:30" }),
@@ -822,6 +874,7 @@ describe("Convex authorization helpers", () => {
         patch: async (_id: string, value: Record<string, unknown>) => {
           patches.push(value);
         },
+        insert: async () => "eventActivity:one",
       },
     };
     await markPlanChangeOpened._handler(context as never, {
@@ -1100,6 +1153,7 @@ describe("Convex authorization helpers", () => {
         patch: async (_id: string, value: Record<string, unknown>) => {
           patches.push(value);
         },
+        insert: async () => "eventActivity:one",
       },
     };
 
@@ -1192,6 +1246,7 @@ describe("Convex authorization helpers", () => {
         patch: async (_id: string, value: Record<string, unknown>) => {
           patches.push(value);
         },
+        insert: async () => "eventActivity:one",
       },
     };
 
@@ -1465,6 +1520,7 @@ describe("Convex authorization helpers", () => {
         get: async () => ({ eventId: "events:one", archivedAt: 1 }),
         patch: async (_id: string, value: Record<string, unknown>) =>
           patches.push(value),
+        insert: async () => "eventActivity:one",
       },
     };
     await restoreWorkTemplate._handler(context as never, {
@@ -1748,6 +1804,7 @@ describe("regressions found reviewing the outage integration", () => {
       patch: async (_id: string, value: Record<string, unknown>) => {
         patches.push(value);
       },
+      insert: async () => "eventActivity:one",
     });
 
     await updateRecord._handler(context as never, {
@@ -1810,6 +1867,7 @@ describe("regressions found reviewing the outage integration", () => {
       patch: async (_id: string, value: Record<string, unknown>) => {
         patches.push(value);
       },
+      insert: async () => "eventActivity:one",
     });
 
     // Omitted: keeps the team type.
