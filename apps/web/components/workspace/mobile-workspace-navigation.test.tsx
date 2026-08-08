@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { EventWorkspaceProvider } from "@/components/workspace/event-workspace";
 
@@ -15,6 +21,9 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/components/connection-status", () => ({
   ConnectionStatus: () => <p>Connection available</p>,
 }));
+vi.mock("@clerk/nextjs", () => ({
+  UserButton: () => <button>Account profile</button>,
+}));
 
 import { MobileWorkspaceNavigation } from "./mobile-workspace-navigation";
 
@@ -28,6 +37,15 @@ const event = {
 
 describe("MobileWorkspaceNavigation", () => {
   it("opens a keyboard-dismissible, role-aware workspace drawer", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
     render(
       <EventWorkspaceProvider event={event} events={[event]}>
         <MobileWorkspaceNavigation />
@@ -35,11 +53,16 @@ describe("MobileWorkspaceNavigation", () => {
     );
 
     const menu = screen.getByRole("button", {
-      name: "Open workspace navigation",
+      name: "Menu: open workspace navigation",
     });
     fireEvent.click(menu);
 
-    expect(await screen.findByRole("dialog")).toBeTruthy();
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByRole("link", {
+        name: "Current event: North Ridge Rally. Switch event.",
+      }),
+    ).toBeTruthy();
     expect(screen.getByRole("link", { name: /people/i })).toBeTruthy();
     fireEvent.keyDown(document, { key: "Escape" });
 
