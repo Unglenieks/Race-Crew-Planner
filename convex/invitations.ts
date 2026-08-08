@@ -7,6 +7,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireIdentity, requireRole } from "./auth";
+import { resolveUserProfile, syncIdentityProfile } from "./userProfiles";
 
 const invitationRole = v.union(v.literal("manager"), v.literal("crew"));
 
@@ -38,28 +39,7 @@ export const syncProfile = mutation({
   args: {},
   handler: async (ctx) => {
     const identity = await requireIdentity(ctx);
-    const existing = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_userId", (index) => index.eq("userId", identity.subject))
-      .unique();
-    const email = identity.emailVerified
-      ? identity.email?.trim().toLowerCase()
-      : undefined;
-    const fallbackName = email?.split("@")[0];
-    const profile = {
-      userId: identity.subject,
-      // Do not erase a usable existing name just because a particular Clerk
-      // token omits the optional name claim.
-      displayName:
-        identity.name?.trim() || existing?.displayName || fallbackName,
-      email,
-      phoneNumber: identity.phoneNumberVerified
-        ? identity.phoneNumber?.trim()
-        : undefined,
-      updatedAt: Date.now(),
-    };
-    if (existing === null) await ctx.db.insert("userProfiles", profile);
-    else await ctx.db.patch(existing._id, profile);
+    return await syncIdentityProfile(ctx, identity);
   },
 });
 
@@ -69,9 +49,7 @@ export const claim = mutation({
   handler: async (ctx) => {
     const identity = await requireIdentity(ctx);
     if (!identity.emailVerified || identity.email === undefined) {
-      throw new Error(
-        "A verified email address is required to accept invitations",
-      );
+      return { claimedCount: 0, requiresVerifiedEmail: true };
     }
     const email = normalizedEmail(identity.email);
     const invitations = await ctx.db
@@ -105,6 +83,7 @@ export const claim = mutation({
         acceptedAt: Date.now(),
       });
     }
+    return { claimedCount: invitations.length, requiresVerifiedEmail: false };
   },
 });
 
@@ -192,20 +171,16 @@ export const listContacts = query({
       .collect();
     const people = await Promise.all(
       memberships.map(async (membership) => {
-        const profile = await ctx.db
-          .query("userProfiles")
-          .withIndex("by_userId", (index) =>
-            index.eq("userId", membership.userId),
-          )
-          .unique();
+        const profile = await resolveUserProfile(ctx, membership.userId);
         return {
           id: membership._id,
           type: "member" as const,
           role: membership.role,
           userId: membership.userId,
-          name: profile?.displayName ?? profile?.email,
-          email: profile?.email,
-          phoneNumber: profile?.phoneNumber,
+          name: profile.name,
+          email: profile.email,
+          phoneNumber: profile.phoneNumber,
+          avatarUrl: profile.avatarUrl,
         };
       }),
     );

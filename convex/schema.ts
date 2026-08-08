@@ -34,6 +34,7 @@ export default defineSchema({
     displayName: v.optional(v.string()),
     email: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
+    avatarUrl: v.optional(v.string()),
     updatedAt: v.number(),
   }).index("by_userId", ["userId"]),
   eventInvitations: defineTable({

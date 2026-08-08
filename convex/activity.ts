@@ -7,6 +7,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireIdentity } from "./auth";
+import { resolveUserProfile } from "./userProfiles";
 
 async function requireMember(
   ctx: QueryCtx | MutationCtx,
@@ -74,19 +75,21 @@ export const list = query({
     ]);
     const namedActivity = await Promise.all(
       activity.reverse().map(async (entry) => {
-        const profile = await ctx.db
-          .query("userProfiles")
-          .withIndex("by_userId", (index) => index.eq("userId", entry.actorId))
-          .unique();
+        const profile = await resolveUserProfile(ctx, entry.actorId);
         return {
           ...entry,
-          actorName: profile?.displayName ?? profile?.email,
+          actorName: profile.name,
         };
       }),
     );
     return {
       activity: namedActivity,
-      comments: comments.reverse(),
+      comments: await Promise.all(
+        comments.reverse().map(async (comment) => ({
+          ...comment,
+          authorName: (await resolveUserProfile(ctx, comment.authorId)).name,
+        })),
+      ),
       sources: sources.reverse(),
     };
   },

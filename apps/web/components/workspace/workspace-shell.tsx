@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Sidebar } from "@/components/sidebar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,11 +65,13 @@ function ConnectedShell({
   const syncProfile = useMutation(invitationsApi.syncProfile);
   const claimInvitations = useMutation(invitationsApi.claim);
   const pathname = usePathname();
+  const [needsVerifiedEmail, setNeedsVerifiedEmail] = useState(false);
 
   useEffect(() => {
     if (!isSignedIn) return;
     void syncProfile()
       .then(() => claimInvitations())
+      .then((result) => setNeedsVerifiedEmail(result.requiresVerifiedEmail))
       .catch(() => undefined);
   }, [claimInvitations, isSignedIn, syncProfile]);
 
@@ -116,6 +118,15 @@ function ConnectedShell({
 
   return (
     <EventWorkspaceProvider event={event} events={events ?? []}>
+      {needsVerifiedEmail ? (
+        <p
+          className="border-b border-warning-ln bg-warning-bg px-4 py-2 text-center text-sm text-warning-tx"
+          role="status"
+        >
+          Add and verify a primary email in your account menu to accept event
+          invitations.
+        </p>
+      ) : null}
       <OfflineSync eventId={eventId} />
       <div className="flex min-h-screen">
         <a

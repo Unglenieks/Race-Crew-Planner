@@ -283,6 +283,7 @@ function ConnectedEventSwitcher() {
   );
   const router = useRouter();
   const [sampleError, setSampleError] = useState<string | null>(null);
+  const [needsVerifiedEmail, setNeedsVerifiedEmail] = useState(false);
   const [creatingSample, setCreatingSample] = useState(false);
   const [removingSampleId, setRemovingSampleId] = useState<string | null>(null);
   const [pendingLifecycleEventId, setPendingLifecycleEventId] = useState<
@@ -293,6 +294,7 @@ function ConnectedEventSwitcher() {
     if (!isSignedIn) return;
     void syncProfile()
       .then(() => claimInvitations())
+      .then((result) => setNeedsVerifiedEmail(result.requiresVerifiedEmail))
       .catch(() => undefined);
   }, [claimInvitations, isSignedIn, syncProfile]);
 
@@ -402,6 +404,15 @@ function ConnectedEventSwitcher() {
           <CardTitle>Create your first event</CardTitle>
         </CardHeader>
         <CardContent className="grid max-w-xl gap-5">
+          {needsVerifiedEmail ? (
+            <p
+              className="rounded-md border border-warning-ln bg-warning-bg px-3 py-2 text-sm text-warning-tx"
+              role="status"
+            >
+              Add and verify a primary email in your account menu to accept
+              event invitations.
+            </p>
+          ) : null}
           <p className="text-sm leading-relaxed text-muted">
             Explore a populated event first, or create one with its own local
             time zone. You will own either event.
@@ -451,6 +462,15 @@ function ConnectedEventSwitcher() {
           <CardTitle>Your events</CardTitle>
         </CardHeader>
         <CardContent>
+          {needsVerifiedEmail ? (
+            <p
+              className="mb-3 rounded-md border border-warning-ln bg-warning-bg px-3 py-2 text-sm text-warning-tx"
+              role="status"
+            >
+              Add and verify a primary email in your account menu to accept
+              event invitations.
+            </p>
+          ) : null}
           <EventList
             events={signedInEvents}
             onRemoveSample={removeSampleEvent}

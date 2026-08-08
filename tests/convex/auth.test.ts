@@ -75,6 +75,10 @@ import {
   validateFields,
 } from "../../convex/forms";
 import { safeUrl, text } from "../../convex/activity";
+import {
+  resolveUserProfile,
+  syncIdentityProfile,
+} from "../../convex/userProfiles";
 import { recordHeartbeat } from "../../convex/scheduler";
 import { remove as removeFile, save as saveFile } from "../../convex/files";
 import {
@@ -302,6 +306,7 @@ describe("Convex authorization helpers", () => {
           }),
         },
         db: {
+          query: () => ({ withIndex: () => ({ unique: async () => null }) }),
           insert: async (table: string, value: Record<string, unknown>) => {
             inserts.push({ table, value });
             return `${table}:${inserts.length}`;
@@ -310,7 +315,7 @@ describe("Convex authorization helpers", () => {
       } as never,
       {},
     );
-    expect(eventId).toBe("events:1");
+    expect(eventId).toBe("events:2");
     expect(
       inserts.find((insert) => insert.table === "events")?.value,
     ).toMatchObject({
@@ -552,9 +557,10 @@ describe("Convex authorization helpers", () => {
         }),
       },
       db: {
+        query: () => ({ withIndex: () => ({ unique: async () => null }) }),
         insert: async (table: string, value: Record<string, unknown>) => {
           inserts.push({ table, value });
-          return table === "events" ? "events:one" : "eventMemberships:one";
+          return table === "events" ? "events:one" : `${table}:one`;
         },
       },
     };
@@ -564,12 +570,16 @@ describe("Convex authorization helpers", () => {
       timeZone: "UTC",
     });
 
-    expect(inserts).toHaveLength(2);
+    expect(inserts).toHaveLength(3);
     expect(inserts[0]).toMatchObject({
+      table: "userProfiles",
+      value: { userId: "user_123" },
+    });
+    expect(inserts[1]).toMatchObject({
       table: "events",
       value: { name: "Pine Ridge Rally", createdBy: "user_123" },
     });
-    expect(inserts[1]).toMatchObject({
+    expect(inserts[2]).toMatchObject({
       table: "eventMemberships",
       value: { eventId: "events:one", userId: "user_123", role: "owner" },
     });
@@ -1512,6 +1522,70 @@ describe("Convex authorization helpers", () => {
     expect(patches).toContainEqual(
       expect.objectContaining({ status: "accepted", acceptedBy: "crew_123" }),
     );
+  });
+
+  it("returns one actionable state when invitation claims have no verified email", async () => {
+    const result = await claimInvitations._handler(
+      {
+        auth: {
+          getUserIdentity: async () => ({
+            tokenIdentifier: "issuer|crew_123",
+            subject: "crew_123",
+            issuer: "issuer",
+          }),
+        },
+        db: {},
+      } as never,
+      {},
+    );
+    expect(result).toEqual({ claimedCount: 0, requiresVerifiedEmail: true });
+  });
+
+  it("uses a safe label for a missing profile", async () => {
+    const profile = await resolveUserProfile(
+      {
+        db: {
+          query: () => ({ withIndex: () => ({ unique: async () => null }) }),
+        },
+      } as never,
+      "user_missing",
+    );
+    expect(profile.name).toBe("Profile pending");
+    expect(profile.name).not.toContain("user_missing");
+  });
+
+  it("updates a renamed user while preserving omitted verified claims", async () => {
+    const patches: Array<Record<string, unknown>> = [];
+    await syncIdentityProfile(
+      {
+        db: {
+          query: () => ({
+            withIndex: () => ({
+              unique: async () => ({
+                _id: "userProfiles:one",
+                displayName: "Old name",
+                email: "person@example.com",
+                phoneNumber: "+15551234567",
+              }),
+            }),
+          }),
+          patch: async (_id: string, value: Record<string, unknown>) => {
+            patches.push(value);
+          },
+        },
+      } as never,
+      {
+        tokenIdentifier: "issuer|user_123",
+        subject: "user_123",
+        issuer: "issuer",
+        name: "New name",
+      },
+    );
+    expect(patches[0]).toMatchObject({
+      displayName: "New name",
+      email: "person@example.com",
+      phoneNumber: "+15551234567",
+    });
   });
 });
 
