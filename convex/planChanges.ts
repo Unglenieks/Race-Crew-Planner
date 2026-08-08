@@ -9,6 +9,7 @@ import {
 import { requireIdentity, requireRole } from "./auth";
 import { resolveUserProfile } from "./userProfiles";
 import { writeAudit } from "./audit";
+import { movementStructuredFields } from "./movements";
 
 const severity = v.union(v.literal("routine"), v.literal("critical"));
 const deliveryStates = [
@@ -127,6 +128,7 @@ export const publish = mutation({
       .collect();
     const prior = priorPublications.at(-1);
     const hasLastChangedSnapshot = item.lastChangedAt !== undefined;
+    const structured = await movementStructuredFields(ctx, item);
     const now = Date.now();
     const changeId = await ctx.db.insert("planChanges", {
       eventId,
@@ -135,7 +137,13 @@ export const publish = mutation({
       scheduledFor: item.scheduledFor,
       scheduledUntil: item.scheduledUntil,
       location: item.location,
+      recordId: item.recordId,
       notes: item.notes,
+      movementTypeLabel: structured.movementTypeLabel,
+      tagLabels: structured.tags.map((tag) => tag.name),
+      assignmentLabels: structured.assignments.map(
+        (assignment) => assignment.label,
+      ),
       previousTitle: hasLastChangedSnapshot
         ? item.lastChangedTitle
         : prior?.title,
@@ -148,9 +156,21 @@ export const publish = mutation({
       previousLocation: hasLastChangedSnapshot
         ? item.lastChangedLocation
         : prior?.location,
+      previousRecordId: hasLastChangedSnapshot
+        ? item.lastChangedRecordId
+        : prior?.recordId,
       previousNotes: hasLastChangedSnapshot
         ? item.lastChangedNotes
         : prior?.notes,
+      previousMovementTypeLabel: hasLastChangedSnapshot
+        ? item.lastChangedMovementTypeLabel
+        : prior?.movementTypeLabel,
+      previousTagLabels: hasLastChangedSnapshot
+        ? item.lastChangedTagLabels
+        : prior?.tagLabels,
+      previousAssignmentLabels: hasLastChangedSnapshot
+        ? item.lastChangedAssignmentLabels
+        : prior?.assignmentLabels,
       reason: normalizedReason(reason),
       severity,
       publishedBy: identity.subject,
@@ -172,7 +192,11 @@ export const publish = mutation({
       lastChangedScheduledFor: undefined,
       lastChangedScheduledUntil: undefined,
       lastChangedLocation: undefined,
+      lastChangedRecordId: undefined,
       lastChangedNotes: undefined,
+      lastChangedMovementTypeLabel: undefined,
+      lastChangedTagLabels: undefined,
+      lastChangedAssignmentLabels: undefined,
       lastChangedAt: undefined,
     });
     await writeAudit(ctx, {

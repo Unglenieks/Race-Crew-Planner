@@ -8,6 +8,7 @@ import {
 } from "./_generated/server";
 import { requireIdentity, requireRole } from "./auth";
 import { syncIdentityProfile } from "./userProfiles";
+import { seedMovementDefaults } from "./movements";
 
 const eventArgs = {
   name: v.string(),
@@ -103,6 +104,7 @@ export const create = mutation({
       role: "owner",
       createdAt,
     });
+    await seedMovementDefaults(ctx, eventId, createdAt);
 
     return eventId;
   },
@@ -132,6 +134,7 @@ export const createSample = mutation({
       role: "owner",
       createdAt,
     });
+    await seedMovementDefaults(ctx, eventId, createdAt);
 
     await ctx.db.insert("eventRecordFields", {
       eventId,
@@ -189,11 +192,24 @@ export const createSample = mutation({
 });
 
 const eventTables = [
+  "movementTagAssignments",
+  "movementAssignments",
+  "eventMovementTags",
+  "eventMovementTypes",
+  "eventTeams",
+  "eventOperationalRoles",
   "eventRecordCategoryAssignments",
   "travelContexts",
+  "eventLogisticsProfiles",
+  "rallyLegs",
+  "serviceIntervals",
+  "weatherForecasts",
+  "externalContacts",
   "workItemComments",
   "planChangeRecipients",
   "planChanges",
+  "planExports",
+  "planImports",
   "formSubmissions",
   "formTemplates",
   "eventActivity",
@@ -216,6 +232,17 @@ const eventTables = [
 const retentionWindowMs = 30 * 24 * 60 * 60 * 1000;
 
 async function deleteEventRows(ctx: MutationCtx, eventId: Id<"events">) {
+  const imports = await ctx.db
+    .query("planImports")
+    .withIndex("by_eventId_createdAt", (q) => q.eq("eventId", eventId))
+    .collect();
+  for (const imported of imports) {
+    const rows = await ctx.db
+      .query("planImportRows")
+      .withIndex("by_importId", (q) => q.eq("importId", imported._id))
+      .collect();
+    await Promise.all(rows.map((row) => ctx.db.delete(row._id)));
+  }
   const files = await ctx.db
     .query("eventFiles")
     .filter((q) => q.eq(q.field("eventId"), eventId))

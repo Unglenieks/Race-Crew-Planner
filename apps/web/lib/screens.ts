@@ -5,11 +5,13 @@ import {
   FolderOpen,
   CloudOff,
   LayoutDashboard,
+  Gauge,
   MapPin,
   MessageSquare,
   Printer,
   Route,
   Rows3,
+  TableProperties,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -29,11 +31,13 @@ export type ScreenId =
   | "today"
   | "attention"
   | "plan"
+  | "plan-import"
   | "plan-export"
   | "work"
   | "work-templates"
   | "records"
   | "travel"
+  | "logistics"
   | "files"
   | "offline"
   | "forms"
@@ -94,6 +98,16 @@ export const screens: ScreenDefinition[] = [
     minRole: "crew",
   },
   {
+    id: "plan-import",
+    segment: "plan/import",
+    label: "Import plan",
+    shortLabel: "Import",
+    description:
+      "Stage, review, and safely commit a schedule from a file or pasted table.",
+    icon: TableProperties,
+    minRole: "manager",
+  },
+  {
     id: "plan-export",
     segment: "plan/export",
     label: "Export & print",
@@ -136,6 +150,15 @@ export const screens: ScreenDefinition[] = [
     shortLabel: "Travel",
     description: "Place-to-place estimates and route notes for the event.",
     icon: MapPin,
+    minRole: "crew",
+  },
+  {
+    id: "logistics",
+    segment: "logistics",
+    label: "Rally logistics",
+    shortLabel: "Logistics",
+    description: "Car, legs, fuel, travel, service, weather, and support.",
+    icon: Gauge,
     minRole: "crew",
   },
   {
@@ -195,13 +218,13 @@ export const screenGroups: ScreenGroup[] = [
   { label: null, screenIds: ["today", "attention"] },
   {
     label: "Plan",
-    screenIds: ["plan", "plan-export"],
+    screenIds: ["plan", "plan-import", "plan-export"],
   },
   {
     label: "Work",
     screenIds: ["work", "work-templates"],
   },
-  { label: "Records", screenIds: ["records", "travel", "files"] },
+  { label: "Records", screenIds: ["records", "travel", "logistics", "files"] },
   { label: "Forms", screenIds: ["forms"] },
   { label: "Trust & setup", screenIds: ["activity", "offline", "people"] },
 ];

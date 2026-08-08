@@ -25,6 +25,9 @@ export type OfflinePackage = {
     title: string;
     scheduledFor: string;
     location?: string;
+    movementTypeLabel?: string;
+    tagLabels?: string[];
+    assignmentLabels?: string[];
   }>;
   work: Array<{
     id: string;

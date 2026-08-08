@@ -93,6 +93,11 @@ import {
   sameItems,
   validatedFilterDay,
 } from "../../convex/planExports";
+import {
+  isValidEventLocalDateTime,
+  normalize2400,
+} from "../../convex/timeSemantics";
+import { calculateFuel, createLeg, updateLeg } from "../../convex/logistics";
 
 const owner: ApplicationRole = "owner";
 
@@ -155,10 +160,17 @@ describe("Convex authorization helpers", () => {
           eventId: "events:one",
           generatedBy: "crew",
           filterDay: "2026-08-10",
+          schemaVersion: 1,
+          appendices: expect.objectContaining({
+            venues: [],
+            officialContacts: [],
+            travel: [],
+          }),
           items: [
             expect.objectContaining({
               itineraryItemId: "itineraryItems:included",
               title: "Start",
+              timeKind: "exact",
             }),
           ],
         }),
@@ -315,7 +327,12 @@ describe("Convex authorization helpers", () => {
           }),
         },
         db: {
-          query: () => ({ withIndex: () => ({ unique: async () => null }) }),
+          query: () => ({
+            withIndex: () => ({
+              unique: async () => null,
+              collect: async () => [],
+            }),
+          }),
           insert: async (table: string, value: Record<string, unknown>) => {
             inserts.push({ table, value });
             return `${table}:${inserts.length}`;
@@ -344,6 +361,12 @@ describe("Convex authorization helpers", () => {
       true,
     );
     expect(inserts.some((insert) => insert.table === "workItems")).toBe(true);
+    expect(
+      inserts.some((insert) => insert.table === "eventMovementTypes"),
+    ).toBe(true);
+    expect(inserts.some((insert) => insert.table === "eventMovementTags")).toBe(
+      true,
+    );
   });
 
   it("will not let another user remove a sample event", async () => {
@@ -383,7 +406,11 @@ describe("Convex authorization helpers", () => {
           query: (table: string) => {
             queriedTables.push(table);
             return {
-              withIndex: () => ({ unique: async () => ({ role: "owner" }) }),
+              withIndex: () => ({
+                unique: async () => ({ role: "owner" }),
+                collect: async () =>
+                  table === "planImports" ? [{ _id: "planImports:one" }] : [],
+              }),
               filter: () => ({
                 collect: async () =>
                   table === "eventRecords" ? [{ _id: "eventRecords:one" }] : [],
@@ -396,6 +423,8 @@ describe("Convex authorization helpers", () => {
       { eventId: "events:sample" as never },
     );
     expect(queriedTables).toContain("eventRecordCategoryAssignments");
+    expect(queriedTables).toContain("planImports");
+    expect(queriedTables).toContain("planImportRows");
     expect(queriedTables).toContain("eventMemberships");
     expect(deleted).toEqual(["eventRecords:one", "events:sample"]);
   });
@@ -566,7 +595,12 @@ describe("Convex authorization helpers", () => {
         }),
       },
       db: {
-        query: () => ({ withIndex: () => ({ unique: async () => null }) }),
+        query: () => ({
+          withIndex: () => ({
+            unique: async () => null,
+            collect: async () => [],
+          }),
+        }),
         insert: async (table: string, value: Record<string, unknown>) => {
           inserts.push({ table, value });
           return table === "events" ? "events:one" : `${table}:one`;
@@ -579,7 +613,6 @@ describe("Convex authorization helpers", () => {
       timeZone: "UTC",
     });
 
-    expect(inserts).toHaveLength(3);
     expect(inserts[0]).toMatchObject({
       table: "userProfiles",
       value: { userId: "user_123" },
@@ -608,6 +641,58 @@ describe("Convex authorization helpers", () => {
       location: "Service Park",
       notes: "Load spares first.",
     });
+  });
+
+  it("stores 2400 as next-day midnight while retaining its operational display convention", () => {
+    expect(
+      validatedItineraryInput({
+        title: "Close Friday operations",
+        scheduledFor: "2026-10-16T24:00",
+        operationalDay: "2026-10-16",
+        displayTime: "2400",
+      }),
+    ).toMatchObject({
+      scheduledFor: "2026-10-17T00:00",
+      operationalDay: "2026-10-16",
+      displayTime: "2400",
+    });
+    expect(() => normalize2400("2026-10-16T24:00")).toThrow("2400 display");
+  });
+
+  it("orders overnight ranges chronologically and permits explicit prior operating days", () => {
+    expect(
+      validatedItineraryInput({
+        title: "Friday night service",
+        scheduledFor: "2026-10-16T23:30",
+        scheduledUntil: "2026-10-17T00:45",
+        operationalDay: "2026-10-16",
+        timeKind: "range",
+      }),
+    ).toMatchObject({
+      scheduledFor: "2026-10-16T23:30",
+      scheduledUntil: "2026-10-17T00:45",
+      operationalDay: "2026-10-16",
+    });
+    expect(
+      validatedItineraryInput({
+        title: "Friday early call",
+        scheduledFor: "2026-10-17T00:45",
+        operationalDay: "2026-10-16",
+      }),
+    ).toMatchObject({ operationalDay: "2026-10-16" });
+  });
+
+  it("validates event-local wall times across time zones and daylight-saving transitions", () => {
+    expect(
+      isValidEventLocalDateTime("2026-03-08T03:30", "America/New_York"),
+    ).toBe(true);
+    expect(
+      isValidEventLocalDateTime("2026-03-08T02:30", "America/New_York"),
+    ).toBe(false);
+    expect(
+      isValidEventLocalDateTime("2026-11-01T01:30", "America/New_York"),
+    ).toBe(true);
+    expect(isValidEventLocalDateTime("2026-03-08T02:30", "UTC")).toBe(true);
   });
 
   it("validates range end times while preserving non-range input", () => {
@@ -655,6 +740,7 @@ describe("Convex authorization helpers", () => {
         query: () => ({
           withIndex: () => ({ unique: async () => ({ role: "manager" }) }),
         }),
+        get: async () => ({ timeZone: "UTC" }),
         insert: async (table: string, value: Record<string, unknown>) => {
           inserts.push({ table, value });
           return table === "itineraryItems"
@@ -827,7 +913,10 @@ describe("Convex authorization helpers", () => {
       },
       db: {
         query: () => ({
-          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+          withIndex: () => ({
+            unique: async () => ({ role: "crew" }),
+            collect: async () => [],
+          }),
         }),
       },
     };
@@ -863,7 +952,10 @@ describe("Convex authorization helpers", () => {
       },
       db: {
         query: () => ({
-          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+          withIndex: () => ({
+            unique: async () => ({ role: "crew" }),
+            collect: async () => [],
+          }),
         }),
       },
     };
@@ -1157,7 +1249,10 @@ describe("Convex authorization helpers", () => {
       },
       db: {
         query: () => ({
-          withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+          withIndex: () => ({
+            unique: async () => ({ role: "crew" }),
+            collect: async () => [],
+          }),
         }),
         get: async () => ({ eventId: "events:one", title: "Arrive" }),
       },
@@ -1308,13 +1403,13 @@ describe("Convex authorization helpers", () => {
         }),
       },
       db: {
-        query: () => ({
+        query: (table: string) => ({
           withIndex: () => ({
             unique: async () => ({ role: "crew" }),
-            collect: async () => [
-              { title: "Active" },
-              { title: "Archived", archivedAt: 1 },
-            ],
+            collect: async () =>
+              table === "itineraryItems"
+                ? [{ title: "Active" }, { title: "Archived", archivedAt: 1 }]
+                : [],
           }),
         }),
       },
@@ -1323,12 +1418,21 @@ describe("Convex authorization helpers", () => {
       listItineraryItems._handler(context as never, {
         eventId: "events:one" as never,
       }),
-    ).resolves.toEqual([{ title: "Active" }]);
+    ).resolves.toMatchObject([
+      {
+        title: "Active",
+        movementTypeLabel: undefined,
+        tags: [],
+        assignments: [],
+      },
+    ]);
     await expect(
       listArchivedItineraryItems._handler(context as never, {
         eventId: "events:one" as never,
       }),
-    ).resolves.toEqual([{ title: "Archived", archivedAt: 1 }]);
+    ).resolves.toMatchObject([
+      { title: "Archived", archivedAt: 1, tags: [], assignments: [] },
+    ]);
   });
 
   it("lets crew complete work but not create it", async () => {
@@ -2526,5 +2630,78 @@ describe("regressions found reviewing the outage integration", () => {
       ["formTemplates:v1", true],
       ["formTemplates:v2", false],
     ]);
+  });
+
+  it("calculates fuel from stage and transit mileage without persisting totals", () => {
+    const fuel = calculateFuel({
+      stageMiles: 100,
+      transitMiles: 50,
+      stageMpg: 10,
+      transitMpg: 20,
+      reservePercent: 10,
+      capacityGallons: 13,
+    });
+    expect(fuel).toMatchObject({
+      available: true,
+      stageFuelGallons: 10,
+      transitFuelGallons: 2.5,
+      formula: "(100 mi ÷ 10 MPG + 50 mi ÷ 20 MPG) × (1 + 10%)",
+    });
+    if (fuel.available) {
+      expect(fuel.calculatedPlannedFuelGallons).toBeCloseTo(13.75);
+      expect(fuel.plannedFuelGallons).toBeCloseTo(13.75);
+      expect(fuel.capacityShortfallGallons).toBeCloseTo(0.75);
+    }
+  });
+
+  it("requires an override reason and enforces logistics authorization and event ownership", async () => {
+    const leg = {
+      eventId: "events:one" as never,
+      name: "Leg 1",
+      order: 1,
+      stageCount: 3,
+      stageMiles: 45,
+      transitMiles: 20,
+      fuelOverrideGallons: 9,
+    };
+    const manager = managerContext({}, "owner");
+    await expect(createLeg._handler(manager as never, leg)).rejects.toThrow(
+      "override reason",
+    );
+
+    const crew = managerContext({}, "crew");
+    await expect(
+      createLeg._handler(crew as never, {
+        ...leg,
+        fuelOverrideReason: "Known detour",
+      }),
+    ).rejects.toThrow("Forbidden");
+
+    const crossEvent = managerContext(
+      { get: async () => ({ eventId: "events:other" }) },
+      "owner",
+    );
+    await expect(
+      updateLeg._handler(crossEvent as never, {
+        ...leg,
+        legId: "rallyLegs:other" as never,
+        fuelOverrideReason: "Known detour",
+      }),
+    ).rejects.toThrow("Rally leg not found");
+  });
+
+  it("rejects a movement reference to logistics owned by another event", async () => {
+    const context = managerContext(
+      { get: async () => ({ eventId: "events:other" }) },
+      "manager",
+    );
+    await expect(
+      createItineraryItem._handler(context as never, {
+        eventId: "events:one" as never,
+        title: "Transit to service",
+        scheduledFor: "2026-10-16T08:30",
+        travelContextId: "travelContexts:other" as never,
+      }),
+    ).rejects.toThrow("Travel context not found");
   });
 });
