@@ -167,7 +167,7 @@ export function EventContacts({ eventId }: { eventId: string }) {
                     {contactLabel(contact)}
                   </span>
                   <span className="block truncate text-xs text-muted">
-                    {contact.email || contact.phoneNumber || contact.userId}
+                    {contact.email || contact.phoneNumber || "Profile pending"}
                   </span>
                 </span>
                 {contact.type === "member" && contact.role !== "owner" ? (

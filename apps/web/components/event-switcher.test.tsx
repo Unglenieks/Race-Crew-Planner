@@ -3,7 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mutations = {
   syncProfile: vi.fn().mockResolvedValue(null),
-  claim: vi.fn().mockResolvedValue(null),
+  claim: vi.fn().mockResolvedValue({
+    claimedCount: 0,
+    requiresVerifiedEmail: false,
+  }),
   createSample: vi.fn().mockResolvedValue("events:sample"),
   removeSample: vi.fn().mockResolvedValue(null),
 };
@@ -55,6 +58,10 @@ describe("EventSwitcher first run", () => {
     events = [];
     push.mockReset();
     Object.values(mutations).forEach((mutation) => mutation.mockClear());
+    mutations.claim.mockResolvedValue({
+      claimedCount: 0,
+      requiresVerifiedEmail: false,
+    });
   });
 
   it("starts a populated sample event for a new account", async () => {
@@ -83,5 +90,17 @@ describe("EventSwitcher first run", () => {
         eventId: "events:sample",
       }),
     );
+  });
+
+  it("shows one actionable message when the account has no verified email", async () => {
+    mutations.claim.mockResolvedValueOnce({
+      claimedCount: 0,
+      requiresVerifiedEmail: true,
+    });
+    render(<EventSwitcher />);
+    expect(
+      await screen.findByText(/add and verify a primary email/i),
+    ).toBeDefined();
+    expect(screen.getAllByRole("status")).toHaveLength(1);
   });
 });

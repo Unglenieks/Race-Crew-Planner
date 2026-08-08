@@ -567,7 +567,7 @@ function SubmissionForm({
                     <option value="">Choose a person</option>
                     {(people ?? []).map((person) => (
                       <option key={person.userId} value={person.userId}>
-                        {person.name ?? person.userId} · {person.role}
+                        {person.name} · {person.role}
                       </option>
                     ))}
                   </select>

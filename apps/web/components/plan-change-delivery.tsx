@@ -64,9 +64,7 @@ function ChangeStatus({
               key={recipient._id}
               className="flex flex-wrap items-center gap-2 rounded-md bg-topbg px-3 py-2 text-sm"
             >
-              <span className="min-w-0 flex-1 text-ink">
-                {recipient.name ?? recipient.userId}
-              </span>
+              <span className="min-w-0 flex-1 text-ink">{recipient.name}</span>
               <span className="text-muted">
                 {reached
                   ? reachedByAnotherRoute

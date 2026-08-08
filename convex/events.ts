@@ -7,6 +7,7 @@ import {
   type MutationCtx,
 } from "./_generated/server";
 import { requireIdentity, requireRole } from "./auth";
+import { syncIdentityProfile } from "./userProfiles";
 
 const eventArgs = {
   name: v.string(),
@@ -87,6 +88,7 @@ export const create = mutation({
   args: eventArgs,
   handler: async (ctx, args) => {
     const identity = await requireIdentity(ctx);
+    await syncIdentityProfile(ctx, identity);
     const event = validatedEventInput(args);
     const createdAt = Date.now();
     const eventId = await ctx.db.insert("events", {
@@ -115,6 +117,7 @@ export const createSample = mutation({
   args: {},
   handler: async (ctx) => {
     const identity = await requireIdentity(ctx);
+    await syncIdentityProfile(ctx, identity);
     const createdAt = Date.now();
     const eventId = await ctx.db.insert("events", {
       name: "Pine Ridge Rally — sample event",

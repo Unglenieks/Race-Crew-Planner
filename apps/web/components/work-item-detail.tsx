@@ -301,7 +301,7 @@ export function WorkItemDetail({
                     <option value="">Unassigned</option>
                     {assignees.map((assignee) => (
                       <option key={assignee.userId} value={assignee.userId}>
-                        {assignee.name ?? assignee.userId} ({assignee.role})
+                        {assignee.name} ({assignee.role})
                       </option>
                     ))}
                   </select>
@@ -436,7 +436,7 @@ export function WorkItemDetail({
               <p className="mt-1 text-muted">
                 {assignees.find((person) => person.userId === item.assigneeId)
                   ?.name ??
-                  item.assigneeId ??
+                  item.assigneeName ??
                   "Unassigned"}
               </p>
             </div>
@@ -480,7 +480,7 @@ export function WorkItemDetail({
                       {entry.body}
                     </p>
                     <p className="mt-1 text-xs text-muted">
-                      {entry.authorName ?? entry.authorId} ·{" "}
+                      {entry.authorName ?? "Profile pending"} ·{" "}
                       {dateTime(entry.createdAt)}
                     </p>
                   </li>

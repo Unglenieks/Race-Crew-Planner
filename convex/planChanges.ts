@@ -7,6 +7,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireIdentity, requireRole } from "./auth";
+import { resolveUserProfile } from "./userProfiles";
 
 const severity = v.union(v.literal("routine"), v.literal("critical"));
 const deliveryStates = [
@@ -69,14 +70,11 @@ export const recipients = query({
       .collect();
     return await Promise.all(
       members.map(async (member) => {
-        const profile = await ctx.db
-          .query("userProfiles")
-          .withIndex("by_userId", (index) => index.eq("userId", member.userId))
-          .unique();
+        const profile = await resolveUserProfile(ctx, member.userId);
         return {
           userId: member.userId,
           role: member.role,
-          name: profile?.displayName ?? profile?.email ?? member.userId,
+          name: profile.name,
         };
       }),
     );
@@ -195,19 +193,19 @@ export const listForPublisher = query({
           .collect();
         const namedRecipients = await Promise.all(
           recipients.map(async (recipient) => {
-            const profile = await ctx.db
-              .query("userProfiles")
-              .withIndex("by_userId", (index) =>
-                index.eq("userId", recipient.userId),
-              )
-              .unique();
+            const profile = await resolveUserProfile(ctx, recipient.userId);
             return {
               ...recipient,
-              name: profile?.displayName ?? profile?.email ?? recipient.userId,
+              name: profile.name,
             };
           }),
         );
-        return { ...change, recipients: namedRecipients };
+        return {
+          ...change,
+          publishedByName: (await resolveUserProfile(ctx, change.publishedBy))
+            .name,
+          recipients: namedRecipients,
+        };
       }),
     );
   },
@@ -241,19 +239,19 @@ export const listForMovement = query({
           .collect();
         const namedRecipients = await Promise.all(
           recipients.map(async (recipient) => {
-            const profile = await ctx.db
-              .query("userProfiles")
-              .withIndex("by_userId", (index) =>
-                index.eq("userId", recipient.userId),
-              )
-              .unique();
+            const profile = await resolveUserProfile(ctx, recipient.userId);
             return {
               ...recipient,
-              name: profile?.displayName ?? profile?.email ?? recipient.userId,
+              name: profile.name,
             };
           }),
         );
-        return { ...change, recipients: namedRecipients };
+        return {
+          ...change,
+          publishedByName: (await resolveUserProfile(ctx, change.publishedBy))
+            .name,
+          recipients: namedRecipients,
+        };
       }),
     );
   },

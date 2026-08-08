@@ -99,6 +99,8 @@ export type WorkItem = {
   priority?: "low" | "normal" | "high";
   dueContext?: string;
   assigneeId?: string;
+  assigneeName?: string;
+  completedByName?: string;
   recordId?: string;
   itineraryItemId?: string;
   updatedAt: number;
@@ -114,7 +116,7 @@ export type WorkItemComment = {
 
 export type WorkAssignee = {
   userId: string;
-  name?: string;
+  name: string;
   role: "owner" | "manager" | "crew";
 };
 
@@ -142,6 +144,7 @@ export type EventContact = {
   name?: string;
   email?: string;
   phoneNumber?: string;
+  avatarUrl?: string;
 };
 
 export type PlanChangeRecipient = {
@@ -152,7 +155,7 @@ export type PlanChangeRecipient = {
   acknowledgedAt?: number;
   acknowledgedBy?: string;
   acknowledgementNote?: string;
-  name?: string;
+  name: string;
 };
 
 export type PublishedPlanChange = {
@@ -165,6 +168,7 @@ export type PublishedPlanChange = {
   reason: string;
   severity: "routine" | "critical";
   publishedAt: number;
+  publishedByName: string;
   recipients: PlanChangeRecipient[];
 };
 
@@ -641,12 +645,16 @@ export const workTemplatesApi = {
 };
 
 export const invitationsApi = {
-  syncProfile: makeFunctionReference<"mutation", Record<string, never>, null>(
-    "invitations:syncProfile",
-  ),
-  claim: makeFunctionReference<"mutation", Record<string, never>, null>(
-    "invitations:claim",
-  ),
+  syncProfile: makeFunctionReference<
+    "mutation",
+    Record<string, never>,
+    unknown
+  >("invitations:syncProfile"),
+  claim: makeFunctionReference<
+    "mutation",
+    Record<string, never>,
+    { claimedCount: number; requiresVerifiedEmail: boolean }
+  >("invitations:claim"),
   listContacts: makeFunctionReference<
     "query",
     { eventId: string },

@@ -494,7 +494,7 @@ export function WorkChecklist({
                     <option value="">Unassigned</option>
                     {(assignees ?? []).map((assignee) => (
                       <option key={assignee.userId} value={assignee.userId}>
-                        {assignee.name ?? assignee.userId} ({assignee.role})
+                        {assignee.name} ({assignee.role})
                       </option>
                     ))}
                   </select>
@@ -584,7 +584,7 @@ function WorkItemDetails({
       : null,
     item.dueContext ? `Due: ${item.dueContext}` : null,
     item.assigneeId
-      ? `Assigned to: ${assignee?.name ?? item.assigneeId}`
+      ? `Assigned to: ${assignee?.name ?? item.assigneeName ?? "Profile pending"}`
       : null,
   ].filter((detail): detail is string => detail !== null);
 

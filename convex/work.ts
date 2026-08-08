@@ -7,6 +7,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireIdentity, requireRole } from "./auth";
+import { resolveUserProfile } from "./userProfiles";
 
 const workItemArgs = {
   eventId: v.id("events"),
@@ -151,10 +152,23 @@ export const list = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
     await requireEventMembership(ctx, eventId);
-    return await ctx.db
+    const items = await ctx.db
       .query("workItems")
       .withIndex("by_eventId_createdAt", (q) => q.eq("eventId", eventId))
       .collect();
+    return await Promise.all(
+      items.map(async (item) => ({
+        ...item,
+        assigneeName:
+          item.assigneeId === undefined
+            ? undefined
+            : (await resolveUserProfile(ctx, item.assigneeId)).name,
+        completedByName:
+          item.completedBy === undefined
+            ? undefined
+            : (await resolveUserProfile(ctx, item.completedBy)).name,
+      })),
+    );
   },
 });
 
@@ -163,7 +177,18 @@ export const get = query({
   args: { eventId: v.id("events"), itemId: v.id("workItems") },
   handler: async (ctx, { eventId, itemId }) => {
     await requireEventMembership(ctx, eventId);
-    return await requireWorkItem(ctx, eventId, itemId);
+    const item = await requireWorkItem(ctx, eventId, itemId);
+    return {
+      ...item,
+      assigneeName:
+        item.assigneeId === undefined
+          ? undefined
+          : (await resolveUserProfile(ctx, item.assigneeId)).name,
+      completedByName:
+        item.completedBy === undefined
+          ? undefined
+          : (await resolveUserProfile(ctx, item.completedBy)).name,
+    };
   },
 });
 
@@ -179,13 +204,10 @@ export const listAssignees = query({
 
     return await Promise.all(
       memberships.map(async (membership) => {
-        const profile = await ctx.db
-          .query("userProfiles")
-          .withIndex("by_userId", (q) => q.eq("userId", membership.userId))
-          .unique();
+        const profile = await resolveUserProfile(ctx, membership.userId);
         return {
           userId: membership.userId,
-          name: profile?.displayName ?? profile?.email,
+          name: profile.name,
           role: membership.role,
         };
       }),
@@ -339,13 +361,10 @@ export const listComments = query({
       .collect();
     return await Promise.all(
       comments.map(async (comment) => {
-        const profile = await ctx.db
-          .query("userProfiles")
-          .withIndex("by_userId", (q) => q.eq("userId", comment.authorId))
-          .unique();
+        const profile = await resolveUserProfile(ctx, comment.authorId);
         return {
           ...comment,
-          authorName: profile?.displayName ?? profile?.email,
+          authorName: profile.name,
         };
       }),
     );

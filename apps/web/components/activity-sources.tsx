@@ -132,7 +132,7 @@ export function ActivitySources({ eventId }: { eventId: string }) {
                     <div>
                       <p className="text-sm text-ink">{item.message}</p>
                       <p className="text-xs text-muted">
-                        {item.actorName ?? item.actorId} ·{" "}
+                        {item.actorName ?? "Profile pending"} ·{" "}
                         {date(item.createdAt)}
                       </p>
                     </div>
