@@ -1695,6 +1695,52 @@ describe("Convex authorization helpers", () => {
     expect(() => validatedTemplateItems([])).toThrow("template needs");
   });
 
+  it("prevents rapid duplicate template application on the server", async () => {
+    let latestApplication: Record<string, unknown> | null = null;
+    const insertedTables: string[] = [];
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|manager",
+          subject: "manager",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: (table: string) => ({
+          withIndex: () =>
+            table === "eventMemberships"
+              ? { unique: async () => ({ role: "manager" }) }
+              : {
+                  order: () => ({ first: async () => latestApplication }),
+                },
+        }),
+        get: async () => ({
+          _id: "workTemplates:one",
+          eventId: "events:one",
+          name: "Service arrival",
+          items: [{ title: "Set up awning", priority: "normal" }],
+        }),
+        insert: async (table: string, value: Record<string, unknown>) => {
+          insertedTables.push(table);
+          if (table === "workTemplateApplications") latestApplication = value;
+          return `${table}:one`;
+        },
+      },
+    };
+    const args = {
+      eventId: "events:one" as never,
+      templateId: "workTemplates:one" as never,
+    };
+    await applyWorkTemplate._handler(context as never, args);
+    await expect(
+      applyWorkTemplate._handler(context as never, args),
+    ).rejects.toThrow("just applied");
+    expect(
+      insertedTables.filter((table) => table === "workItems"),
+    ).toHaveLength(1);
+  });
+
   it("does not apply an archived or cross-event work template", async () => {
     const context = {
       auth: {

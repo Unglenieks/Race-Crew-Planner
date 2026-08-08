@@ -1,40 +1,44 @@
-import { Check, ClipboardList, Route, Users } from "lucide-react";
-import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { EventRole } from "@/lib/events-api";
-import {
-  getScreen,
-  roleSatisfies,
-  screenHref,
-  type ScreenId,
-} from "@/lib/screens";
+"use client";
 
-const steps: Array<{
-  title: string;
-  description: string;
-  screenId: ScreenId;
-  icon: typeof Route;
-}> = [
+import { Check, Route, UserRound, Users, X } from "lucide-react";
+import Link from "next/link";
+import { useMutation, useQuery } from "convex/react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  setupApi,
+  type EventRole,
+  type SetupStepStatus,
+} from "@/lib/events-api";
+import { screenHref } from "@/lib/screens";
+
+const steps: Record<
+  SetupStepStatus["id"],
   {
+    title: string;
+    description: string;
+    screenId?: "plan" | "people";
+    icon: typeof Route;
+  }
+> = {
+  profile: {
+    title: "Complete your profile",
+    description: "Add a name and verified email from your account menu.",
+    icon: UserRound,
+  },
+  movement: {
     title: "Add the first movement",
-    description:
-      "Give the team its next time and place. You can add details later.",
+    description: "Give the team its next time and place.",
     screenId: "plan",
     icon: Route,
   },
-  {
-    title: "Add your crew",
-    description: "Invite people before sharing operational changes with them.",
+  crew: {
+    title: "Invite your crew",
+    description: "Invite people before sharing operational changes.",
     screenId: "people",
     icon: Users,
   },
-  {
-    title: "Review attention",
-    description: "Assigned work and plan changes stay visible until resolved.",
-    screenId: "attention",
-    icon: ClipboardList,
-  },
-];
+};
 
 export function EventSetupGuide({
   eventId,
@@ -45,12 +49,12 @@ export function EventSetupGuide({
   eventName: string;
   role: EventRole;
 }) {
-  // Only offer steps this role can actually open, so the guide never points at
-  // a screen that will refuse access. Roles come from the screen registry, not
-  // a second copy of the rules.
-  const availableSteps = steps.filter((step) =>
-    roleSatisfies(role, getScreen(step.screenId).minRole),
-  );
+  const status = useQuery(setupApi.status, { eventId });
+  const dismiss = useMutation(setupApi.dismiss);
+  if (role === "crew") return null;
+  if (status === undefined) return null;
+  const visible = status.filter((step) => !step.dismissed);
+  if (visible.length === 0) return null;
 
   return (
     <section aria-labelledby="setup-heading">
@@ -65,37 +69,61 @@ export function EventSetupGuide({
         </CardHeader>
         <CardContent>
           <ol className="grid gap-2">
-            {availableSteps.map(
-              ({ title, description, screenId, icon: Icon }, index) => (
-                <li key={title}>
-                  <Link
-                    href={screenHref(eventId, screenId)}
-                    className="flex min-h-11 items-start gap-3 rounded-lg border border-success-ln bg-card p-3 text-left hover:border-green focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
+            {visible.map((state) => {
+              const step = steps[state.id];
+              const Icon = step.icon;
+              const content = (
+                <span className="flex min-w-0 flex-1 items-start gap-3">
+                  <Icon
+                    className="mt-0.5 h-5 w-5 shrink-0 text-green-ink"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-ink">
+                      {step.title}
+                    </span>
+                    <span className="mt-0.5 block text-sm text-muted">
+                      {step.description}
+                    </span>
+                  </span>
+                </span>
+              );
+              return (
+                <li
+                  key={state.id}
+                  className="flex items-center gap-2 rounded-lg border border-success-ln bg-card p-3"
+                >
+                  {step.screenId && !state.completed ? (
+                    <Link
+                      className="flex min-w-0 flex-1 focus-visible:outline-3 focus-visible:outline-focus"
+                      href={screenHref(eventId, step.screenId)}
+                    >
+                      {content}
+                    </Link>
+                  ) : (
+                    content
+                  )}
+                  {state.completed ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-success-tx">
+                      <Check className="h-4 w-4" aria-hidden="true" /> Done
+                    </span>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`Dismiss ${step.title}`}
+                    onClick={() => void dismiss({ eventId, step: state.id })}
                   >
-                    <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green text-xs font-bold text-lime">
-                      {index + 1}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold text-ink">
-                        {title}
-                      </span>
-                      <span className="mt-0.5 block text-sm leading-relaxed text-muted">
-                        {description}
-                      </span>
-                    </span>
-                    <Icon
-                      className="mt-1 h-4 w-4 shrink-0 text-green-ink"
-                      aria-hidden="true"
-                    />
-                  </Link>
+                    <X className="h-4 w-4" aria-hidden="true" /> Dismiss
+                  </Button>
                 </li>
-              ),
-            )}
+              );
+            })}
           </ol>
-          <p className="mt-4 flex gap-2 border-t border-success-ln pt-3 text-xs leading-relaxed text-success-tx">
-            <Check className="h-4 w-4 shrink-0" aria-hidden="true" />
-            You can return to these steps at any time. Nothing is shared until
-            you save it.
+          <p className="mt-4 border-t border-success-ln pt-3 text-xs text-success-tx">
+            Steps are tracked independently; completing one never hides the
+            others.
           </p>
         </CardContent>
       </Card>
