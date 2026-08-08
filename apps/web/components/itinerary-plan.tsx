@@ -12,6 +12,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   itineraryApi,
+  logisticsApi,
   movementsApi,
   recordsApi,
   type EventRole,
@@ -49,6 +50,8 @@ type Draft = {
   sectionId: string;
   operationalDay: string;
   displayTime: "standard" | "2400";
+  travelContextId: string;
+  serviceIntervalId: string;
 };
 
 const emptyDraft: Draft = {
@@ -65,6 +68,8 @@ const emptyDraft: Draft = {
   sectionId: "",
   operationalDay: "",
   displayTime: "standard",
+  travelContextId: "",
+  serviceIntervalId: "",
 };
 
 function sectionDate(sectionId: string, sections: PlanSection[]) {
@@ -123,6 +128,7 @@ export function ItineraryPlan({
   const records = useQuery(recordsApi.list, { eventId });
   const directory = useQuery(movementsApi.listDirectory, { eventId });
   const recordTypes = useQuery(recordsApi.listTypes, { eventId });
+  const logistics = useQuery(logisticsApi.getOverview, { eventId });
   const createItem = useMutation(itineraryApi.create);
   const createWithVenue = useMutation(itineraryApi.createWithVenue);
   const archiveItem = useMutation(itineraryApi.archive);
@@ -238,6 +244,8 @@ export function ItineraryPlan({
       location: draft.location || undefined,
       notes: draft.notes || undefined,
       movementTypeId: draft.movementTypeId || null,
+      travelContextId: draft.travelContextId || undefined,
+      serviceIntervalId: draft.serviceIntervalId || undefined,
     };
 
     try {
@@ -707,6 +715,42 @@ export function ItineraryPlan({
                   Display midnight as 2400 on the preceding operational day
                 </label>
               )}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-sm font-medium text-ink">
+                  Travel leg <span className="text-muted">(optional)</span>
+                  <select
+                    value={draft.travelContextId}
+                    onChange={(event) =>
+                      updateDraft("travelContextId", event.target.value)
+                    }
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                  >
+                    <option value="">No travel leg</option>
+                    {(logistics?.travelContexts ?? []).map((travel) => (
+                      <option key={travel._id} value={travel._id}>
+                        {travel.fromName} → {travel.toName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium text-ink">
+                  Service window <span className="text-muted">(optional)</span>
+                  <select
+                    value={draft.serviceIntervalId}
+                    onChange={(event) =>
+                      updateDraft("serviceIntervalId", event.target.value)
+                    }
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+                  >
+                    <option value="">No service window</option>
+                    {(logistics?.serviceIntervals ?? []).map((service) => (
+                      <option key={service._id} value={service._id}>
+                        {service.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
               <div className="grid gap-1.5">
                 <label
                   className="text-sm font-medium text-ink"

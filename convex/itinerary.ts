@@ -24,6 +24,8 @@ const itineraryArgs = {
   scheduledUntil: v.optional(v.string()),
   location: v.optional(v.string()),
   recordId: v.optional(v.id("eventRecords")),
+  travelContextId: v.optional(v.id("travelContexts")),
+  serviceIntervalId: v.optional(v.id("serviceIntervals")),
   notes: v.optional(v.string()),
   movementTypeId: v.optional(v.union(v.id("eventMovementTypes"), v.null())),
   sectionId: v.optional(v.id("planSections")),
@@ -49,6 +51,8 @@ type ItineraryInput = {
   sectionId?: Id<"planSections">;
   operationalDay?: string;
   displayTime?: "standard" | "2400";
+  travelContextId?: Id<"travelContexts">;
+  serviceIntervalId?: Id<"serviceIntervals">;
   timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
   movementTypeId?: Id<"eventMovementTypes"> | null;
 };
@@ -80,6 +84,8 @@ export function validatedItineraryInput(
     displayTime,
     timeKind,
     movementTypeId,
+    travelContextId,
+    serviceIntervalId,
   }: ItineraryInput,
   timeZone = "UTC",
 ) {
@@ -131,6 +137,8 @@ export function validatedItineraryInput(
     ...(sectionId === undefined ? {} : { sectionId }),
     ...(operationalDay === undefined ? {} : { operationalDay }),
     ...(displayTime === undefined ? {} : { displayTime }),
+    ...(travelContextId === undefined ? {} : { travelContextId }),
+    ...(serviceIntervalId === undefined ? {} : { serviceIntervalId }),
     ...(timeKind === undefined ? {} : { timeKind }),
     ...(movementTypeId === undefined ? {} : { movementTypeId }),
   };
@@ -221,6 +229,23 @@ async function requireSection(
   const section = await ctx.db.get(sectionId);
   if (section === null || section.eventId !== eventId) {
     throw new Error("Operational section not found");
+  }
+}
+async function requireLogisticsReferences(
+  ctx: MutationCtx,
+  eventId: Id<"events">,
+  travelContextId: Id<"travelContexts"> | undefined,
+  serviceIntervalId: Id<"serviceIntervals"> | undefined,
+) {
+  if (travelContextId !== undefined) {
+    const travel = await ctx.db.get(travelContextId);
+    if (travel === null || travel.eventId !== eventId)
+      throw new Error("Travel context not found");
+  }
+  if (serviceIntervalId !== undefined) {
+    const service = await ctx.db.get(serviceIntervalId);
+    if (service === null || service.eventId !== eventId)
+      throw new Error("Service interval not found");
   }
 }
 
@@ -358,6 +383,12 @@ export const create = mutation({
     );
     await requireMovementType(ctx, args.eventId, args.movementTypeId);
     await requireSection(ctx, args.eventId, args.sectionId);
+    await requireLogisticsReferences(
+      ctx,
+      args.eventId,
+      args.travelContextId,
+      args.serviceIntervalId,
+    );
     const now = Date.now();
 
     const itemId = await ctx.db.insert("itineraryItems", {
@@ -370,6 +401,8 @@ export const create = mutation({
       // The record is canonical. This label deliberately snapshots the location
       // at authoring time, so renamed venues do not rewrite historic plans.
       location: item.location ?? record?.name,
+      travelContextId: args.travelContextId,
+      serviceIntervalId: args.serviceIntervalId,
       createdAt: now,
       updatedAt: now,
     });
@@ -479,6 +512,12 @@ export const update = mutation({
       args.recordId,
     );
     await requireMovementType(ctx, args.eventId, args.movementTypeId);
+    await requireLogisticsReferences(
+      ctx,
+      args.eventId,
+      args.travelContextId,
+      args.serviceIntervalId,
+    );
 
     const timeZone = await requireEventTimeZone(ctx, args.eventId);
     const item = validatedItineraryInput(args, timeZone);
@@ -492,6 +531,8 @@ export const update = mutation({
       movementTypeId: item.movementTypeId ?? undefined,
       location: item.location ?? record?.name,
       ...movementChangeSnapshot(existing),
+      travelContextId: args.travelContextId,
+      serviceIntervalId: args.serviceIntervalId,
       lastChangedNotes: existing.notes,
       lastChangedMovementTypeLabel: previousStructured.movementTypeLabel,
       lastChangedTagLabels: previousStructured.tags.map((tag) => tag.name),

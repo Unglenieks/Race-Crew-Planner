@@ -9,7 +9,7 @@ vi.mock("convex/react", () => ({
   useQuery: () => exports,
 }));
 
-import { PlanExport, planExportCsv } from "./plan-export";
+import { csvCell, PlanExport, planExportCsv } from "./plan-export";
 
 const items = [
   {
@@ -41,6 +41,7 @@ describe("PlanExport", () => {
       configurable: true,
       value: vi.fn(),
     });
+    vi.stubGlobal("print", vi.fn());
   });
 
   it("writes generation metadata and safely escaped movement rows into CSV", () => {
@@ -60,6 +61,8 @@ describe("PlanExport", () => {
         items: exportItems,
       }),
     ).toContain('"Generated","2026-08-10T12:00:00.000Z"');
+    expect(csvCell("=SUM(A1:A2)")).toBe('"\'=SUM(A1:A2)"');
+    expect(csvCell("  @danger")).toBe('"\'  @danger"');
   });
 
   it("keeps structured labels in the exported brief", () => {
@@ -96,11 +99,11 @@ describe("PlanExport", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Show"), {
+    fireEvent.change(screen.getByLabelText("Scope"), {
       target: { value: "2026-08-10" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: /download csv brief/i }),
+      screen.getByRole("button", { name: /export csv snapshot/i }),
     );
 
     expect(await screen.findByText(/saved to export history/i)).toBeTruthy();
@@ -108,6 +111,53 @@ describe("PlanExport", () => {
       eventId: "events:one",
       filterDay: "2026-08-10",
     });
+  });
+
+  it("prints the generated snapshot as a dense crew brief", async () => {
+    create.mockResolvedValueOnce({
+      _id: "planExports:one",
+      eventName: "North Rally",
+      schemaVersion: 1,
+      timeZone: "America/Chicago",
+      generatedAt: Date.UTC(2026, 7, 10, 12),
+      generatedByName: "Alex",
+      items: [
+        {
+          ...exportItems[0],
+          timeKind: "approximate",
+          scheduledUntil: "2026-08-10T09:00",
+          assignedTo: "Sam",
+          notes: "Bring radios",
+          tags: ["service"],
+          venue: { name: "Service park", address: "1 Rally Way" },
+        },
+      ],
+      appendices: {
+        venues: [],
+        officialContacts: [],
+        travel: [],
+        fuel: [],
+        weather: [],
+        supportServices: [],
+      },
+    });
+    render(
+      <PlanExport
+        eventId="events:one"
+        items={items}
+        timeZone="America/Chicago"
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /generate & print crew brief/i }),
+    );
+
+    expect(
+      await screen.findByText("Operational day · Mon, Aug 10, 2026"),
+    ).toBeTruthy();
+    expect(screen.getByText("Assigned to")).toBeTruthy();
+    expect(window.print).toHaveBeenCalledOnce();
   });
 
   it("makes an older snapshot's superseded status explicit", () => {

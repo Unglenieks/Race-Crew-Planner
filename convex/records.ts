@@ -30,6 +30,15 @@ const legacyRecordType = v.union(
 );
 export const recordFieldTypes = ["text", "select"] as const;
 const recordFieldType = v.union(v.literal("text"), v.literal("select"));
+const supportCategory = v.union(
+  v.literal("fuel"),
+  v.literal("grocery"),
+  v.literal("parts"),
+  v.literal("tire"),
+  v.literal("medical"),
+  v.literal("towing"),
+  v.literal("other"),
+);
 
 function optionalText(
   value: string | undefined,
@@ -48,6 +57,15 @@ function requiredText(value: string, maximum: number, label: string) {
   if (normalized.length === 0 || normalized.length > maximum)
     throw new Error(`${label} must be between 1 and ${maximum} characters`);
   return normalized;
+}
+function normalizedSupportCategories(
+  categories:
+    | Array<
+        "fuel" | "grocery" | "parts" | "tire" | "medical" | "towing" | "other"
+      >
+    | undefined,
+) {
+  return categories === undefined ? undefined : [...new Set(categories)];
 }
 
 export function validatedRecordInput(input: {
@@ -396,6 +414,7 @@ export const create = mutation({
     address: v.optional(v.string()),
     notes: v.optional(v.string()),
     fieldValues: v.optional(v.record(v.string(), v.string())),
+    supportCategories: v.optional(v.array(supportCategory)),
   },
   handler: async (ctx, args) => {
     const { identity } = await manager(ctx, args.eventId);
@@ -416,6 +435,13 @@ export const create = mutation({
         ? {}
         : { recordTypeId: configuredType._id, type: configuredType.name }),
       ...(fieldValues === undefined ? {} : { fieldValues }),
+      ...(args.supportCategories === undefined
+        ? {}
+        : {
+            supportCategories: normalizedSupportCategories(
+              args.supportCategories,
+            ),
+          }),
       createdAt: now,
       updatedAt: now,
     });
@@ -449,6 +475,7 @@ export const update = mutation({
     address: v.optional(v.string()),
     notes: v.optional(v.string()),
     fieldValues: v.optional(v.record(v.string(), v.string())),
+    supportCategories: v.optional(v.array(supportCategory)),
   },
   handler: async (ctx, args) => {
     const { identity } = await manager(ctx, args.eventId);
@@ -477,6 +504,13 @@ export const update = mutation({
         ? { recordTypeId: undefined }
         : { recordTypeId: configuredType._id, type: configuredType.name }),
       ...(args.fieldValues === undefined ? {} : { fieldValues }),
+      ...(args.supportCategories === undefined
+        ? {}
+        : {
+            supportCategories: normalizedSupportCategories(
+              args.supportCategories,
+            ),
+          }),
       updatedAt: Date.now(),
     });
     await writeAudit(ctx, {
@@ -506,6 +540,7 @@ export const saveVenueDetails = mutation({
     accessNotes: v.optional(v.string()),
     hours: v.optional(v.string()),
     contactDetail: v.optional(v.string()),
+    supportCategories: v.optional(v.array(supportCategory)),
     confirmationStatus: v.union(
       v.literal("unconfirmed"),
       v.literal("confirmed"),
@@ -524,6 +559,13 @@ export const saveVenueDetails = mutation({
       accessNotes: optionalText(args.accessNotes, 1000),
       hours: optionalText(args.hours, 240),
       contactDetail: optionalText(args.contactDetail, 300),
+      ...(args.supportCategories === undefined
+        ? {}
+        : {
+            supportCategories: normalizedSupportCategories(
+              args.supportCategories,
+            ),
+          }),
       confirmationStatus: args.confirmationStatus,
       confirmationSource: optionalText(args.confirmationSource, 500),
       verifiedAt: Date.now(),
@@ -750,10 +792,17 @@ export const listTravel = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, args) => {
     await membership(ctx, args.eventId);
-    return await ctx.db
+    const travel = await ctx.db
       .query("travelContexts")
       .withIndex("by_eventId", (q) => q.eq("eventId", args.eventId))
       .collect();
+    return travel.map((row) => ({
+      ...row,
+      requiresReview:
+        row.requiresReview ??
+        (row.distanceMiles === undefined ||
+          row.expectedDurationMinutes === undefined),
+    }));
   },
 });
 export const saveTravel = mutation({
@@ -762,9 +811,13 @@ export const saveTravel = mutation({
     travelId: v.optional(v.id("travelContexts")),
     fromRecordId: v.id("eventRecords"),
     toRecordId: v.id("eventRecords"),
-    estimate: v.string(),
+    estimate: v.optional(v.string()),
     calculation: v.optional(v.string()),
     routeNote: v.optional(v.string()),
+    distanceMiles: v.optional(v.number()),
+    expectedDurationMinutes: v.optional(v.number()),
+    source: v.optional(v.string()),
+    routeNotes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { identity } = await manager(ctx, args.eventId);
@@ -779,12 +832,36 @@ export const saveTravel = mutation({
       !(await isLocationRecord(ctx, to))
     )
       throw new Error("Travel context requires location records");
+    const distanceMiles = args.distanceMiles;
+    const expectedDurationMinutes = args.expectedDurationMinutes;
+    if (
+      (distanceMiles !== undefined &&
+        (!Number.isFinite(distanceMiles) || distanceMiles < 0)) ||
+      (expectedDurationMinutes !== undefined &&
+        (!Number.isFinite(expectedDurationMinutes) ||
+          expectedDurationMinutes < 0))
+    )
+      throw new Error("Distance and expected duration must be zero or greater");
+    const estimate = optionalText(args.estimate, 120);
+    if (
+      estimate === undefined &&
+      (distanceMiles === undefined || expectedDurationMinutes === undefined)
+    )
+      throw new Error(
+        "A legacy estimate or structured distance and duration is required",
+      );
     const data = {
       fromRecordId: args.fromRecordId,
       toRecordId: args.toRecordId,
-      estimate: requiredText(args.estimate, 120, "Estimate"),
+      estimate,
       calculation: optionalText(args.calculation, 240),
       routeNote: optionalText(args.routeNote, 1000),
+      distanceMiles,
+      expectedDurationMinutes,
+      source: optionalText(args.source, 240),
+      routeNotes: optionalText(args.routeNotes, 1000),
+      requiresReview:
+        distanceMiles === undefined || expectedDurationMinutes === undefined,
       updatedAt: Date.now(),
     };
     if (args.travelId === undefined) {

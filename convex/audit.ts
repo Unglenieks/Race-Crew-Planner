@@ -18,6 +18,7 @@ export const auditKinds = [
   "record.updated",
   "record.vocabularyChanged",
   "record.travelUpdated",
+  "logistics.updated",
   "file.uploaded",
   "file.removed",
   "workTemplate.created",

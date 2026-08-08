@@ -612,9 +612,19 @@ export function TravelScreen() {
         eventId: event.id,
         fromRecordId: String(form.get("from")),
         toRecordId: String(form.get("to")),
-        estimate: String(form.get("estimate")),
+        estimate: String(form.get("estimate") || "") || undefined,
         calculation: String(form.get("calculation") || "") || undefined,
         routeNote: String(form.get("routeNote") || "") || undefined,
+        distanceMiles:
+          String(form.get("distanceMiles") || "") === ""
+            ? undefined
+            : Number(form.get("distanceMiles")),
+        expectedDurationMinutes:
+          String(form.get("expectedDurationMinutes") || "") === ""
+            ? undefined
+            : Number(form.get("expectedDurationMinutes")),
+        source: String(form.get("source") || "") || undefined,
+        routeNotes: String(form.get("routeNotes") || "") || undefined,
       });
       formElement.reset();
     } catch {
@@ -661,7 +671,17 @@ export function TravelScreen() {
                   key={item._id}
                   className="border-t border-line pt-3 text-sm"
                 >
-                  <b>{item.estimate}</b>
+                  <b>{item.estimate ?? "Structured travel leg"}</b>
+                  {item.requiresReview ? (
+                    <span className="ml-2 font-semibold text-danger">
+                      Legacy entry needs conversion
+                    </span>
+                  ) : null}
+                  {item.distanceMiles !== undefined ? (
+                    <span className="text-muted">
+                      {` · ${item.distanceMiles} mi · ${item.expectedDurationMinutes} min`}
+                    </span>
+                  ) : null}
                   {item.calculation ? (
                     <span className="text-muted"> · {item.calculation}</span>
                   ) : null}
@@ -677,7 +697,7 @@ export function TravelScreen() {
       {canManage(role) ? (
         <Card>
           <CardHeader>
-            <CardTitle>Add travel context</CardTitle>
+            <CardTitle>Add or convert travel context</CardTitle>
           </CardHeader>
           <CardContent>
             <form className="grid gap-4" onSubmit={submit}>
@@ -704,14 +724,38 @@ export function TravelScreen() {
                 </select>
               </label>
               <label className={field}>
-                Estimate
+                Legacy estimate <span className="text-muted">(optional)</span>
                 <Input
                   name="estimate"
-                  required
                   maxLength={120}
                   placeholder="e.g. 15 minutes"
                 />
               </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className={field}>
+                  Distance (miles)
+                  <Input
+                    name="distanceMiles"
+                    type="number"
+                    min="0"
+                    step="any"
+                  />
+                </label>
+                <label className={field}>
+                  Expected duration (minutes)
+                  <Input
+                    name="expectedDurationMinutes"
+                    type="number"
+                    min="0"
+                    step="any"
+                  />
+                </label>
+              </div>
+              <p className="text-xs text-muted">
+                Enter both numeric values to create a complete travel leg. A
+                legacy estimate is retained only for incomplete historical
+                entries.
+              </p>
               <label className={field}>
                 Calculation / source
                 <Input
@@ -721,9 +765,25 @@ export function TravelScreen() {
                 />
               </label>
               <label className={field}>
+                Structured source
+                <Input
+                  name="source"
+                  maxLength={240}
+                  placeholder="e.g. route planner"
+                />
+              </label>
+              <label className={field}>
                 Route note
                 <textarea
                   name="routeNote"
+                  className={control}
+                  maxLength={1000}
+                />
+              </label>
+              <label className={field}>
+                Structured route notes
+                <textarea
+                  name="routeNotes"
                   className={control}
                   maxLength={1000}
                 />

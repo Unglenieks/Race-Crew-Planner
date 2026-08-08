@@ -34,6 +34,7 @@ type Draft = {
   address: string;
   notes: string;
   fieldValues: Record<string, string>;
+  supportCategories: NonNullable<EventRecord["supportCategories"]>;
 };
 
 const emptyDraft: Draft = {
@@ -43,7 +44,17 @@ const emptyDraft: Draft = {
   address: "",
   notes: "",
   fieldValues: {},
+  supportCategories: [],
 };
+const supportCategories = [
+  "fuel",
+  "grocery",
+  "parts",
+  "tire",
+  "medical",
+  "towing",
+  "other",
+] as const;
 
 function recordToDraft(record: EventRecord): Draft {
   return {
@@ -55,6 +66,7 @@ function recordToDraft(record: EventRecord): Draft {
     address: record.address ?? "",
     notes: record.notes ?? "",
     fieldValues: record.fieldValues ?? {},
+    supportCategories: record.supportCategories ?? [],
   };
 }
 
@@ -65,7 +77,9 @@ function isSameDraft(left: Draft, right: Draft) {
     left.recordTypeId === right.recordTypeId &&
     left.address === right.address &&
     left.notes === right.notes &&
-    JSON.stringify(left.fieldValues) === JSON.stringify(right.fieldValues)
+    JSON.stringify(left.fieldValues) === JSON.stringify(right.fieldValues) &&
+    JSON.stringify(left.supportCategories) ===
+      JSON.stringify(right.supportCategories)
   );
 }
 
@@ -109,6 +123,7 @@ export function RecordsDirectory({
   const [view, setView] = useState<"list" | "table">("list");
   const [filterField, setFilterField] = useState("");
   const [filterValue, setFilterValue] = useState("");
+  const [supportFilter, setSupportFilter] = useState("");
   const [newFieldLabel, setNewFieldLabel] = useState("");
   const [newFieldType, setNewFieldType] = useState<"text" | "select">("text");
   const [newFieldOptions, setNewFieldOptions] = useState("");
@@ -138,9 +153,16 @@ export function RecordsDirectory({
         (record.fieldValues?.[filterField] ?? "")
           .toLocaleLowerCase()
           .includes(filterValue.toLocaleLowerCase());
-      return matchesSearch && matchesField;
+      const matchesSupport =
+        supportFilter.length === 0 ||
+        (record.supportCategories ?? []).includes(
+          supportFilter as NonNullable<
+            EventRecord["supportCategories"]
+          >[number],
+        );
+      return matchesSearch && matchesField && matchesSupport;
     });
-  }, [filterField, filterValue, records, search]);
+  }, [filterField, filterValue, records, search, supportFilter]);
   const initialDraft =
     editingRecord === null ? emptyDraft : recordToDraft(editingRecord);
   const hasUnsavedChanges = !isSameDraft(draft, initialDraft);
@@ -189,6 +211,7 @@ export function RecordsDirectory({
       address: draft.address || undefined,
       notes: draft.notes || undefined,
       fieldValues: draft.fieldValues,
+      supportCategories: draft.supportCategories,
     };
 
     try {
@@ -421,6 +444,27 @@ export function RecordsDirectory({
                     <Table2 className="h-4 w-4" aria-hidden="true" /> Table
                   </Button>
                 </div>
+                <div className="grid gap-1">
+                  <label
+                    className="text-xs font-medium text-muted"
+                    htmlFor="support-filter"
+                  >
+                    Support
+                  </label>
+                  <select
+                    id="support-filter"
+                    value={supportFilter}
+                    onChange={(event) => setSupportFilter(event.target.value)}
+                    className="min-h-10 rounded-lg border border-line bg-card px-2 text-sm"
+                  >
+                    <option value="">All support categories</option>
+                    {supportCategories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 {filterField.length === 0 && search.length === 0 ? null : (
                   <Button
                     type="button"
@@ -429,6 +473,7 @@ export function RecordsDirectory({
                       setSearch("");
                       setFilterField("");
                       setFilterValue("");
+                      setSupportFilter("");
                     }}
                   >
                     Reset filters
@@ -898,6 +943,39 @@ export function RecordsDirectory({
                   )}
                 </div>
               ))}
+              <fieldset className="grid gap-2">
+                <legend className="text-sm font-medium text-ink">
+                  Support categories
+                </legend>
+                <p className="text-xs text-muted">
+                  Use for location-based fuel, groceries, parts, tire, medical,
+                  or towing support.
+                </p>
+                <div className="flex flex-wrap gap-x-3 gap-y-2">
+                  {supportCategories.map((category) => (
+                    <label
+                      key={category}
+                      className="flex items-center gap-1 text-sm text-ink"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={draft.supportCategories.includes(category)}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            supportCategories: event.target.checked
+                              ? [...current.supportCategories, category]
+                              : current.supportCategories.filter(
+                                  (item) => item !== category,
+                                ),
+                          }))
+                        }
+                      />
+                      {category}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
               <div className="grid gap-1.5">
                 <label
                   className="text-sm font-medium text-ink"

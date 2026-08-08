@@ -41,6 +41,8 @@ export type ItineraryItem = {
   operationalDay?: string;
   displayTime?: "standard" | "2400";
   timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
+  travelContextId?: string;
+  serviceIntervalId?: string;
   archivedAt?: number;
 };
 
@@ -84,6 +86,9 @@ export type EventRecord = {
   verifiedAt?: number;
   verifiedBy?: string;
   fieldValues?: Record<string, string>;
+  supportCategories?: Array<
+    "fuel" | "grocery" | "parts" | "tire" | "medical" | "towing" | "other"
+  >;
 };
 export type RecordField = {
   _id: string;
@@ -110,12 +115,95 @@ export type TravelContext = {
   _id: string;
   fromRecordId: string;
   toRecordId: string;
-  estimate: string;
+  estimate?: string;
   calculation?: string;
   routeNote?: string;
   createdBy: string;
   createdAt: number;
   updatedAt: number;
+  distanceMiles?: number;
+  expectedDurationMinutes?: number;
+  source?: string;
+  routeNotes?: string;
+  requiresReview?: boolean;
+};
+export type LogisticsOverview = {
+  profile: {
+    carNumber?: string;
+    makeModel?: string;
+    fuelCapacityGallons?: number;
+    stageMpg?: number;
+    transitMpg?: number;
+    defaultFuelReservePercent: number;
+    documentAccessCodes: Array<{
+      label: string;
+      kind: "document" | "accessCode";
+      value: string;
+    }>;
+  } | null;
+  legs: Array<{
+    _id: string;
+    name: string;
+    order: number;
+    stageCount: number;
+    stageMiles: number;
+    transitMiles: number;
+    startOrder?: number;
+    precedingCar?: string;
+    reservePercent?: number;
+    fuelOverrideGallons?: number;
+    fuelOverrideReason?: string;
+    fuel: {
+      available: boolean;
+      formula: string;
+      plannedFuelGallons?: number;
+      calculatedPlannedFuelGallons?: number;
+      capacityShortfallGallons?: number;
+      overrideApplied?: boolean;
+    };
+  }>;
+  travelContexts: Array<
+    TravelContext & {
+      fromName: string;
+      toName: string;
+      movements: Array<{ _id: string; title: string }>;
+    }
+  >;
+  serviceIntervals: Array<{
+    _id: string;
+    name: string;
+    scheduledStart: string;
+    scheduledEnd: string;
+    allowedDurationMinutes: number;
+    fuelContext?: string;
+    serviceContext?: string;
+    movements: Array<{ _id: string; title: string }>;
+  }>;
+  weatherForecasts: Array<{
+    _id: string;
+    forecastDate: string;
+    conditions: string;
+    temperatureLow?: number;
+    temperatureHigh?: number;
+    precipitationPercent?: number;
+    windMph?: number;
+    source: string;
+    asOf: number;
+  }>;
+  contacts: Array<{
+    _id: string;
+    title: string;
+    name: string;
+    organization?: string;
+    phone?: string;
+    email?: string;
+  }>;
+  supportLocations: Array<{
+    _id: string;
+    name: string;
+    address?: string;
+    supportCategories: string[];
+  }>;
 };
 
 export type WorkItem = {
@@ -308,6 +396,9 @@ export type PlanSection = {
 export type PlanExport = {
   _id: string;
   filterDay?: string;
+  /** Undefined identifies a brief made before the versioned crew-brief model. */
+  schemaVersion?: number;
+  eventName?: string;
   timeZone: string;
   items: Array<{
     itineraryItemId: string;
@@ -317,9 +408,67 @@ export type PlanExport = {
     movementTypeLabel?: string;
     tagLabels?: string[];
     assignmentLabels?: string[];
+    scheduledUntil?: string;
+    timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
+    section?: { name: string; kind: "day" | "session" | "leg" };
+    tags?: string[];
+    venue?: PlanExportVenue;
+    assignedTo?: string;
+    notes?: string;
   }>;
+  appendices?: {
+    venues: PlanExportVenue[];
+    officialContacts: PlanExportContact[];
+    travel: PlanExportTravel[];
+    fuel: PlanExportVenue[];
+    weather: PlanExportVenue[];
+    supportServices: PlanExportVenue[];
+  };
+  inclusionOptions?: CrewBriefInclusionOptions;
+  logistics?: {
+    documentAccessCodes: Array<{
+      label: string;
+      kind: "document" | "accessCode";
+      value: string;
+    }>;
+  };
   generatedAt: number;
+  generatedByName?: string;
   isSuperseded?: boolean;
+};
+export type CrewBriefInclusionOptions = {
+  profile: boolean;
+  rallyFuel: boolean;
+  service: boolean;
+  weather: boolean;
+  travelRoutes: boolean;
+  supportServices: boolean;
+  documentAccessCodes: boolean;
+  externalContactIds: string[];
+};
+export type PlanExportVenue = {
+  name: string;
+  address?: string;
+  accessNotes?: string;
+  hours?: string;
+  contactDetail?: string;
+  notes?: string;
+  tags?: string[];
+};
+export type PlanExportContact = {
+  name: string;
+  role?: string;
+  email?: string;
+  phoneNumber?: string;
+  contactDetail?: string;
+  notes?: string;
+};
+export type PlanExportTravel = {
+  from: string;
+  to: string;
+  estimate: string;
+  calculation?: string;
+  routeNote?: string;
 };
 
 /**
@@ -384,6 +533,8 @@ export const itineraryApi = {
       scheduledUntil?: string;
       location?: string;
       recordId?: string;
+      travelContextId?: string;
+      serviceIntervalId?: string;
       notes?: string;
       movementTypeId?: string | null;
       sectionId?: string;
@@ -402,6 +553,8 @@ export const itineraryApi = {
       scheduledUntil?: string;
       location?: string;
       notes?: string;
+      travelContextId?: string;
+      serviceIntervalId?: string;
       movementTypeId?: string | null;
       sectionId?: string;
       operationalDay?: string;
@@ -444,6 +597,8 @@ export const itineraryApi = {
       scheduledUntil?: string;
       location?: string;
       recordId?: string;
+      travelContextId?: string;
+      serviceIntervalId?: string;
       notes?: string;
       movementTypeId?: string | null;
       sectionId?: string;
@@ -514,6 +669,89 @@ export const movementsApi = {
   >("movements:setAssignments"),
 };
 
+export const logisticsApi = {
+  getOverview: makeFunctionReference<
+    "query",
+    { eventId: string },
+    LogisticsOverview
+  >("logistics:getOverview"),
+  saveProfile: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      carNumber?: string;
+      makeModel?: string;
+      fuelCapacityGallons?: number;
+      stageMpg?: number;
+      transitMpg?: number;
+      defaultFuelReservePercent: number;
+      documentAccessCodes: Array<{
+        label: string;
+        kind: "document" | "accessCode";
+        value: string;
+      }>;
+    },
+    null
+  >("logistics:saveProfile"),
+  createLeg: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      name: string;
+      order: number;
+      stageCount: number;
+      stageMiles: number;
+      transitMiles: number;
+      startOrder?: number;
+      precedingCar?: string;
+      reservePercent?: number;
+      fuelOverrideGallons?: number;
+      fuelOverrideReason?: string;
+    },
+    string
+  >("logistics:createLeg"),
+  createServiceInterval: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      name: string;
+      scheduledStart: string;
+      scheduledEnd: string;
+      allowedDurationMinutes: number;
+      fuelContext?: string;
+      serviceContext?: string;
+    },
+    string
+  >("logistics:createServiceInterval"),
+  createWeatherForecast: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      forecastDate: string;
+      conditions: string;
+      temperatureLow?: number;
+      temperatureHigh?: number;
+      precipitationPercent?: number;
+      windMph?: number;
+      source: string;
+      asOf: number;
+    },
+    string
+  >("logistics:createWeatherForecast"),
+  createExternalContact: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      title: string;
+      name: string;
+      organization?: string;
+      phone?: string;
+      email?: string;
+    },
+    string
+  >("logistics:createExternalContact"),
+};
+
 export const recordsApi = {
   list: makeFunctionReference<"query", { eventId: string }, EventRecord[]>(
     "records:list",
@@ -528,6 +766,7 @@ export const recordsApi = {
       address?: string;
       notes?: string;
       fieldValues?: Record<string, string>;
+      supportCategories?: EventRecord["supportCategories"];
     },
     string
   >("records:create"),
@@ -543,6 +782,7 @@ export const recordsApi = {
       address?: string;
       notes?: string;
       fieldValues?: Record<string, string>;
+      supportCategories?: EventRecord["supportCategories"];
     },
     null
   >("records:update"),
@@ -662,9 +902,13 @@ export const recordsApi = {
       travelId?: string;
       fromRecordId: string;
       toRecordId: string;
-      estimate: string;
+      estimate?: string;
       calculation?: string;
       routeNote?: string;
+      distanceMiles?: number;
+      expectedDurationMinutes?: number;
+      source?: string;
+      routeNotes?: string;
     },
     string | null
   >("records:saveTravel"),
@@ -1012,7 +1256,11 @@ export const planSectionsApi = {
 export const planExportsApi = {
   create: makeFunctionReference<
     "mutation",
-    { eventId: string; filterDay?: string },
+    {
+      eventId: string;
+      filterDay?: string;
+      inclusionOptions?: CrewBriefInclusionOptions;
+    },
     Omit<PlanExport, "isSuperseded">
   >("planExports:create"),
   list: makeFunctionReference<"query", { eventId: string }, PlanExport[]>(
