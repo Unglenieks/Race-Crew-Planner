@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ConfirmDestructiveAction } from "@/components/ui/confirm-destructive-action";
 
 type InvitationRole = "manager" | "crew";
 
@@ -28,6 +29,12 @@ export function EventContacts({ eventId }: { eventId: string }) {
   const [isInviting, setIsInviting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmation, setConfirmation] = useState<{
+    kind: "revoke" | "remove";
+    id: string;
+    label: string;
+  } | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   const matches = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -66,6 +73,8 @@ export function EventContacts({ eventId }: { eventId: string }) {
     setBusyId(invitationId);
     try {
       await revoke({ eventId, invitationId });
+      setMessage("The invitation was cancelled.");
+      setConfirmation(null);
     } catch {
       setError("We could not cancel this invitation. Please try again.");
     } finally {
@@ -90,6 +99,8 @@ export function EventContacts({ eventId }: { eventId: string }) {
     setBusyId(id);
     try {
       await removeMember({ eventId, membershipId: id });
+      setMessage("The member no longer has access to this event.");
+      setConfirmation(null);
     } catch {
       setError("We could not remove this person's access.");
     } finally {
@@ -109,6 +120,37 @@ export function EventContacts({ eventId }: { eventId: string }) {
         </div>
       </CardHeader>
       <CardContent className="grid gap-5">
+        {confirmation === null ? null : (
+          <ConfirmDestructiveAction
+            title={
+              confirmation.kind === "revoke"
+                ? "Cancel invitation?"
+                : "Remove member?"
+            }
+            description={
+              confirmation.kind === "revoke"
+                ? `Cancel the invitation for ${confirmation.label}. They will need a new invitation to join this event.`
+                : `Remove ${confirmation.label} from this event. They will lose access to its plan and operational data.`
+            }
+            confirmLabel={
+              confirmation.kind === "revoke"
+                ? "Cancel invitation"
+                : "Remove member"
+            }
+            isPending={busyId === confirmation.id}
+            onCancel={() => setConfirmation(null)}
+            onConfirm={() =>
+              void (confirmation.kind === "revoke"
+                ? onRevoke(confirmation.id)
+                : remove(confirmation.id))
+            }
+          />
+        )}
+        {message === null ? null : (
+          <p className="text-sm text-success-tx" role="status">
+            {message}
+          </p>
+        )}
         <div className="grid gap-1.5">
           <label
             className="text-sm font-medium text-ink"
@@ -199,7 +241,13 @@ export function EventContacts({ eventId }: { eventId: string }) {
                     variant="ghost"
                     size="sm"
                     disabled={busyId === contact.id}
-                    onClick={() => void onRevoke(contact.id)}
+                    onClick={() =>
+                      setConfirmation({
+                        kind: "revoke",
+                        id: contact.id,
+                        label: contactLabel(contact),
+                      })
+                    }
                   >
                     <Trash2 className="h-4 w-4" />
                     Cancel
@@ -210,7 +258,13 @@ export function EventContacts({ eventId }: { eventId: string }) {
                     variant="ghost"
                     size="sm"
                     disabled={busyId === contact.id}
-                    onClick={() => void remove(contact.id)}
+                    onClick={() =>
+                      setConfirmation({
+                        kind: "remove",
+                        id: contact.id,
+                        label: contactLabel(contact),
+                      })
+                    }
                   >
                     <Trash2 className="h-4 w-4" />
                     Remove

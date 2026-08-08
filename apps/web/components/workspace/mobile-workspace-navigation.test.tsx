@@ -60,7 +60,7 @@ describe("MobileWorkspaceNavigation", () => {
     const dialog = await screen.findByRole("dialog");
     expect(
       within(dialog).getByRole("link", {
-        name: "Current event: North Ridge Rally. Switch event.",
+        name: "North Ridge Rally, America/New_York, owner, 1 event. Switch event.",
       }),
     ).toBeTruthy();
     expect(screen.getByRole("link", { name: /people/i })).toBeTruthy();
