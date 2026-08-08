@@ -13,12 +13,13 @@ import { PlanChangeDelivery } from "@/components/plan-change-delivery";
 import {
   itineraryApi,
   movementsApi,
+  planSectionsApi,
   recordsApi,
   type EventRole,
   type ItineraryItem,
 } from "@/lib/events-api";
 import { locationRecords } from "@/lib/record-locations";
-import { formatEventDateTime } from "@/lib/time-zones";
+import { displayMovementTime, movementTimeLabel } from "@/lib/timing";
 
 type Draft = {
   title: string;
@@ -29,6 +30,9 @@ type Draft = {
   notes: string;
   timeKind: NonNullable<ItineraryItem["timeKind"]>;
   movementTypeId: string;
+  sectionId: string;
+  operationalDay: string;
+  displayTime: "standard" | "2400";
 };
 
 const timeKindLabels: Record<Draft["timeKind"], string> = {
@@ -42,13 +46,19 @@ const timeKindLabels: Record<Draft["timeKind"], string> = {
 function toDraft(item: ItineraryItem): Draft {
   return {
     title: item.title,
-    scheduledFor: item.scheduledFor,
+    scheduledFor:
+      item.timeKind === "allDay" || item.displayTime === "2400"
+        ? (item.operationalDay ?? item.scheduledFor.slice(0, 10))
+        : item.scheduledFor,
     scheduledUntil: item.scheduledUntil ?? "",
     location: item.location ?? "",
     recordId: item.recordId ?? "",
     notes: item.notes ?? "",
     timeKind: item.timeKind ?? "exact",
     movementTypeId: item.movementTypeId ?? "",
+    sectionId: item.sectionId ?? "",
+    operationalDay: item.operationalDay ?? "",
+    displayTime: item.displayTime ?? "standard",
   };
 }
 
@@ -69,6 +79,8 @@ export function MovementDetail({
   const item = useQuery(itineraryApi.get, { eventId, itemId });
   const records = useQuery(recordsApi.list, { eventId });
   const recordTypes = useQuery(recordsApi.listTypes, { eventId });
+  const directory = useQuery(movementsApi.listDirectory, { eventId });
+  const sections = useQuery(planSectionsApi.list, { eventId });
   const directory = useQuery(movementsApi.listDirectory, { eventId });
   const update = useMutation(itineraryApi.update);
   const archive = useMutation(itineraryApi.archive);
@@ -98,7 +110,8 @@ export function MovementDetail({
     item === undefined ||
     records === undefined ||
     recordTypes === undefined ||
-    directory === undefined
+    directory === undefined ||
+    sections === undefined
   ) {
     return (
       <p className="flex items-center text-sm text-muted" role="status">
@@ -148,11 +161,23 @@ export function MovementDetail({
       ((event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null)
         ?.value === "publish";
     try {
+      const operationalDay =
+        currentDraft.operationalDay ||
+        (sections ?? []).find(
+          (section) => section._id === currentDraft.sectionId,
+        )?.operationalDate ||
+        undefined;
+      const scheduledFor =
+        currentDraft.timeKind === "allDay"
+          ? `${currentDraft.scheduledFor}T00:00`
+          : currentDraft.displayTime === "2400"
+            ? `${operationalDay ?? currentDraft.scheduledFor}T24:00`
+            : currentDraft.scheduledFor;
       await update({
         eventId,
         itemId,
         title: currentDraft.title,
-        scheduledFor: currentDraft.scheduledFor,
+        scheduledFor,
         scheduledUntil:
           currentDraft.timeKind === "range"
             ? currentDraft.scheduledUntil
@@ -162,6 +187,15 @@ export function MovementDetail({
         notes: currentDraft.notes || undefined,
         movementTypeId: currentDraft.movementTypeId || null,
         timeKind: currentDraft.timeKind,
+        sectionId: currentDraft.sectionId || undefined,
+        operationalDay:
+          currentDraft.timeKind === "allDay"
+            ? (operationalDay ?? currentDraft.scheduledFor)
+            : operationalDay,
+        displayTime:
+          currentDraft.timeKind === "allDay"
+            ? "standard"
+            : currentDraft.displayTime,
       });
       setDraft(null);
       setOpenPublisher(publishAfterSave);
@@ -263,6 +297,7 @@ export function MovementDetail({
               <p className="mt-1 text-sm text-muted">
                 Changes are private until an authorized operator publishes them.
               </p>
+              <p className="mt-1 text-xs text-muted">Event time: {timeZone}</p>
             </div>
             <Badge variant={canEdit ? "success" : "neutral"}>
               {canEdit ? "Can edit" : "View only"}
@@ -293,9 +328,18 @@ export function MovementDetail({
               </label>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-1.5 text-sm font-medium text-ink">
-                  Time
+                  {currentDraft.timeKind === "allDay"
+                    ? "Date"
+                    : currentDraft.displayTime === "2400"
+                      ? "Operational day"
+                      : "Time"}
                   <input
-                    type="datetime-local"
+                    type={
+                      currentDraft.timeKind === "allDay" ||
+                      currentDraft.displayTime === "2400"
+                        ? "date"
+                        : "datetime-local"
+                    }
                     value={currentDraft.scheduledFor}
                     onChange={(event) =>
                       updateDraft("scheduledFor", event.target.value)
@@ -322,6 +366,31 @@ export function MovementDetail({
                   </select>
                 </label>
               </div>
+              {currentDraft.timeKind === "range" ||
+              currentDraft.timeKind === "allDay" ? null : (
+                <label className="flex items-center gap-2 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    checked={currentDraft.displayTime === "2400"}
+                    onChange={(event) => {
+                      const displayTime = event.target.checked
+                        ? "2400"
+                        : "standard";
+                      updateDraft("displayTime", displayTime);
+                      if (
+                        displayTime === "2400" &&
+                        currentDraft.scheduledFor.includes("T")
+                      ) {
+                        const day = currentDraft.scheduledFor.slice(0, 10);
+                        updateDraft("scheduledFor", day);
+                        if (!currentDraft.operationalDay)
+                          updateDraft("operationalDay", day);
+                      }
+                    }}
+                  />
+                  Display midnight as 2400 on the preceding operational day
+                </label>
+              )}
               {currentDraft.timeKind === "range" ? (
                 <label className="grid gap-1.5 text-sm font-medium text-ink">
                   End time
@@ -356,6 +425,39 @@ export function MovementDetail({
                     ))}
                 </select>
               </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-sm font-medium text-ink">
+                  Operational section
+                  <select
+                    value={currentDraft.sectionId}
+                    onChange={(event) =>
+                      updateDraft("sectionId", event.target.value)
+                    }
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm font-normal text-ink shadow-sm"
+                  >
+                    <option value="">No named section</option>
+                    {sections.map((section) => (
+                      <option key={section._id} value={section._id}>
+                        {section.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {currentDraft.timeKind === "allDay" ? null : (
+                  <label className="grid gap-1.5 text-sm font-medium text-ink">
+                    Operational day{" "}
+                    <span className="font-normal text-muted">(optional)</span>
+                    <input
+                      type="date"
+                      value={currentDraft.operationalDay}
+                      onChange={(event) =>
+                        updateDraft("operationalDay", event.target.value)
+                      }
+                      className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm font-normal text-ink shadow-sm"
+                    />
+                  </label>
+                )}
+              </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-1.5 text-sm font-medium text-ink">
                   Linked location
@@ -445,18 +547,14 @@ export function MovementDetail({
             <dl className="mt-4 grid gap-4 text-sm">
               <div>
                 <dt className="font-semibold text-ink">Time</dt>
-                <dd className="mt-1 text-muted">
+                <dd
+                  className="mt-1 text-muted"
+                  aria-label={movementTimeLabel(item)}
+                >
                   {item.scheduledFor
-                    ? formatEventDateTime(item.scheduledFor, timeZone)
+                    ? displayMovementTime(item)
                     : "Not specified"}{" "}
                   · {timeKindLabels[item.timeKind ?? "exact"]}
-                  {item.timeKind === "range"
-                    ? ` → ${
-                        item.scheduledUntil === undefined
-                          ? "End time not recorded (legacy range)"
-                          : formatEventDateTime(item.scheduledUntil, timeZone)
-                      }`
-                    : ""}
                 </dd>
               </div>
               <div>

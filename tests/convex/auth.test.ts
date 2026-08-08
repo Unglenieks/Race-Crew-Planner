@@ -93,6 +93,10 @@ import {
   sameItems,
   validatedFilterDay,
 } from "../../convex/planExports";
+import {
+  isValidEventLocalDateTime,
+  normalize2400,
+} from "../../convex/timeSemantics";
 
 const owner: ApplicationRole = "owner";
 
@@ -625,6 +629,58 @@ describe("Convex authorization helpers", () => {
     });
   });
 
+  it("stores 2400 as next-day midnight while retaining its operational display convention", () => {
+    expect(
+      validatedItineraryInput({
+        title: "Close Friday operations",
+        scheduledFor: "2026-10-16T24:00",
+        operationalDay: "2026-10-16",
+        displayTime: "2400",
+      }),
+    ).toMatchObject({
+      scheduledFor: "2026-10-17T00:00",
+      operationalDay: "2026-10-16",
+      displayTime: "2400",
+    });
+    expect(() => normalize2400("2026-10-16T24:00")).toThrow("2400 display");
+  });
+
+  it("orders overnight ranges chronologically and permits explicit prior operating days", () => {
+    expect(
+      validatedItineraryInput({
+        title: "Friday night service",
+        scheduledFor: "2026-10-16T23:30",
+        scheduledUntil: "2026-10-17T00:45",
+        operationalDay: "2026-10-16",
+        timeKind: "range",
+      }),
+    ).toMatchObject({
+      scheduledFor: "2026-10-16T23:30",
+      scheduledUntil: "2026-10-17T00:45",
+      operationalDay: "2026-10-16",
+    });
+    expect(
+      validatedItineraryInput({
+        title: "Friday early call",
+        scheduledFor: "2026-10-17T00:45",
+        operationalDay: "2026-10-16",
+      }),
+    ).toMatchObject({ operationalDay: "2026-10-16" });
+  });
+
+  it("validates event-local wall times across time zones and daylight-saving transitions", () => {
+    expect(
+      isValidEventLocalDateTime("2026-03-08T03:30", "America/New_York"),
+    ).toBe(true);
+    expect(
+      isValidEventLocalDateTime("2026-03-08T02:30", "America/New_York"),
+    ).toBe(false);
+    expect(
+      isValidEventLocalDateTime("2026-11-01T01:30", "America/New_York"),
+    ).toBe(true);
+    expect(isValidEventLocalDateTime("2026-03-08T02:30", "UTC")).toBe(true);
+  });
+
   it("validates range end times while preserving non-range input", () => {
     expect(
       validatedItineraryInput({
@@ -670,6 +726,7 @@ describe("Convex authorization helpers", () => {
         query: () => ({
           withIndex: () => ({ unique: async () => ({ role: "manager" }) }),
         }),
+        get: async () => ({ timeZone: "UTC" }),
         insert: async (table: string, value: Record<string, unknown>) => {
           inserts.push({ table, value });
           return table === "itineraryItems"
