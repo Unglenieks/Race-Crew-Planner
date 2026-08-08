@@ -319,6 +319,8 @@ export default defineSchema({
         label: v.string(),
         type: v.union(
           v.literal("text"),
+          v.literal("shortText"),
+          v.literal("longText"),
           v.literal("number"),
           v.literal("date"),
           v.literal("select"),
@@ -348,6 +350,8 @@ export default defineSchema({
         label: v.string(),
         type: v.union(
           v.literal("text"),
+          v.literal("shortText"),
+          v.literal("longText"),
           v.literal("number"),
           v.literal("date"),
           v.literal("select"),

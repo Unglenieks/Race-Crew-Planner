@@ -180,6 +180,8 @@ export type FormField = {
   label: string;
   type:
     | "text"
+    | "shortText"
+    | "longText"
     | "number"
     | "date"
     | "select"
@@ -213,6 +215,10 @@ export type FormSubmission = {
   answers: Record<string, unknown>;
   status: "draft" | "submitted";
   submittedAt?: number;
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+  canEdit?: boolean;
 };
 export type EventActivity = {
   _id: string;
@@ -758,6 +764,16 @@ export const formsApi = {
     { eventId: string },
     FormSubmission[]
   >("forms:listMySubmissions"),
+  listSubmissions: makeFunctionReference<
+    "query",
+    { eventId: string; status?: "draft" | "submitted" },
+    FormSubmission[]
+  >("forms:listSubmissions"),
+  getSubmission: makeFunctionReference<
+    "query",
+    { eventId: string; submissionId: string },
+    FormSubmission
+  >("forms:getSubmission"),
   saveDraft: makeFunctionReference<
     "mutation",
     {
