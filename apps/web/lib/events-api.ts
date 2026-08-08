@@ -607,8 +607,9 @@ export const workApi = {
       completed: boolean;
       operationId: string;
       expectedUpdatedAt: number;
+      expectedStatus: WorkItem["status"];
     },
-    { replayed: boolean }
+    { outcome: "applied" | "replayed" | "alreadyApplied" }
   >("work:setCompletionOffline"),
   listAssignees: makeFunctionReference<
     "query",

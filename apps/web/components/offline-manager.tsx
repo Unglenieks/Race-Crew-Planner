@@ -115,7 +115,7 @@ export function OfflineManager({ eventId }: { eventId: string }) {
     const item = work?.find((entry) => entry._id === change.payload.itemId);
     if (item === undefined) {
       setError(
-        "The latest work item is unavailable. Reconnect, refresh the queue, and try again.",
+        "This work item was deleted or is no longer available. Discard the queued request or refresh after confirming your event access.",
       );
       return;
     }
@@ -133,6 +133,7 @@ export function OfflineManager({ eventId }: { eventId: string }) {
         itemId: change.payload.itemId,
         completed: change.payload.completed,
         expectedUpdatedAt: item.updatedAt,
+        expectedStatus: item.status,
       });
       await removeQueuedChange(change.id);
       try {
@@ -161,9 +162,9 @@ export function OfflineManager({ eventId }: { eventId: string }) {
         </CardHeader>
         <CardContent className="grid gap-3">
           <p className="text-sm text-muted">
-            Save the event plan and checklist in this browser for the explicit
-            work-completion queue. Files remain online-only, and this release
-            does not make a fresh app load available without a connection.
+            Save the current plan and checklist on this device. Completion
+            changes queue while offline and sync after you reconnect. Files and
+            opening the app from a fully closed browser still need a connection.
           </p>
           <Button
             className="w-fit"

@@ -55,7 +55,7 @@ describe("OfflineManager", () => {
       eventId: "events:one",
       lastSuccessfulSyncAt: 123,
     });
-    replayCompletion.mockResolvedValue({ replayed: false });
+    replayCompletion.mockResolvedValue({ outcome: "applied" });
     Object.defineProperty(window.navigator, "onLine", {
       configurable: true,
       value: true,
@@ -104,6 +104,7 @@ describe("OfflineManager", () => {
         itemId: "work:one",
         completed: true,
         expectedUpdatedAt: 42,
+        expectedStatus: "open",
       }),
     );
     expect(queue.removeQueuedChange).toHaveBeenCalledWith("operation:one");

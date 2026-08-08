@@ -43,16 +43,22 @@ export function OfflineSync({ eventId }: { eventId: string }) {
           await replayCompletion({
             eventId,
             operationId: change.id,
-            ...change.payload,
+            itemId: change.payload.itemId,
+            completed: change.payload.completed,
+            expectedUpdatedAt: change.payload.expectedUpdatedAt,
+            expectedStatus: change.payload.serverStatusAtQueue,
           });
           await removeQueuedChange(change.id);
-        } catch {
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : "";
           try {
             await updateQueuedChange({
               ...change,
               status: navigator.onLine ? "needsResolution" : "queued",
               error: navigator.onLine
-                ? "The work item changed or access was lost. Open Offline manager to review it."
+                ? reason.includes("not found")
+                  ? "This work item was deleted. Open Offline manager to discard the request or review the event."
+                  : "The work item changed after this request was queued. Open Offline manager to choose which state should win."
                 : "Still offline. This request will retry when the connection returns.",
             });
           } catch {
@@ -83,8 +89,12 @@ export function OfflineSync({ eventId }: { eventId: string }) {
   }, [eventId, replayCompletion]);
   if (lastSuccessfulSyncAt === undefined) return null;
   return (
-    <p className="fixed bottom-3 right-3 z-20 rounded-md border border-line bg-card px-3 py-2 text-xs text-muted shadow-sm">
-      Last offline sync {new Date(lastSuccessfulSyncAt).toLocaleTimeString()}.
-    </p>
+    <div
+      className="border-b border-line bg-topbg px-4 py-1.5 text-center text-xs text-muted"
+      role="status"
+    >
+      Offline changes synced at{" "}
+      {new Date(lastSuccessfulSyncAt).toLocaleTimeString()}.
+    </div>
   );
 }
