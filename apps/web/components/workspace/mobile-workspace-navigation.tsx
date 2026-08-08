@@ -4,6 +4,8 @@ import { ChevronsUpDown, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ConnectionStatus } from "@/components/connection-status";
+import { DisplayModeControl } from "@/components/display-mode-control";
+import { UserButton } from "@clerk/nextjs";
 import { WorkspaceNavigationLinks } from "@/components/sidebar";
 import { Button } from "@/components/ui/button";
 import { useEventWorkspace } from "@/components/workspace/event-workspace";
@@ -70,7 +72,7 @@ export function MobileWorkspaceNavigation() {
   }, [isOpen]);
 
   return (
-    <div className="sticky top-0 z-30 h-14 border-b border-line bg-side lg:hidden">
+    <div className="sticky top-0 z-30 h-14 border-b border-line bg-side md:hidden">
       <div className="flex h-full items-center justify-between gap-3 px-4">
         <Link
           href="/events"
@@ -102,7 +104,9 @@ export function MobileWorkspaceNavigation() {
           aria-expanded={isOpen}
           aria-controls="workspace-mobile-navigation"
           aria-label={
-            isOpen ? "Close workspace navigation" : "Open workspace navigation"
+            isOpen
+              ? "Menu: close workspace navigation"
+              : "Menu: open workspace navigation"
           }
           onClick={() => setIsOpen((open) => !open)}
         >
@@ -111,7 +115,7 @@ export function MobileWorkspaceNavigation() {
         </Button>
       </div>
       {isOpen ? (
-        <div className="fixed inset-0 z-40 lg:hidden">
+        <div className="fixed inset-0 z-40 md:hidden">
           <button
             type="button"
             className="absolute inset-0 bg-ink/45"
@@ -149,6 +153,7 @@ export function MobileWorkspaceNavigation() {
                 href="/events"
                 className="flex min-h-11 items-center gap-2 rounded-lg border border-btnline bg-card px-3 py-2.5 text-left text-sm hover:border-ink2 focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
                 onClick={() => closeMenu()}
+                aria-label={`Current event: ${event.name}. Switch event.`}
               >
                 <span className="min-w-0 flex-1">
                   <b className="block truncate text-sm font-semibold text-ink">
@@ -165,6 +170,16 @@ export function MobileWorkspaceNavigation() {
               </Link>
             </div>
             <WorkspaceNavigationLinks onNavigate={() => closeMenu()} />
+            <div className="grid gap-3 border-t border-line p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Display and account
+              </p>
+              <DisplayModeControl />
+              <div className="flex min-h-11 items-center gap-3 rounded-lg border border-line bg-card px-3">
+                <UserButton />
+                <span className="text-sm font-medium text-ink">Account</span>
+              </div>
+            </div>
             <div className="mt-auto grid gap-2 border-t border-line p-4 pt-3">
               <ConnectionStatus />
               <p className="font-mono text-[11px] leading-relaxed text-muted">

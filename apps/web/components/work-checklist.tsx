@@ -347,7 +347,7 @@ export function WorkChecklist({
                           type="button"
                           size="sm"
                           variant={isCompleted ? "soft" : "secondary"}
-                          className="shrink-0"
+                          className="h-11 w-11 min-h-11 shrink-0 p-0"
                           aria-label={`${isCompleted ? "Reopen" : "Complete"} ${item.title}`}
                           onClick={() => changeCompletion(item, !isCompleted)}
                           disabled={isPending}
@@ -366,6 +366,7 @@ export function WorkChecklist({
                         <div className="min-w-0 flex-1">
                           <Link
                             href={`/events/${eventId}/work/${item._id}`}
+                            aria-label={`Open “${item.title}”`}
                             className={
                               isCompleted
                                 ? "font-semibold text-muted line-through hover:underline"
@@ -393,12 +394,6 @@ export function WorkChecklist({
                               <Pencil className="h-4 w-4" aria-hidden="true" />
                               Edit
                             </Button>
-                            <Link
-                              href={`/events/${eventId}/work/${item._id}`}
-                              className="inline-flex min-h-9 items-center rounded-lg px-3 text-sm font-medium text-muted hover:bg-soft hover:text-ink focus:outline-none focus:ring-2 focus:ring-ink"
-                            >
-                              Open
-                            </Link>
                           </div>
                         ) : null}
                       </li>

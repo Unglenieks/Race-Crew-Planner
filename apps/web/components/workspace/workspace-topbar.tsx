@@ -36,7 +36,7 @@ export function WorkspaceTopbar({ screen }: { screen: ScreenDefinition }) {
   const { event } = useEventWorkspace();
 
   return (
-    <header className="sticky top-14 z-20 flex min-h-16 flex-wrap items-center gap-2 border-b border-line bg-topbg px-4 py-2.5 sm:px-6 lg:top-0">
+    <header className="sticky top-0 z-20 hidden min-h-16 flex-wrap items-center gap-2 border-b border-line bg-topbg px-6 py-2.5 md:flex">
       <nav aria-label="Breadcrumb" className="mr-auto min-w-0">
         <ol className="flex min-w-0 items-center gap-2 font-mono text-[11px] uppercase tracking-wider">
           <li className="min-w-0">
