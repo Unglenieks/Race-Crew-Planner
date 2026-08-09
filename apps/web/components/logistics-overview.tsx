@@ -64,8 +64,7 @@ export function LogisticsOverview({
             Rally logistics
           </h1>
           <p className="mt-1 text-sm text-muted">
-            A single operational brief for car, travel, service, weather, and
-            support.
+            A single operational brief for car, service, weather, and support.
           </p>
         </div>
         <Badge variant={canManage ? "success" : "neutral"}>
@@ -199,52 +198,6 @@ export function LogisticsOverview({
       </Card>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Travel legs</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 text-sm">
-            {overview.travelContexts.length === 0 ? (
-              <p className="text-muted">No travel legs recorded.</p>
-            ) : (
-              overview.travelContexts.map((travel) => (
-                <div
-                  key={travel._id}
-                  className="rounded-lg border border-line p-3"
-                >
-                  <b>
-                    {travel.fromName} → {travel.toName}
-                  </b>
-                  <p className="mt-1 text-muted">
-                    {travel.requiresReview ? (
-                      <span className="font-semibold text-danger">
-                        Legacy entry needs conversion.{" "}
-                      </span>
-                    ) : null}
-                    {travel.distanceMiles ?? "—"} mi ·{" "}
-                    {travel.expectedDurationMinutes ?? "—"} min ·{" "}
-                    {travel.source ?? "No source"}
-                  </p>
-                  {travel.routeNotes || travel.routeNote ? (
-                    <p className="mt-1 text-muted">
-                      {travel.routeNotes ?? travel.routeNote}
-                    </p>
-                  ) : null}
-                  <MovementLinks
-                    eventId={eventId}
-                    movements={travel.movements}
-                  />
-                </div>
-              ))
-            )}
-            <Link
-              href={`/events/${eventId}/records/travel`}
-              className="text-sm font-semibold text-green-ink underline"
-            >
-              Manage travel legs and convert legacy entries
-            </Link>
-          </CardContent>
-        </Card>
         <Card>
           <CardHeader>
             <CardTitle>Service windows</CardTitle>

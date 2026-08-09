@@ -199,7 +199,6 @@ const eventTables = [
   "eventTeams",
   "eventOperationalRoles",
   "eventRecordCategoryAssignments",
-  "travelContexts",
   "eventLogisticsProfiles",
   "rallyLegs",
   "serviceIntervals",

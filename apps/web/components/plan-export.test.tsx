@@ -135,7 +135,6 @@ describe("PlanExport", () => {
       appendices: {
         venues: [],
         officialContacts: [],
-        travel: [],
         fuel: [],
         weather: [],
         supportServices: [],
