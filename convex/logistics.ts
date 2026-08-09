@@ -405,6 +405,25 @@ export const updateLeg = mutation({
   },
 });
 
+/** Removes an event leg after Crew Chief authorization. */
+export const removeLeg = mutation({
+  args: { eventId: v.id("events"), legId: v.id("rallyLegs") },
+  handler: async (ctx, args) => {
+    const { identity } = await manager(ctx, args.eventId);
+    const leg = await eventRow(ctx, args.eventId, args.legId, "Rally leg");
+    await ctx.db.delete(args.legId);
+    await writeAudit(ctx, {
+      eventId: args.eventId,
+      actorId: identity.subject,
+      kind: "logistics.updated",
+      message: `Removed rally leg: ${leg.name}`,
+      objectType: "rallyLeg",
+      objectId: args.legId,
+      objectLabel: leg.name,
+    });
+  },
+});
+
 const serviceArgs = {
   eventId: v.id("events"),
   name: v.string(),

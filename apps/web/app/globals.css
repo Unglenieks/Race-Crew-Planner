@@ -141,6 +141,31 @@ body {
   letter-spacing: -0.015em;
 }
 
+.race-map-pin {
+  background: transparent;
+  border: 0;
+}
+
+.race-map-pin__dot {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border: 3px solid white;
+  border-radius: 9999px;
+  background: var(--color-green);
+  box-shadow: 0 1px 5px rgb(0 0 0 / 35%);
+}
+
+.race-map-pin__dot--support {
+  background: #2563a8;
+}
+
+.race-map-pin__dot--selected {
+  box-shadow:
+    0 0 0 3px var(--color-lime),
+    0 1px 5px rgb(0 0 0 / 35%);
+}
+
 html {
   scroll-behavior: smooth;
 }

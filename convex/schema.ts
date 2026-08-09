@@ -77,6 +77,8 @@ export default defineSchema({
     scheduledUntil: v.optional(v.string()),
     location: v.optional(v.string()),
     recordId: v.optional(v.id("eventRecords")),
+    /** Explicitly publishes this movement to members with spectator access. */
+    spectatorVisible: v.optional(v.boolean()),
     serviceIntervalId: v.optional(v.id("serviceIntervals")),
     notes: v.optional(v.string()),
     /** Event-local operational classification, separate from permission roles. */

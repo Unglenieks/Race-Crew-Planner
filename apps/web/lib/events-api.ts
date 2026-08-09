@@ -34,6 +34,7 @@ export type ItineraryItem = {
   scheduledUntil?: string;
   location?: string;
   recordId?: string;
+  spectatorVisible?: boolean;
   notes?: string;
   movementTypeId?: string;
   movementTypeLabel?: string;
@@ -103,6 +104,7 @@ export type MapLocation = Pick<
   EventRecord,
   | "_id"
   | "name"
+  | "type"
   | "address"
   | "notes"
   | "accessNotes"
@@ -111,7 +113,7 @@ export type MapLocation = Pick<
   | "longitude"
   | "supportCategories"
   | "spectatorVisible"
->;
+> & { kind: "venue" | "support" };
 export type RecordField = {
   _id: string;
   key: string;
@@ -527,6 +529,11 @@ export const itineraryApi = {
     { eventId: string },
     ItineraryItem[]
   >("itinerary:listArchived"),
+  listSpectator: makeFunctionReference<
+    "query",
+    { eventId: string },
+    ItineraryItem[]
+  >("itinerary:listSpectator"),
   get: makeFunctionReference<
     "query",
     { eventId: string; itemId: string },
@@ -541,6 +548,7 @@ export const itineraryApi = {
       scheduledUntil?: string;
       location?: string;
       recordId?: string;
+      spectatorVisible?: boolean;
       serviceIntervalId?: string;
       notes?: string;
       movementTypeId?: string | null;
@@ -559,6 +567,7 @@ export const itineraryApi = {
       scheduledFor: string;
       scheduledUntil?: string;
       location?: string;
+      spectatorVisible?: boolean;
       notes?: string;
       serviceIntervalId?: string;
       movementTypeId?: string | null;
@@ -571,28 +580,6 @@ export const itineraryApi = {
     },
     string
   >("itinerary:createWithVenue"),
-  listUnlinked: makeFunctionReference<
-    "query",
-    { eventId: string },
-    Array<{
-      itemId: string;
-      title: string;
-      location?: string;
-      candidates: Array<{
-        recordId: string;
-        name: string;
-        type: string;
-        address?: string;
-        match: "exact" | "fuzzy";
-        score: number;
-      }>;
-    }>
-  >("itinerary:listUnlinked"),
-  reconcileLinks: makeFunctionReference<
-    "mutation",
-    { eventId: string; links: Array<{ itemId: string; recordId: string }> },
-    null
-  >("itinerary:reconcileLinks"),
   createMany: makeFunctionReference<
     "mutation",
     {
@@ -604,6 +591,7 @@ export const itineraryApi = {
         scheduledUntil?: string;
         location?: string;
         recordId?: string;
+        spectatorVisible?: boolean;
         serviceIntervalId?: string;
         notes?: string;
         movementTypeId?: string | null;
@@ -627,6 +615,7 @@ export const itineraryApi = {
       scheduledUntil?: string;
       location?: string;
       recordId?: string;
+      spectatorVisible?: boolean;
       serviceIntervalId?: string;
       notes?: string;
       movementTypeId?: string | null;
@@ -709,6 +698,29 @@ export const logisticsApi = {
     { eventId: string },
     SpectatorEventInfo
   >("logistics:getSpectatorOverview"),
+  updateLeg: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      legId: string;
+      name: string;
+      order: number;
+      stageCount: number;
+      stageMiles: number;
+      transitMiles: number;
+      startOrder?: number;
+      precedingCar?: string;
+      reservePercent?: number;
+      fuelOverrideGallons?: number;
+      fuelOverrideReason?: string;
+    },
+    null
+  >("logistics:updateLeg"),
+  removeLeg: makeFunctionReference<
+    "mutation",
+    { eventId: string; legId: string },
+    null
+  >("logistics:removeLeg"),
   saveProfile: makeFunctionReference<
     "mutation",
     {

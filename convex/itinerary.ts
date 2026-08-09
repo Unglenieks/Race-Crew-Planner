@@ -24,6 +24,7 @@ const itineraryArgs = {
   scheduledUntil: v.optional(v.string()),
   location: v.optional(v.string()),
   recordId: v.optional(v.id("eventRecords")),
+  spectatorVisible: v.optional(v.boolean()),
   serviceIntervalId: v.optional(v.id("serviceIntervals")),
   notes: v.optional(v.string()),
   movementTypeId: v.optional(v.union(v.id("eventMovementTypes"), v.null())),
@@ -46,6 +47,7 @@ type ItineraryInput = {
   scheduledFor: string;
   scheduledUntil?: string;
   location?: string;
+  spectatorVisible?: boolean;
   notes?: string;
   sectionId?: Id<"planSections">;
   operationalDay?: string;
@@ -76,6 +78,7 @@ export function validatedItineraryInput(
     scheduledFor,
     scheduledUntil,
     location,
+    spectatorVisible,
     notes,
     sectionId,
     operationalDay,
@@ -130,6 +133,7 @@ export function validatedItineraryInput(
     scheduledFor: normalizedScheduledFor,
     ...(timeKind === "range" ? { scheduledUntil } : {}),
     location: optionalText(location, 160),
+    ...(spectatorVisible === true ? { spectatorVisible: true } : {}),
     notes: optionalText(notes, 1000),
     ...(sectionId === undefined ? {} : { sectionId }),
     ...(operationalDay === undefined ? {} : { operationalDay }),
@@ -262,6 +266,30 @@ export const list = query({
   },
 });
 
+/** The intentionally published subset of the schedule for spectator members. */
+export const listSpectator = query({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    const { membership } = await requireEventMembership(ctx, eventId);
+    if (membership.role !== "spectator") throw new Error("Forbidden");
+    const items = await ctx.db
+      .query("itineraryItems")
+      .withIndex("by_eventId_scheduledFor", (q) => q.eq("eventId", eventId))
+      .collect();
+    return await Promise.all(
+      items
+        .filter(
+          (item) =>
+            item.archivedAt === undefined && item.spectatorVisible === true,
+        )
+        .map(async (item) => ({
+          ...item,
+          ...(await movementStructuredFields(ctx, item)),
+        })),
+    );
+  },
+});
+
 /** Lists archived movements for the event's recovery inventory. */
 export const listArchived = query({
   args: { eventId: v.id("events") },
@@ -383,6 +411,7 @@ export const create = mutation({
       scheduledUntil:
         item.timeKind === "range" ? item.scheduledUntil : undefined,
       recordId: args.recordId,
+      spectatorVisible: item.spectatorVisible,
       movementTypeId: item.movementTypeId ?? undefined,
       // The record is canonical. This label deliberately snapshots the location
       // at authoring time, so renamed venues do not rewrite historic plans.
@@ -446,6 +475,7 @@ export const createWithVenue = mutation({
       scheduledUntil:
         item.timeKind === "range" ? item.scheduledUntil : undefined,
       recordId,
+      spectatorVisible: item.spectatorVisible,
       location: item.location ?? venue.name,
       movementTypeId: item.movementTypeId ?? undefined,
       createdAt: now,
@@ -535,6 +565,7 @@ export const createMany = mutation({
         scheduledUntil:
           item.timeKind === "range" ? item.scheduledUntil : undefined,
         recordId: raw.recordId,
+        spectatorVisible: item.spectatorVisible,
         location: item.location ?? record?.name,
         movementTypeId: item.movementTypeId ?? undefined,
         serviceIntervalId: raw.serviceIntervalId,
@@ -606,6 +637,7 @@ export const update = mutation({
       scheduledUntil:
         item.timeKind === "range" ? item.scheduledUntil : undefined,
       recordId: args.recordId,
+      spectatorVisible: item.spectatorVisible,
       movementTypeId: item.movementTypeId ?? undefined,
       location: item.location ?? record?.name,
       ...movementChangeSnapshot(existing),

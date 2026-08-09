@@ -271,6 +271,7 @@ export const listMapLocations = query({
       .map((record) => ({
         _id: record._id,
         name: record.name,
+        type: record.type,
         address: record.address,
         notes: record.notes,
         accessNotes: record.accessNotes,
@@ -278,6 +279,10 @@ export const listMapLocations = query({
         latitude: record.latitude,
         longitude: record.longitude,
         supportCategories: record.supportCategories ?? [],
+        kind:
+          (record.supportCategories?.length ?? 0) > 0
+            ? ("support" as const)
+            : ("venue" as const),
         spectatorVisible: record.spectatorVisible === true,
       }));
   },

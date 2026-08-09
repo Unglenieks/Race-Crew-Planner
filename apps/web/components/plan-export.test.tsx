@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const create = vi.fn();
@@ -156,7 +156,7 @@ describe("PlanExport", () => {
       await screen.findByText("Operational day · Mon, Aug 10, 2026"),
     ).toBeTruthy();
     expect(screen.getByText("Assigned to")).toBeTruthy();
-    expect(window.print).toHaveBeenCalledOnce();
+    await waitFor(() => expect(window.print).toHaveBeenCalledOnce());
   });
 
   it("makes an older snapshot's superseded status explicit", () => {
