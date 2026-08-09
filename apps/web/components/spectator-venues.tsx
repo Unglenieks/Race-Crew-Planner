@@ -7,33 +7,28 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useEventWorkspace } from "@/components/workspace/event-workspace";
+import { resolveLocation } from "@/lib/location-resolution";
 import { recordsApi, type MapLocation } from "@/lib/events-api";
 
 type Draft = {
   name: string;
-  address: string;
+  locationQuery: string;
   hours: string;
-  latitude: string;
-  longitude: string;
+  notes: string;
 };
 const emptyDraft: Draft = {
   name: "",
-  address: "",
+  locationQuery: "",
   hours: "",
-  latitude: "",
-  longitude: "",
+  notes: "",
 };
 function draftFor(location: MapLocation): Draft {
   return {
     name: location.name,
-    address: location.address ?? "",
+    locationQuery: location.address ?? "",
     hours: location.hours ?? "",
-    latitude: location.latitude?.toString() ?? "",
-    longitude: location.longitude?.toString() ?? "",
+    notes: location.notes ?? "",
   };
-}
-function coordinate(value: string) {
-  return value.trim() === "" ? undefined : Number(value);
 }
 
 export function SpectatorVenues() {
@@ -59,23 +54,27 @@ export function SpectatorVenues() {
     setSaving(true);
     setError(null);
     try {
+      const location = await resolveLocation(event.id, draft.locationQuery);
       await saveMapLocation({
         eventId: event.id,
         recordId: editing?._id,
         kind: "venue",
         name: draft.name,
-        address: draft.address || undefined,
+        address: location.address,
+        notes: draft.notes || undefined,
         hours: draft.hours || undefined,
-        latitude: coordinate(draft.latitude),
-        longitude: coordinate(draft.longitude),
+        latitude: location.latitude,
+        longitude: location.longitude,
         supportCategories: [],
         spectatorVisible: true,
       });
       setDraft(null);
       setEditing(null);
-    } catch {
+    } catch (reason) {
       setError(
-        "We could not save this spectator venue. Enter both valid coordinates or leave both blank.",
+        reason instanceof Error
+          ? reason.message
+          : "We could not save this spectator venue. Try again.",
       );
     } finally {
       setSaving(false);
@@ -103,132 +102,113 @@ export function SpectatorVenues() {
         </div>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <form onSubmit={submit}>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[48rem] text-left text-sm">
-              <thead className="border-b border-line text-xs uppercase tracking-wide text-muted">
-                <tr>
-                  <th className="pb-2 pr-3">Venue</th>
-                  <th className="pb-2 pr-3">Address</th>
-                  <th className="pb-2 pr-3">Hours</th>
-                  <th className="pb-2 pr-3">Coordinates</th>
-                  <th className="pb-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {venues.map((venue) => (
-                  <tr
-                    key={venue._id}
-                    className="border-b border-line2 last:border-0"
-                  >
-                    <td className="py-3 pr-3 font-medium text-ink">
-                      {venue.name}
-                    </td>
-                    <td className="py-3 pr-3">{venue.address ?? "—"}</td>
-                    <td className="py-3 pr-3">{venue.hours ?? "—"}</td>
-                    <td className="py-3 pr-3">
-                      {venue.latitude === undefined
-                        ? "Pin needed"
-                        : `${venue.latitude.toFixed(4)}, ${venue.longitude!.toFixed(4)}`}
-                    </td>
-                    <td className="py-3">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setEditing(venue);
-                          setDraft(draftFor(venue));
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" /> Edit
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-                {venues.length === 0 && draft === null ? (
-                  <tr>
-                    <td colSpan={5} className="py-4 text-muted">
-                      No spectator venues have been published.
-                    </td>
-                  </tr>
-                ) : null}
-                {draft ? (
-                  <tr className="border-b border-line2 bg-soft/50 align-top">
-                    <td className="p-2">
-                      <Input
-                        value={draft.name}
-                        onChange={(e) => set("name", e.target.value)}
-                        required
-                        aria-label="Venue name"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <Input
-                        value={draft.address}
-                        onChange={(e) => set("address", e.target.value)}
-                        aria-label="Venue address"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <Input
-                        value={draft.hours}
-                        onChange={(e) => set("hours", e.target.value)}
-                        aria-label="Venue hours"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <Input
-                          type="number"
-                          step="any"
-                          min="-90"
-                          max="90"
-                          value={draft.latitude}
-                          onChange={(e) => set("latitude", e.target.value)}
-                          aria-label="Latitude"
-                        />
-                        <Input
-                          type="number"
-                          step="any"
-                          min="-180"
-                          max="180"
-                          value={draft.longitude}
-                          onChange={(e) => set("longitude", e.target.value)}
-                          aria-label="Longitude"
-                        />
-                      </div>
-                    </td>
-                    <td className="p-2">
-                      <div className="flex gap-1">
-                        <Button
-                          type="submit"
-                          size="sm"
-                          variant="primary"
-                          disabled={saving}
-                        >
-                          {saving ? "Saving…" : "Save"}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setDraft(null);
-                            setEditing(null);
-                          }}
-                          disabled={saving}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </form>
+        {venues.length === 0 ? (
+          <p className="text-sm text-muted">
+            No spectator venues have been published.
+          </p>
+        ) : (
+          <ul className="grid gap-2">
+            {venues.map((venue) => (
+              <li
+                key={venue._id}
+                className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-line p-3"
+              >
+                <div>
+                  <p className="font-medium text-ink">{venue.name}</p>
+                  <p className="mt-1 text-sm text-muted">
+                    {venue.address ?? "Address not recorded"}
+                  </p>
+                  {venue.hours ? (
+                    <p className="mt-1 text-sm text-muted">{venue.hours}</p>
+                  ) : null}
+                  {venue.notes ? (
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-muted">
+                      {venue.notes}
+                    </p>
+                  ) : null}
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setEditing(venue);
+                    setDraft(draftFor(venue));
+                  }}
+                >
+                  <Pencil className="h-4 w-4" /> Edit
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {draft ? (
+          <form
+            className="grid gap-3 rounded-lg border border-line bg-soft/50 p-3 md:grid-cols-2"
+            onSubmit={submit}
+          >
+            <label className="grid gap-1.5 text-sm font-medium">
+              Venue name
+              <Input
+                value={draft.name}
+                onChange={(e) => set("name", e.target.value)}
+                required
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium">
+              Hours
+              <Input
+                value={draft.hours}
+                onChange={(e) => set("hours", e.target.value)}
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium md:col-span-2">
+              Address or Plus Code
+              <Input
+                value={draft.locationQuery}
+                onChange={(e) => set("locationQuery", e.target.value)}
+                maxLength={300}
+                placeholder="123 Rally Road, Town, State or 849VCWC8+R9"
+                required
+              />
+              <span className="text-xs font-normal text-muted">
+                Use a full address, or add a city or region to a short Plus
+                Code.
+              </span>
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium md:col-span-2">
+              Notes
+              <textarea
+                className="min-h-24 rounded-lg border border-line bg-card px-3 py-2 text-sm"
+                value={draft.notes}
+                onChange={(e) => set("notes", e.target.value)}
+                maxLength={1000}
+              />
+            </label>
+            <div className="flex gap-2 md:col-span-2">
+              <Button
+                type="submit"
+                size="sm"
+                variant="primary"
+                disabled={saving}
+              >
+                {saving ? "Saving…" : "Save venue"}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setDraft(null);
+                  setEditing(null);
+                }}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : null}
         {error ? (
           <p className="text-sm text-danger-tx" role="alert">
             {error}

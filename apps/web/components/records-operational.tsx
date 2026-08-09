@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useEventWorkspace } from "@/components/workspace/event-workspace";
+import { resolveLocation } from "@/lib/location-resolution";
 import { isLocationRecord } from "@/lib/record-locations";
 import { recordsApi } from "@/lib/events-api";
 
@@ -34,15 +35,12 @@ function displayFieldValue(value: string | undefined) {
 export function RecordDetail({ recordId }: { recordId: string }) {
   const { event, role } = useEventWorkspace();
   const record = useQuery(recordsApi.get, { eventId: event.id, recordId });
-  const categories = useQuery(recordsApi.listCategories, { eventId: event.id });
   const types = useQuery(recordsApi.listTypes, { eventId: event.id });
   const saveDetails = useMutation(recordsApi.saveVenueDetails);
-  const assign = useMutation(recordsApi.assignCategory);
-  const remove = useMutation(recordsApi.removeCategory);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  if (record === undefined || categories === undefined || types === undefined)
+  if (record === undefined || types === undefined)
     return <p className="text-sm text-muted">Loading record…</p>;
   const location = isLocationRecord(record, types);
   async function submit(eventForm: FormEvent<HTMLFormElement>) {
@@ -51,24 +49,21 @@ export function RecordDetail({ recordId }: { recordId: string }) {
     setMessage(null);
     setError(null);
     const form = new FormData(eventForm.currentTarget);
-    const coordinate = (name: string) => {
-      const value = String(form.get(name) || "").trim();
-      return value === "" ? undefined : Number(value);
-    };
     try {
+      const enteredAddress = String(form.get("address") || "").trim();
+      const location = enteredAddress
+        ? await resolveLocation(event.id, enteredAddress)
+        : undefined;
       await saveDetails({
         eventId: event.id,
         recordId,
-        address: String(form.get("address") || "") || undefined,
-        latitude: coordinate("latitude"),
-        longitude: coordinate("longitude"),
+        address: location?.address,
+        latitude: location?.latitude,
+        longitude: location?.longitude,
         accessNotes: String(form.get("accessNotes") || "") || undefined,
         hours: String(form.get("hours") || "") || undefined,
         contactDetail: String(form.get("contact") || "") || undefined,
         spectatorVisible: form.get("spectatorVisible") === "on",
-        confirmationStatus: String(form.get("status")) as
-          "confirmed" | "unconfirmed",
-        confirmationSource: String(form.get("source") || "") || undefined,
       });
       setMessage("Venue details saved.");
     } catch {
@@ -81,15 +76,9 @@ export function RecordDetail({ recordId }: { recordId: string }) {
     <section aria-labelledby="record-heading" className="grid gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link
-            href={`/events/${event.id}/records`}
-            className="text-sm font-semibold text-green-ink underline underline-offset-4"
-          >
-            Records & venues
-          </Link>
           <h1
             id="record-heading"
-            className="mt-2 font-serif text-3xl font-semibold tracking-tight text-ink"
+            className="font-serif text-3xl font-semibold tracking-tight text-ink"
           >
             {record.name}
           </h1>
@@ -165,79 +154,6 @@ export function RecordDetail({ recordId }: { recordId: string }) {
           </dl>
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Categories</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          <div className="flex flex-wrap gap-2">
-            {record.categories.length === 0 ? (
-              <span className="text-sm text-muted">
-                No categories assigned.
-              </span>
-            ) : (
-              record.categories.map((category) => (
-                <Button
-                  key={category._id}
-                  type="button"
-                  size="sm"
-                  disabled={!canManage(role)}
-                  aria-label={`Remove category ${category.name}`}
-                  onClick={async () => {
-                    setError(null);
-                    try {
-                      await remove({
-                        eventId: event.id,
-                        recordId,
-                        categoryId: category._id,
-                      });
-                    } catch {
-                      setError("We could not remove that category.");
-                    }
-                  }}
-                >
-                  {category.name}
-                  <span aria-hidden="true"> ×</span>
-                </Button>
-              ))
-            )}
-          </div>
-          {canManage(role) ? (
-            <select
-              className={control}
-              defaultValue=""
-              aria-label="Assign a category"
-              onChange={async (e) => {
-                const select = e.currentTarget;
-                const categoryId = select.value;
-                if (!categoryId) return;
-                select.value = "";
-                setError(null);
-                try {
-                  await assign({ eventId: event.id, recordId, categoryId });
-                } catch {
-                  setError("We could not assign that category.");
-                }
-              }}
-            >
-              <option value="">Assign a category…</option>
-              {categories
-                .filter(
-                  (c) =>
-                    c.archivedAt === undefined &&
-                    !record.categories.some(
-                      (assigned) => assigned._id === c._id,
-                    ),
-                )
-                .map((category) => (
-                  <option key={category._id} value={category._id}>
-                    {category.name}
-                  </option>
-                ))}
-            </select>
-          ) : null}
-        </CardContent>
-      </Card>
       {location ? (
         <Card>
           <CardHeader>
@@ -253,6 +169,10 @@ export function RecordDetail({ recordId }: { recordId: string }) {
                     defaultValue={record.address ?? ""}
                     maxLength={300}
                   />
+                  <span className="text-xs text-muted">
+                    An address or Plus Code is resolved to the map pin when you
+                    save.
+                  </span>
                 </label>
                 <label className={field}>
                   Access notes
@@ -281,30 +201,6 @@ export function RecordDetail({ recordId }: { recordId: string }) {
                     />
                   </label>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className={field}>
-                    Latitude <span className="text-muted">(for map pin)</span>
-                    <Input
-                      name="latitude"
-                      type="number"
-                      step="any"
-                      min="-90"
-                      max="90"
-                      defaultValue={record.latitude}
-                    />
-                  </label>
-                  <label className={field}>
-                    Longitude <span className="text-muted">(for map pin)</span>
-                    <Input
-                      name="longitude"
-                      type="number"
-                      step="any"
-                      min="-180"
-                      max="180"
-                      defaultValue={record.longitude}
-                    />
-                  </label>
-                </div>
                 <label className="flex items-start gap-3 rounded-lg border border-line p-3 text-sm text-ink">
                   <input
                     name="spectatorVisible"
@@ -322,27 +218,6 @@ export function RecordDetail({ recordId }: { recordId: string }) {
                     </span>
                   </span>
                 </label>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className={field}>
-                    Confirmation
-                    <select
-                      className={control}
-                      name="status"
-                      defaultValue={record.confirmationStatus ?? "unconfirmed"}
-                    >
-                      <option value="unconfirmed">Unconfirmed</option>
-                      <option value="confirmed">Confirmed</option>
-                    </select>
-                  </label>
-                  <label className={field}>
-                    Source
-                    <Input
-                      name="source"
-                      defaultValue={record.confirmationSource ?? ""}
-                      maxLength={500}
-                    />
-                  </label>
-                </div>
                 <Button type="submit" variant="primary" disabled={saving}>
                   Save venue details
                 </Button>
@@ -359,12 +234,6 @@ export function RecordDetail({ recordId }: { recordId: string }) {
                   <dt className="font-semibold">Access</dt>
                   <dd className="text-muted">
                     {record.accessNotes ?? "Not recorded"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="font-semibold">Confirmation</dt>
-                  <dd className="text-muted">
-                    {record.confirmationStatus ?? "Unconfirmed"}
                   </dd>
                 </div>
               </dl>

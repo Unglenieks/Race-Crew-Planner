@@ -1,12 +1,12 @@
 "use client";
 
 import { CloudSun, Fuel, Gauge, LoaderCircle, Pencil } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EventInfoSwitcher } from "@/components/event-info-switcher";
 import { useEventWorkspace } from "@/components/workspace/event-workspace";
 import {
   logisticsApi,
@@ -297,7 +297,6 @@ type LegDraft = {
   transitMiles: string;
   startOrder: string;
   precedingCar: string;
-  reservePercent: string;
 };
 const emptyLeg: LegDraft = {
   name: "",
@@ -307,7 +306,6 @@ const emptyLeg: LegDraft = {
   transitMiles: "0",
   startOrder: "",
   precedingCar: "",
-  reservePercent: "",
 };
 function draftForLeg(leg: LogisticsOverview["legs"][number]): LegDraft {
   return {
@@ -318,7 +316,6 @@ function draftForLeg(leg: LogisticsOverview["legs"][number]): LegDraft {
     transitMiles: String(leg.transitMiles),
     startOrder: leg.startOrder?.toString() ?? "",
     precedingCar: leg.precedingCar ?? "",
-    reservePercent: leg.reservePercent?.toString() ?? "",
   };
 }
 function LegEditor({
@@ -354,10 +351,6 @@ function LegEditor({
         startOrder:
           draft.startOrder === "" ? undefined : number(draft.startOrder),
         precedingCar: draft.precedingCar || undefined,
-        reservePercent:
-          draft.reservePercent === ""
-            ? undefined
-            : number(draft.reservePercent),
       };
       if (editingId) await update({ ...payload, legId: editingId });
       else await create(payload);
@@ -459,16 +452,6 @@ function LegEditor({
             <Input
               value={draft.precedingCar}
               onChange={(e) => set("precedingCar", e.target.value)}
-            />
-          </label>
-          <label className="grid gap-1 text-sm">
-            Fuel reserve (%)
-            <Input
-              type="number"
-              min="0"
-              max="100"
-              value={draft.reservePercent}
-              onChange={(e) => set("reservePercent", e.target.value)}
             />
           </label>
           <div className="flex items-end gap-2">
@@ -603,23 +586,7 @@ export function EventInfo() {
   const profile = privateOverview?.profile;
   return (
     <div className="grid gap-4">
-      <nav
-        className="flex gap-1 overflow-x-auto border-b border-line pb-3"
-        aria-label="Event information sections"
-      >
-        <span
-          className="flex min-h-10 items-center rounded-lg bg-green px-3 text-sm font-semibold text-card"
-          aria-current="page"
-        >
-          Overview
-        </span>
-        <Link
-          href={`/events/${event.id}/files`}
-          className="flex min-h-10 items-center rounded-lg border border-btnline bg-card px-3 text-sm font-semibold text-ink2 hover:bg-soft focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
-        >
-          Files &amp; sources
-        </Link>
-      </nav>
+      <EventInfoSwitcher current="overview" />
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between gap-3">

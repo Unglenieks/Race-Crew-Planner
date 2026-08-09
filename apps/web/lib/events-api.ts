@@ -894,8 +894,6 @@ export const recordsApi = {
       contactDetail?: string;
       supportCategories?: EventRecord["supportCategories"];
       spectatorVisible?: boolean;
-      confirmationStatus: "unconfirmed" | "confirmed";
-      confirmationSource?: string;
     },
     null
   >("records:saveVenueDetails"),
@@ -907,6 +905,7 @@ export const recordsApi = {
       kind: "venue" | "support";
       name: string;
       address?: string;
+      notes?: string;
       latitude?: number;
       longitude?: number;
       hours?: string;

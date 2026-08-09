@@ -584,11 +584,6 @@ export const saveVenueDetails = mutation({
     contactDetail: v.optional(v.string()),
     supportCategories: v.optional(v.array(supportCategory)),
     spectatorVisible: v.optional(v.boolean()),
-    confirmationStatus: v.union(
-      v.literal("unconfirmed"),
-      v.literal("confirmed"),
-    ),
-    confirmationSource: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { identity } = await manager(ctx, args.eventId);
@@ -612,8 +607,6 @@ export const saveVenueDetails = mutation({
       ...(args.spectatorVisible === undefined
         ? {}
         : { spectatorVisible: args.spectatorVisible }),
-      confirmationStatus: args.confirmationStatus,
-      confirmationSource: optionalText(args.confirmationSource, 500),
       verifiedAt: Date.now(),
       verifiedBy: identity.subject,
       updatedAt: Date.now(),
@@ -639,6 +632,7 @@ export const saveMapLocation = mutation({
     kind: v.union(v.literal("venue"), v.literal("support")),
     name: v.string(),
     address: v.optional(v.string()),
+    notes: v.optional(v.string()),
     latitude: v.optional(v.number()),
     longitude: v.optional(v.number()),
     hours: v.optional(v.string()),
@@ -652,11 +646,13 @@ export const saveMapLocation = mutation({
       name: args.name,
       type: args.kind === "support" ? "service" : "venue",
       address: args.address,
+      notes: args.notes,
     });
     const categories =
       normalizedSupportCategories(args.supportCategories) ?? [];
     const common = {
       address: optionalText(args.address, 300),
+      notes: input.notes,
       ...resolvedCoordinates(args, {}),
       hours: optionalText(args.hours, 240),
       supportCategories: categories,
@@ -708,6 +704,16 @@ export const saveMapLocation = mutation({
       });
     }
     return recordId;
+  },
+});
+
+/** Confirms that the caller may request a geocoded location for this event. */
+export const authorizeMapLocationSave = query({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, args) => {
+    const { member } = await membership(ctx, args.eventId);
+    requireRole(member.role, ["owner", "manager"]);
+    return null;
   },
 });
 

@@ -400,8 +400,16 @@ export const updateLeg = mutation({
   args: { legId: v.id("rallyLegs"), ...legArgs },
   handler: async (ctx, args) => {
     await manager(ctx, args.eventId);
-    await eventRow(ctx, args.eventId, args.legId, "Rally leg");
-    await ctx.db.patch(args.legId, legData(args));
+    const existing = await eventRow(ctx, args.eventId, args.legId, "Rally leg");
+    // Reserve is no longer a per-leg editing control. Retain historical
+    // overrides when another leg field is changed instead of clearing them.
+    await ctx.db.patch(
+      args.legId,
+      legData({
+        ...args,
+        reservePercent: args.reservePercent ?? existing.reservePercent,
+      }),
+    );
   },
 });
 
