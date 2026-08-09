@@ -52,13 +52,6 @@ type CrewBriefAppendices = {
     contactDetail?: string;
     notes?: string;
   }>;
-  travel: Array<{
-    from: string;
-    to: string;
-    estimate: string;
-    calculation?: string;
-    routeNote?: string;
-  }>;
   fuel: VenueSnapshot[];
   weather: VenueSnapshot[];
   supportServices: VenueSnapshot[];
@@ -104,14 +97,6 @@ type CrewBrief = {
       source: string;
       asOf: number;
     }>;
-    travel: Array<{
-      from: string;
-      to: string;
-      distanceMiles?: number;
-      expectedDurationMinutes?: number;
-      source?: string;
-      routeNotes?: string;
-    }>;
     supportServices: Array<{
       name: string;
       address?: string;
@@ -138,7 +123,6 @@ const inclusionOptionsValidator = v.object({
   rallyFuel: v.boolean(),
   service: v.boolean(),
   weather: v.boolean(),
-  travelRoutes: v.boolean(),
   supportServices: v.boolean(),
   documentAccessCodes: v.boolean(),
   externalContactIds: v.array(v.id("externalContacts")),
@@ -149,7 +133,6 @@ const defaultOptions = (): InclusionOptions => ({
   rallyFuel: false,
   service: false,
   weather: false,
-  travelRoutes: false,
   supportServices: false,
   documentAccessCodes: false,
   externalContactIds: [],
@@ -283,7 +266,6 @@ async function currentBrief(
     assignments,
     sections,
     work,
-    travel,
     memberships,
     invitations,
     profile,
@@ -323,10 +305,6 @@ async function currentBrief(
       .withIndex("by_eventId_createdAt", (index) =>
         index.eq("eventId", eventId),
       )
-      .collect(),
-    ctx.db
-      .query("travelContexts")
-      .withIndex("by_eventId", (index) => index.eq("eventId", eventId))
       .collect(),
     ctx.db
       .query("eventMemberships")
@@ -554,24 +532,6 @@ async function currentBrief(
           }),
         )
       : [],
-    travel: suppliedOptions.travelRoutes
-      ? travel.flatMap((entry) => {
-          const from = recordById.get(entry.fromRecordId);
-          const to = recordById.get(entry.toRecordId);
-          return !from || !to
-            ? []
-            : [
-                {
-                  from: from.name,
-                  to: to.name,
-                  distanceMiles: entry.distanceMiles,
-                  expectedDurationMinutes: entry.expectedDurationMinutes,
-                  source: entry.source,
-                  routeNotes: entry.routeNotes ?? entry.routeNote,
-                },
-              ];
-        })
-      : [],
     supportServices: suppliedOptions.supportServices
       ? records
           .filter((record) => (record.supportCategories?.length ?? 0) > 0)
@@ -607,27 +567,6 @@ async function currentBrief(
         phoneNumber: contact.phone,
         contactDetail: contact.organization,
       })),
-      travel: suppliedOptions.travelRoutes
-        ? travel.flatMap((entry) => {
-            const from = recordById.get(entry.fromRecordId);
-            const to = recordById.get(entry.toRecordId);
-            return from === undefined || to === undefined
-              ? []
-              : [
-                  {
-                    from: from.name,
-                    to: to.name,
-                    estimate:
-                      entry.estimate ??
-                      (entry.expectedDurationMinutes === undefined
-                        ? "Duration not recorded"
-                        : `${entry.expectedDurationMinutes} min`),
-                    calculation: entry.calculation,
-                    routeNote: entry.routeNote,
-                  },
-                ];
-          })
-        : [],
       fuel: suppliedOptions.rallyFuel
         ? recordSnapshots
             .filter(({ record, tags }) => hasTag(record, tags, "fuel"))

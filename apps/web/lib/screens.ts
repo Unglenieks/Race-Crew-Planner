@@ -22,12 +22,10 @@ export type ScreenId =
   | "spectator-info"
   | "attention"
   | "plan"
-  | "plan-import"
   | "plan-export"
   | "work"
   | "work-templates"
   | "records"
-  | "travel"
   | "logistics"
   | "files"
   | "offline"
@@ -146,16 +144,6 @@ const legacy: ScreenDefinition[] = [
     hidden: true,
   },
   {
-    id: "plan-import",
-    segment: "plan/import",
-    label: "Import plan",
-    shortLabel: "Import",
-    description: "Stage, review, and safely commit a schedule.",
-    icon: FileText,
-    minRole: "manager",
-    hidden: true,
-  },
-  {
     id: "plan-export",
     segment: "plan/export",
     label: "Export & print",
@@ -191,16 +179,6 @@ const legacy: ScreenDefinition[] = [
     shortLabel: "Records",
     description: "Places, services, vehicles, equipment, and organisations.",
     icon: MapPinned,
-    minRole: "crew",
-    hidden: true,
-  },
-  {
-    id: "travel",
-    segment: "records/travel",
-    label: "Travel reference",
-    shortLabel: "Travel",
-    description: "Place-to-place estimates and notes.",
-    icon: Route,
     minRole: "crew",
     hidden: true,
   },

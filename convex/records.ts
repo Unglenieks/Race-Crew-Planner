@@ -403,7 +403,7 @@ export const get = query({
     const { member } = await membership(ctx, args.eventId);
     if (member.role === "spectator") throw new Error("Forbidden");
     const record = await recordInEvent(ctx, args.eventId, args.recordId);
-    const [assignments, outgoing, fields, incoming] = await Promise.all([
+    const [assignments, fields] = await Promise.all([
       ctx.db
         .query("eventRecordCategoryAssignments")
         .withIndex("by_eventId_recordId", (q) =>
@@ -411,18 +411,8 @@ export const get = query({
         )
         .collect(),
       ctx.db
-        .query("travelContexts")
-        .withIndex("by_fromRecordId", (q) =>
-          q.eq("fromRecordId", args.recordId),
-        )
-        .collect(),
-      ctx.db
         .query("eventRecordFields")
         .withIndex("by_eventId_order", (q) => q.eq("eventId", args.eventId))
-        .collect(),
-      ctx.db
-        .query("travelContexts")
-        .withIndex("by_toRecordId", (q) => q.eq("toRecordId", args.recordId))
         .collect(),
     ]);
     const categories = (
@@ -439,7 +429,6 @@ export const get = query({
     return {
       ...record,
       categories: uniqueCategories,
-      travelContexts: [...outgoing, ...incoming],
       fields,
     };
   },
@@ -836,118 +825,6 @@ export const mergeCategory = mutation({
     await ctx.db.patch(args.sourceCategoryId, {
       archivedAt: Date.now(),
       updatedAt: Date.now(),
-    });
-  },
-});
-
-export const listTravel = query({
-  args: { eventId: v.id("events") },
-  handler: async (ctx, args) => {
-    await membership(ctx, args.eventId);
-    const travel = await ctx.db
-      .query("travelContexts")
-      .withIndex("by_eventId", (q) => q.eq("eventId", args.eventId))
-      .collect();
-    return travel.map((row) => ({
-      ...row,
-      requiresReview:
-        row.requiresReview ??
-        (row.distanceMiles === undefined ||
-          row.expectedDurationMinutes === undefined),
-    }));
-  },
-});
-export const saveTravel = mutation({
-  args: {
-    eventId: v.id("events"),
-    travelId: v.optional(v.id("travelContexts")),
-    fromRecordId: v.id("eventRecords"),
-    toRecordId: v.id("eventRecords"),
-    estimate: v.optional(v.string()),
-    calculation: v.optional(v.string()),
-    routeNote: v.optional(v.string()),
-    distanceMiles: v.optional(v.number()),
-    expectedDurationMinutes: v.optional(v.number()),
-    source: v.optional(v.string()),
-    routeNotes: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const { identity } = await manager(ctx, args.eventId);
-    if (args.fromRecordId === args.toRecordId)
-      throw new Error("Travel needs two different places");
-    const [from, to] = await Promise.all([
-      recordInEvent(ctx, args.eventId, args.fromRecordId),
-      recordInEvent(ctx, args.eventId, args.toRecordId),
-    ]);
-    if (
-      !(await isLocationRecord(ctx, from)) ||
-      !(await isLocationRecord(ctx, to))
-    )
-      throw new Error("Travel context requires location records");
-    const distanceMiles = args.distanceMiles;
-    const expectedDurationMinutes = args.expectedDurationMinutes;
-    if (
-      (distanceMiles !== undefined &&
-        (!Number.isFinite(distanceMiles) || distanceMiles < 0)) ||
-      (expectedDurationMinutes !== undefined &&
-        (!Number.isFinite(expectedDurationMinutes) ||
-          expectedDurationMinutes < 0))
-    )
-      throw new Error("Distance and expected duration must be zero or greater");
-    const estimate = optionalText(args.estimate, 120);
-    if (
-      estimate === undefined &&
-      (distanceMiles === undefined || expectedDurationMinutes === undefined)
-    )
-      throw new Error(
-        "A legacy estimate or structured distance and duration is required",
-      );
-    const data = {
-      fromRecordId: args.fromRecordId,
-      toRecordId: args.toRecordId,
-      estimate,
-      calculation: optionalText(args.calculation, 240),
-      routeNote: optionalText(args.routeNote, 1000),
-      distanceMiles,
-      expectedDurationMinutes,
-      source: optionalText(args.source, 240),
-      routeNotes: optionalText(args.routeNotes, 1000),
-      requiresReview:
-        distanceMiles === undefined || expectedDurationMinutes === undefined,
-      updatedAt: Date.now(),
-    };
-    if (args.travelId === undefined) {
-      const travelId = await ctx.db.insert("travelContexts", {
-        eventId: args.eventId,
-        ...data,
-        createdBy: identity.subject,
-        createdAt: data.updatedAt,
-      });
-      await writeAudit(ctx, {
-        eventId: args.eventId,
-        actorId: identity.subject,
-        kind: "record.travelUpdated",
-        message: `Added travel context: ${from.name} to ${to.name}`,
-        objectType: "travel",
-        objectId: travelId,
-        objectLabel: `${from.name} to ${to.name}`,
-        href: `/events/${args.eventId}/records/travel`,
-      });
-      return travelId;
-    }
-    const existing = await ctx.db.get(args.travelId);
-    if (existing === null || existing.eventId !== args.eventId)
-      throw new Error("Travel context not found");
-    await ctx.db.patch(args.travelId, data);
-    await writeAudit(ctx, {
-      eventId: args.eventId,
-      actorId: identity.subject,
-      kind: "record.travelUpdated",
-      message: `Updated travel context: ${from.name} to ${to.name}`,
-      objectType: "travel",
-      objectId: args.travelId,
-      objectLabel: `${from.name} to ${to.name}`,
-      href: `/events/${args.eventId}/records/travel`,
     });
   },
 });

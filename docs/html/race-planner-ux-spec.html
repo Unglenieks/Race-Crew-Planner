@@ -361,13 +361,12 @@ td:last-child{color:var(--muted);width:38%}
   <h2>A location is more than an address.</h2>
   <div class="tablewrap">
     <table>
-      <caption>Place, venue and travel controls</caption>
+      <caption>Place and venue controls</caption>
       <thead><tr><th>CONTROL</th><th>USER ACTION &amp; RESULT</th><th>WHY IT EXISTS</th></tr></thead>
       <tbody>
         <tr><td>Add venue</td><td>Creates an official location from blank, a template or a map search. User selects a type or creates one, then enters address/coordinates, access notes, hours, contacts, map/directions and source.</td><td>Official locations need stronger context than a generic pin, while still allowing a one-minute capture.</td></tr>
         <tr><td>Add service / nearby place</td><td>Creates a crew-useful place and assigns one or more categories. A service can also be promoted to an official venue if its role changes.</td><td>“Fuel near the track” and “official paddock entrance” are different truths; mixing them loses operational clarity.</td></tr>
         <tr><td>Manage categories</td><td>Adds, renames, reorders, merges, archives and colors categories; chooses whether a category appears in the left navigation, map legend or default filter. Removing a category asks whether to reassign its records.</td><td>Users need their own taxonomy, but category cleanup must not silently orphan records.</td></tr>
-        <tr><td>Travel context</td><td>Adds a travel estimate or route note from any selected place to another. It records calculation/author/date and can be shown in plan, map or place detail.</td><td>“15 minutes from paddock” is often more actionable than a street address.</td></tr>
         <tr><td>Venue confirmation</td><td>Sets source-backed confirmation state, verification date and responsible person; can request acknowledgement from affected roles after an important change.</td><td>A changed gate, paddock or inspection location needs an auditable, visible handoff—not just an edited note.</td></tr>
         <tr><td>Record detail panel</td><td>Opens a stable panel with properties, linked records, activity, comments, files, source excerpts and actions. Users can choose which sections are expanded by default in their view.</td><td>Context belongs beside the object, not scattered across separate modules.</td></tr>
         <tr><td>Offline map and directions</td><td>States whether the map area and route for a place are downloaded, and hands off to device navigation with the access note attached rather than the bare address.</td><td>The last mile of a venue change is a gate, a lot and a wrong entrance — details a map pin alone will not carry.</td></tr>
@@ -592,7 +591,7 @@ td:last-child{color:var(--muted);width:38%}
       <tbody>
         <tr><td>02 Shell, Today &amp; attention</td><td>Today · Attention &amp; acknowledgements · Event switcher</td><td>Counts on Today open the filtered list behind them; the attention queue is its own screen rather than a badge with nowhere to go.</td></tr>
         <tr><td>03 Collections &amp; views</td><td>Views &amp; fields · Movement plan (day selector, filters)</td><td>Timeline, calendar, board and map are named but not drawn. They are build-next and deliberately unspecified in layout.</td></tr>
-        <tr><td>04 Records &amp; venues</td><td>Records directory · Venue detail · Types &amp; categories · Travel context</td><td>Category merge and archive demonstrate the impact statement required by Guardrail A.</td></tr>
+        <tr><td>04 Records &amp; venues</td><td>Records directory · Venue detail · Types &amp; categories</td><td>Category merge and archive demonstrate the impact statement required by Guardrail A.</td></tr>
         <tr><td>05 Movement plan</td><td>Movement plan · Movement detail · Publish change · Export &amp; print</td><td>The day selector filters real rows; the draft state is visible on the plan.</td></tr>
         <tr><td>06 Work &amp; templates</td><td>Work &amp; checklists · Work item detail · Templates · Automation setup</td><td>Completion offers undo; each checklist tab shows its own items.</td></tr>
         <tr><td>07 Forms</td><td>Forms &amp; inspections · Form builder · Submission / draft · Template versions</td><td>Blocked submission is demonstrated in place, with field-level errors and focus movement.</td></tr>

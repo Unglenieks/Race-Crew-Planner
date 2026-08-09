@@ -50,7 +50,6 @@ export type ItineraryItem = {
   operationalDay?: string;
   displayTime?: "standard" | "2400";
   timeKind?: "exact" | "approximate" | "range" | "allDay" | "unspecified";
-  travelContextId?: string;
   serviceIntervalId?: string;
   archivedAt?: number;
 };
@@ -134,22 +133,6 @@ export type RecordCategory = {
   order: number;
   archivedAt?: number;
 };
-export type TravelContext = {
-  _id: string;
-  fromRecordId: string;
-  toRecordId: string;
-  estimate?: string;
-  calculation?: string;
-  routeNote?: string;
-  createdBy: string;
-  createdAt: number;
-  updatedAt: number;
-  distanceMiles?: number;
-  expectedDurationMinutes?: number;
-  source?: string;
-  routeNotes?: string;
-  requiresReview?: boolean;
-};
 export type LogisticsOverview = {
   profile: {
     carNumber?: string;
@@ -186,13 +169,6 @@ export type LogisticsOverview = {
       overrideApplied?: boolean;
     };
   }>;
-  travelContexts: Array<
-    TravelContext & {
-      fromName: string;
-      toName: string;
-      movements: Array<{ _id: string; title: string }>;
-    }
-  >;
   serviceIntervals: Array<{
     _id: string;
     name: string;
@@ -460,7 +436,6 @@ export type PlanExport = {
   appendices?: {
     venues: PlanExportVenue[];
     officialContacts: PlanExportContact[];
-    travel: PlanExportTravel[];
     fuel: PlanExportVenue[];
     weather: PlanExportVenue[];
     supportServices: PlanExportVenue[];
@@ -482,7 +457,6 @@ export type CrewBriefInclusionOptions = {
   rallyFuel: boolean;
   service: boolean;
   weather: boolean;
-  travelRoutes: boolean;
   supportServices: boolean;
   documentAccessCodes: boolean;
   externalContactIds: string[];
@@ -503,60 +477,6 @@ export type PlanExportContact = {
   phoneNumber?: string;
   contactDetail?: string;
   notes?: string;
-};
-export type PlanExportTravel = {
-  from: string;
-  to: string;
-  estimate: string;
-  calculation?: string;
-  routeNote?: string;
-};
-
-export type PlanImportIssue = {
-  severity: "error" | "warning";
-  field: string;
-  message: string;
-};
-export type PlanImportRow = {
-  _id: string;
-  sourcePage?: number;
-  sourceRow: number;
-  rawValues: Record<string, string>;
-  operationalDay?: string;
-  normalizedDate?: string;
-  normalizedTime?: string;
-  normalizedEndTime?: string;
-  placeText?: string;
-  proposedVenueId?: string;
-  description: string;
-  rawPersonnel?: string;
-  resolvedAssignments: string[];
-  proposedMovementType:
-    "exact" | "approximate" | "range" | "allDay" | "unspecified";
-  proposedTags: string[];
-  fieldConfidence: {
-    date: number;
-    time: number;
-    place: number;
-    description: number;
-    personnel: number;
-    movementType: number;
-    tags: number;
-  };
-  issues: PlanImportIssue[];
-  warningsAccepted: boolean;
-  importedMovementId?: string;
-};
-export type PlanImport = {
-  _id: string;
-  sourceKind: "pdf" | "csv" | "xlsx" | "pasted";
-  sourceName: string;
-  sourceFileId?: string;
-  status: "reviewing" | "committed" | "rolledBack";
-  detectedSections: string[];
-  createdAt: number;
-  committedMovementCount?: number;
-  rows?: PlanImportRow[];
 };
 
 /**
@@ -621,7 +541,6 @@ export const itineraryApi = {
       scheduledUntil?: string;
       location?: string;
       recordId?: string;
-      travelContextId?: string;
       serviceIntervalId?: string;
       notes?: string;
       movementTypeId?: string | null;
@@ -641,7 +560,6 @@ export const itineraryApi = {
       scheduledUntil?: string;
       location?: string;
       notes?: string;
-      travelContextId?: string;
       serviceIntervalId?: string;
       movementTypeId?: string | null;
       sectionId?: string;
@@ -686,7 +604,6 @@ export const itineraryApi = {
         scheduledUntil?: string;
         location?: string;
         recordId?: string;
-        travelContextId?: string;
         serviceIntervalId?: string;
         notes?: string;
         movementTypeId?: string | null;
@@ -710,7 +627,6 @@ export const itineraryApi = {
       scheduledUntil?: string;
       location?: string;
       recordId?: string;
-      travelContextId?: string;
       serviceIntervalId?: string;
       notes?: string;
       movementTypeId?: string | null;
@@ -869,6 +785,20 @@ export const logisticsApi = {
     },
     string
   >("logistics:createExternalContact"),
+  createExternalContacts: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      contacts: Array<{
+        title: string;
+        name: string;
+        organization?: string;
+        phone?: string;
+        email?: string;
+      }>;
+    },
+    string[]
+  >("logistics:createExternalContacts"),
   updateExternalContact: makeFunctionReference<
     "mutation",
     {
@@ -887,48 +817,6 @@ export const logisticsApi = {
     { eventId: string; contactId: string },
     null
   >("logistics:removeExternalContact"),
-};
-
-export const planImportsApi = {
-  list: makeFunctionReference<"query", { eventId: string }, PlanImport[]>(
-    "planImports:list",
-  ),
-  get: makeFunctionReference<
-    "query",
-    { eventId: string; importId: string },
-    PlanImport & { rows: PlanImportRow[] }
-  >("planImports:get"),
-  stage: makeFunctionReference<
-    "mutation",
-    {
-      eventId: string;
-      sourceKind: PlanImport["sourceKind"];
-      sourceName: string;
-      sourceFileId?: string;
-      detectedSections: string[];
-      rows: Array<Omit<PlanImportRow, "_id" | "importedMovementId">>;
-    },
-    string
-  >("planImports:stage"),
-  updateRow: makeFunctionReference<
-    "mutation",
-    {
-      eventId: string;
-      importId: string;
-      rowId: string;
-    } & Omit<PlanImportRow, "_id" | "importedMovementId">,
-    null
-  >("planImports:updateRow"),
-  commit: makeFunctionReference<
-    "mutation",
-    { eventId: string; importId: string },
-    { importId: string; movementCount: number }
-  >("planImports:commit"),
-  rollback: makeFunctionReference<
-    "mutation",
-    { eventId: string; importId: string },
-    { movementCount: number }
-  >("planImports:rollback"),
 };
 
 export const recordsApi = {
@@ -977,7 +865,6 @@ export const recordsApi = {
     { eventId: string; recordId: string },
     EventRecord & {
       categories: RecordCategory[];
-      travelContexts: TravelContext[];
       fields: RecordField[];
     }
   >("records:get"),
@@ -1078,28 +965,6 @@ export const recordsApi = {
     { eventId: string; sourceCategoryId: string; targetCategoryId: string },
     null
   >("records:mergeCategory"),
-  listTravel: makeFunctionReference<
-    "query",
-    { eventId: string },
-    TravelContext[]
-  >("records:listTravel"),
-  saveTravel: makeFunctionReference<
-    "mutation",
-    {
-      eventId: string;
-      travelId?: string;
-      fromRecordId: string;
-      toRecordId: string;
-      estimate?: string;
-      calculation?: string;
-      routeNote?: string;
-      distanceMiles?: number;
-      expectedDurationMinutes?: number;
-      source?: string;
-      routeNotes?: string;
-    },
-    string | null
-  >("records:saveTravel"),
 };
 
 export const filesApi = {

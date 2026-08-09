@@ -165,7 +165,6 @@ export const getOverview = query({
       serviceIntervals,
       weatherForecasts,
       contacts,
-      travelContexts,
       records,
       movements,
     ] = await Promise.all([
@@ -190,10 +189,6 @@ export const getOverview = query({
         .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
         .collect(),
       ctx.db
-        .query("travelContexts")
-        .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
-        .collect(),
-      ctx.db
         .query("eventRecords")
         .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
         .collect(),
@@ -202,9 +197,6 @@ export const getOverview = query({
         .withIndex("by_eventId", (q) => q.eq("eventId", eventId))
         .collect(),
     ]);
-    const recordNames = new Map(
-      records.map((record) => [record._id, record.name]),
-    );
     const activeMovements = movements.filter(
       (movement) => movement.archivedAt === undefined,
     );
@@ -224,18 +216,6 @@ export const getOverview = query({
       })),
       weatherForecasts,
       contacts,
-      travelContexts: travelContexts.map((travel) => ({
-        ...travel,
-        fromName: recordNames.get(travel.fromRecordId) ?? "Unknown location",
-        toName: recordNames.get(travel.toRecordId) ?? "Unknown location",
-        requiresReview:
-          travel.requiresReview ??
-          (travel.distanceMiles === undefined ||
-            travel.expectedDurationMinutes === undefined),
-        movements: activeMovements
-          .filter((movement) => movement.travelContextId === travel._id)
-          .map((movement) => ({ _id: movement._id, title: movement.title })),
-      })),
       serviceIntervals: serviceIntervals.map((service) => ({
         ...service,
         movements: activeMovements
@@ -550,6 +530,13 @@ const contactArgs = {
   phone: v.optional(v.string()),
   email: v.optional(v.string()),
 };
+const contactInput = v.object({
+  title: v.string(),
+  name: v.string(),
+  organization: v.optional(v.string()),
+  phone: v.optional(v.string()),
+  email: v.optional(v.string()),
+});
 function contactData(args: ContactInput) {
   const email = text(args.email, 320, "Email");
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
@@ -573,6 +560,26 @@ export const createExternalContact = mutation({
       ...data,
       createdAt: data.updatedAt,
     });
+  },
+});
+
+/** Adds a validated set of event contacts together after Crew Chief authorization. */
+export const createExternalContacts = mutation({
+  args: { eventId: v.id("events"), contacts: v.array(contactInput) },
+  handler: async (ctx, { eventId, contacts }) => {
+    await manager(ctx, eventId);
+    if (contacts.length === 0 || contacts.length > 50)
+      throw new Error("Add between 1 and 50 contacts at a time");
+    const contactRows = contacts.map(contactData);
+    return await Promise.all(
+      contactRows.map((contact) =>
+        ctx.db.insert("externalContacts", {
+          eventId,
+          ...contact,
+          createdAt: contact.updatedAt,
+        }),
+      ),
+    );
   },
 });
 export const updateExternalContact = mutation({

@@ -56,7 +56,6 @@ import {
   restoreCategory,
   restoreType,
   resolvedCoordinates,
-  saveTravel,
   saveVenueDetails,
   update as updateRecord,
   validatedRecordInput,
@@ -87,7 +86,11 @@ import {
   syncIdentityProfile,
 } from "../../convex/userProfiles";
 import { recordHeartbeat } from "../../convex/scheduler";
-import { remove as removeFile, save as saveFile } from "../../convex/files";
+import {
+  acceptedFile,
+  remove as removeFile,
+  save as saveFile,
+} from "../../convex/files";
 import {
   create as createPlanExport,
   sameItems,
@@ -164,7 +167,6 @@ describe("Convex authorization helpers", () => {
           appendices: expect.objectContaining({
             venues: [],
             officialContacts: [],
-            travel: [],
           }),
           items: [
             expect.objectContaining({
@@ -264,6 +266,13 @@ describe("Convex authorization helpers", () => {
       table: "eventActivity",
       value: expect.objectContaining({ kind: "file.uploaded" }),
     });
+  });
+
+  it("does not accept spreadsheet uploads after plan import removal", () => {
+    expect(() => acceptedFile("text/csv", 1)).toThrow(
+      "Files must be a PDF, image, or plain-text file",
+    );
+    expect(() => acceptedFile("application/pdf", 1)).not.toThrow();
   });
 
   it("rejects a file from another event and limits removal to managers", async () => {
@@ -408,8 +417,7 @@ describe("Convex authorization helpers", () => {
             return {
               withIndex: () => ({
                 unique: async () => ({ role: "owner" }),
-                collect: async () =>
-                  table === "planImports" ? [{ _id: "planImports:one" }] : [],
+                collect: async () => [],
               }),
               filter: () => ({
                 collect: async () =>
@@ -423,8 +431,6 @@ describe("Convex authorization helpers", () => {
       { eventId: "events:sample" as never },
     );
     expect(queriedTables).toContain("eventRecordCategoryAssignments");
-    expect(queriedTables).toContain("planImports");
-    expect(queriedTables).toContain("planImportRows");
     expect(queriedTables).toContain("eventMemberships");
     expect(deleted).toEqual(["eventRecords:one", "events:sample"]);
   });
@@ -1173,7 +1179,7 @@ describe("Convex authorization helpers", () => {
     });
   });
 
-  it("does not let crew update venue or travel context", async () => {
+  it("does not let crew update venue details", async () => {
     const context = {
       auth: {
         getUserIdentity: async () => ({
@@ -1193,14 +1199,6 @@ describe("Convex authorization helpers", () => {
         eventId: "events:one" as never,
         recordId: "eventRecords:one" as never,
         confirmationStatus: "confirmed",
-      }),
-    ).rejects.toThrow("Forbidden");
-    await expect(
-      saveTravel._handler(context as never, {
-        eventId: "events:one" as never,
-        fromRecordId: "eventRecords:one" as never,
-        toRecordId: "eventRecords:two" as never,
-        estimate: "15 minutes",
       }),
     ).rejects.toThrow("Forbidden");
   });
@@ -2690,7 +2688,7 @@ describe("regressions found reviewing the outage integration", () => {
     ).rejects.toThrow("Rally leg not found");
   });
 
-  it("rejects a movement reference to logistics owned by another event", async () => {
+  it("rejects a service window owned by another event", async () => {
     const context = managerContext(
       { get: async () => ({ eventId: "events:other" }) },
       "manager",
@@ -2700,8 +2698,8 @@ describe("regressions found reviewing the outage integration", () => {
         eventId: "events:one" as never,
         title: "Transit to service",
         scheduledFor: "2026-10-16T08:30",
-        travelContextId: "travelContexts:other" as never,
+        serviceIntervalId: "serviceIntervals:other" as never,
       }),
-    ).rejects.toThrow("Travel context not found");
+    ).rejects.toThrow("Service interval not found");
   });
 });

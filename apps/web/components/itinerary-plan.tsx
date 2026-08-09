@@ -2,6 +2,8 @@
 
 import {
   CalendarPlus,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   LoaderCircle,
   MoreHorizontal,
@@ -56,7 +58,6 @@ type Draft = {
   sectionId: string;
   operationalDay: string;
   displayTime: "standard" | "2400";
-  travelContextId: string;
   serviceIntervalId: string;
 };
 
@@ -74,7 +75,6 @@ const emptyDraft: Draft = {
   sectionId: "",
   operationalDay: "",
   displayTime: "standard",
-  travelContextId: "",
   serviceIntervalId: "",
 };
 
@@ -173,6 +173,11 @@ export function ItineraryPlan({
   const [isSavingVocabulary, setIsSavingVocabulary] = useState(false);
   const [isStagingOpen, setIsStagingOpen] = useState(false);
   const firstInputRef = useRef<HTMLInputElement>(null);
+  const dayCardsRef = useRef<HTMLDivElement>(null);
+  const [canScrollDayCards, setCanScrollDayCards] = useState({
+    backward: false,
+    forward: false,
+  });
   const hasUnsavedChanges =
     JSON.stringify(draft) !== JSON.stringify(emptyDraft);
 
@@ -277,6 +282,25 @@ export function ItineraryPlan({
     }
     return [...groups].map(([day, grouped]) => ({ day, items: grouped }));
   }, [visibleItems]);
+  useEffect(() => {
+    const dayCards = dayCardsRef.current;
+    if (dayCards === null) return;
+    const updateScrollState = () => {
+      const maximum = dayCards.scrollWidth - dayCards.clientWidth;
+      setCanScrollDayCards({
+        backward: dayCards.scrollLeft > 1,
+        forward: dayCards.scrollLeft < maximum - 1,
+      });
+    };
+    updateScrollState();
+    dayCards.addEventListener("scroll", updateScrollState, { passive: true });
+    const observer = new ResizeObserver(updateScrollState);
+    observer.observe(dayCards);
+    return () => {
+      dayCards.removeEventListener("scroll", updateScrollState);
+      observer.disconnect();
+    };
+  }, [groupedItems]);
   const assignmentOptions = useMemo(
     () =>
       Array.from(
@@ -314,12 +338,29 @@ export function ItineraryPlan({
   }
 
   function clearFilters() {
-    setSelectedDay(null);
+    selectDay(null);
     setSelectedType("");
     setSelectedTag("");
     setSelectedAssignment("");
     setSelectedVenue("");
     setSearch("");
+  }
+
+  function selectDay(day: string | null) {
+    setSelectedDay(day);
+    window.localStorage.setItem(
+      `race-planner:plan-view:${eventId}`,
+      day ?? "all",
+    );
+  }
+
+  function scrollDayCards(direction: "backward" | "forward") {
+    const dayCards = dayCardsRef.current;
+    if (dayCards === null) return;
+    dayCards.scrollBy({
+      left: (direction === "forward" ? 1 : -1) * dayCards.clientWidth * 0.85,
+      behavior: "smooth",
+    });
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -341,7 +382,6 @@ export function ItineraryPlan({
       location: draft.location || undefined,
       notes: draft.notes || undefined,
       movementTypeId: draft.movementTypeId || null,
-      travelContextId: draft.travelContextId || undefined,
       serviceIntervalId: draft.serviceIntervalId || undefined,
     };
 
@@ -477,7 +517,6 @@ export function ItineraryPlan({
       movementTypeId: item.movementTypeId ?? "",
       sectionId: item.sectionId ?? "",
       displayTime: item.displayTime ?? "standard",
-      travelContextId: item.travelContextId ?? "",
       serviceIntervalId: item.serviceIntervalId ?? "",
     });
     setIsCreatorOpen(true);
@@ -544,12 +583,6 @@ export function ItineraryPlan({
               </Badge>
               {canEdit ? (
                 <>
-                  <Link
-                    className="inline-flex min-h-11 items-center rounded-lg border border-btnline bg-card px-3 text-xs font-semibold text-ink2 hover:bg-soft"
-                    href={`/events/${eventId}/plan/import`}
-                  >
-                    Import plan
-                  </Link>
                   <Link
                     href={`/events/${eventId}/plan/reconcile`}
                     className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-green-ink underline-offset-4 hover:underline focus-visible:outline-3 focus-visible:outline-focus"
@@ -629,43 +662,32 @@ export function ItineraryPlan({
           ) : (
             <>
               <div className="grid gap-3 border-b border-line pb-4">
-                <div
-                  className="flex gap-2 overflow-x-auto pb-1"
-                  aria-label="Filter by day"
-                >
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={activeDay === null ? "primary" : "secondary"}
-                    aria-pressed={activeDay === null}
-                    onClick={() => {
-                      setSelectedDay(null);
-                      window.localStorage.setItem(
-                        `race-planner:plan-view:${eventId}`,
-                        "all",
-                      );
-                    }}
+                <div className="flex flex-wrap items-center gap-2">
+                  <label
+                    className="text-sm font-medium text-ink"
+                    htmlFor="movement-day"
                   >
-                    All days
-                  </Button>
-                  {days.map((day) => (
-                    <Button
-                      key={day}
-                      type="button"
-                      size="sm"
-                      variant={activeDay === day ? "primary" : "secondary"}
-                      aria-pressed={activeDay === day}
-                      onClick={() => {
-                        setSelectedDay(day);
-                        window.localStorage.setItem(
-                          `race-planner:plan-view:${eventId}`,
-                          day,
-                        );
-                      }}
-                    >
-                      {displayDay(day)}
-                    </Button>
-                  ))}
+                    Schedule view
+                  </label>
+                  <select
+                    id="movement-day"
+                    value={activeDay ?? "all"}
+                    onChange={(event) =>
+                      selectDay(
+                        event.target.value === "all"
+                          ? null
+                          : event.target.value,
+                      )
+                    }
+                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm text-ink"
+                  >
+                    <option value="all">All days</option>
+                    {days.map((day) => (
+                      <option key={day} value={day}>
+                        {displayDay(day)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <label className="sr-only" htmlFor="movement-search">
@@ -783,261 +805,185 @@ export function ItineraryPlan({
                   }
                 />
               ) : (
-                <>
+                <section className="grid gap-3" aria-label="Schedule by day">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm text-muted">
+                      {activeDay === null
+                        ? "Browse days horizontally."
+                        : "Showing the selected day."}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        aria-label="Previous schedule day"
+                        onClick={() => scrollDayCards("backward")}
+                        disabled={!canScrollDayCards.backward}
+                      >
+                        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        aria-label="Next schedule day"
+                        onClick={() => scrollDayCards("forward")}
+                        disabled={!canScrollDayCards.forward}
+                      >
+                        <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                    </div>
+                  </div>
                   <div
-                    className="grid gap-2 sm:grid-cols-2"
-                    aria-label="Day summaries"
+                    ref={dayCardsRef}
+                    className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2"
+                    aria-label="Schedule day cards"
                   >
                     {groupedItems.map((group) => (
-                      <div
+                      <section
                         key={group.day}
-                        className="rounded-lg bg-soft px-3 py-2 text-xs text-muted"
+                        className="min-w-[min(100%,24rem)] snap-start rounded-xl border border-line bg-card p-4"
+                        aria-labelledby={`schedule-day-${group.day}`}
                       >
-                        <span className="font-semibold text-ink">
-                          {displayDay(group.day)}
-                        </span>{" "}
-                        · {group.items.length} movement
-                        {group.items.length === 1 ? "" : "s"} · first{" "}
-                        {displayMovementTime(group.items[0])} · last{" "}
-                        {displayMovementTime(group.items.at(-1)!)}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="overflow-x-auto rounded-lg border border-line">
-                    <table className="min-w-[900px] w-full text-left text-sm">
-                      <thead className="border-b border-line bg-topbg text-xs uppercase tracking-wide text-muted">
-                        <tr>
-                          <th className="px-3 py-3">Day / time</th>
-                          <th className="px-3 py-3">Movement</th>
-                          <th className="px-3 py-3">Venue</th>
-                          <th className="px-3 py-3">Type & crew</th>
-                          <th className="px-3 py-3">Notes</th>
-                          {canEdit ? (
-                            <th className="px-3 py-3">Actions</th>
-                          ) : null}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {visibleItems.map((item) => (
-                          <tr
-                            key={item._id}
-                            className="border-b border-line2 align-top last:border-0"
+                        <div className="border-b border-line pb-3">
+                          <h3
+                            id={`schedule-day-${group.day}`}
+                            className="font-semibold text-ink"
                           >
-                            <td className="px-3 py-3 font-mono text-xs text-green-ink">
-                              <span className="block font-sans font-semibold text-ink">
-                                {displayDay(calendarDay(item))}
-                              </span>
-                              <time aria-label={movementTimeLabel(item)}>
+                            {displayDay(group.day)}
+                          </h3>
+                          <p className="mt-1 text-xs text-muted">
+                            {group.items.length} movement
+                            {group.items.length === 1 ? "" : "s"} · first{" "}
+                            {displayMovementTime(group.items[0])} · last{" "}
+                            {displayMovementTime(group.items.at(-1)!)}
+                          </p>
+                        </div>
+                        <ol className="divide-y divide-line">
+                          {group.items.map((item) => (
+                            <li
+                              key={item._id}
+                              className="grid gap-3 py-4 first:pt-4 last:pb-0 sm:grid-cols-[5rem_minmax(0,1fr)_auto]"
+                            >
+                              <time
+                                className="font-mono text-xs text-green-ink"
+                                aria-label={movementTimeLabel(item)}
+                              >
                                 {displayMovementTime(item)}
                               </time>
-                              <span className="mt-1 block font-sans text-muted">
-                                {operationalDayLabel(item, sections ?? [])}
-                              </span>
-                            </td>
-                            <td className="px-3 py-3">
-                              <Link
-                                href={`/events/${eventId}/plan/${item._id}`}
-                                className="font-semibold text-ink underline-offset-4 hover:underline"
-                              >
-                                {item.title}
-                              </Link>
-                              {item.tags?.length ? (
-                                <p className="mt-2 flex flex-wrap gap-1">
-                                  {item.tags.map((tag) => (
-                                    <Badge key={tag._id} variant="info">
-                                      {tag.name}
-                                    </Badge>
-                                  ))}
-                                </p>
-                              ) : null}
-                            </td>
-                            <td className="px-3 py-3">
-                              {item.recordId ? (
+                              <div className="min-w-0">
                                 <Link
-                                  className="font-medium text-green-ink underline"
-                                  href={`/events/${eventId}/records/${item.recordId}`}
+                                  href={`/events/${eventId}/plan/${item._id}`}
+                                  className="font-semibold text-ink underline-offset-4 hover:underline focus-visible:outline-3 focus-visible:outline-focus"
                                 >
-                                  {recordsById.get(item.recordId)?.name ??
-                                    "Unavailable record"}
+                                  {item.title}
                                 </Link>
-                              ) : (
-                                (item.location ?? "—")
-                              )}
-                            </td>
-                            <td className="px-3 py-3">
-                              {item.movementTypeLabel ? (
-                                <Badge variant="neutral">
-                                  {item.movementTypeLabel}
-                                </Badge>
-                              ) : (
-                                "—"
-                              )}
-                              {item.assignments?.length ? (
-                                <p className="mt-2 text-xs text-muted">
-                                  {item.assignments
-                                    .map((assignment) => assignment.label)
-                                    .join(", ")}
-                                </p>
-                              ) : null}
-                            </td>
-                            <td className="px-3 py-3 text-muted">
-                              {item.notes ?? "—"}
-                            </td>
-                            {canEdit ? (
-                              <td className="px-3 py-3">
-                                <span className="flex gap-1">
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => duplicateItem(item)}
+                                {item.movementTypeLabel === undefined ? null : (
+                                  <Badge
+                                    className="ml-2 align-middle"
+                                    variant="neutral"
                                   >
-                                    <Copy className="h-4 w-4" />
-                                    Duplicate
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    disabled={isArchiving === item._id}
-                                    onClick={() => onArchive(item)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                    Archive
-                                  </Button>
-                                </span>
-                              </td>
-                            ) : null}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <ol className="hidden divide-y divide-line border-y border-line">
-                    {visibleItems.map((item, index) => (
-                      <li
-                        key={item._id}
-                        className="grid gap-3 py-4 first:pt-0 last:pb-0 sm:grid-cols-[8rem_minmax(0,1fr)_auto]"
-                      >
-                        {index === 0 ||
-                        calendarDay(visibleItems[index - 1]) !==
-                          calendarDay(item) ? (
-                          <h3 className="pt-2 font-semibold text-ink sm:col-span-3">
-                            {displayDay(calendarDay(item))}
-                          </h3>
-                        ) : null}
-                        <time
-                          className="font-mono text-xs text-green-ink"
-                          aria-label={movementTimeLabel(item)}
-                        >
-                          {displayMovementTime(item)}
-                        </time>
-                        <div className="min-w-0">
-                          <Link
-                            href={`/events/${eventId}/plan/${item._id}`}
-                            className="font-semibold text-ink underline-offset-4 hover:underline focus-visible:outline-3 focus-visible:outline-focus"
-                          >
-                            {item.title}
-                          </Link>
-                          {item.movementTypeLabel === undefined ? null : (
-                            <Badge
-                              className="ml-2 align-middle"
-                              variant="neutral"
-                            >
-                              {item.movementTypeLabel}
-                            </Badge>
-                          )}
-                          {item.tags === undefined ||
-                          item.tags.length === 0 ? null : (
-                            <p className="mt-1 flex flex-wrap gap-1">
-                              {item.tags.map((tag) => (
-                                <Badge key={tag._id} variant="info">
-                                  {tag.name}
-                                </Badge>
-                              ))}
-                            </p>
-                          )}
-                          {item.assignments === undefined ||
-                          item.assignments.length === 0 ? null : (
-                            <p className="mt-1 text-xs text-muted">
-                              Assigned:{" "}
-                              {item.assignments
-                                .map((assignment) => assignment.label)
-                                .join(", ")}
-                            </p>
-                          )}
-                          <p className="mt-1 text-xs font-medium text-muted">
-                            {operationalDayLabel(item, sections ?? [])}
-                          </p>
-                          {item.location === undefined ? null : (
-                            <p className="mt-1 text-sm text-muted">
-                              {item.location}
-                            </p>
-                          )}
-                          {item.recordId === undefined ? null : (
-                            <p className="mt-1 text-xs font-medium text-green-ink">
-                              Linked location:{" "}
-                              <Link
-                                className="underline underline-offset-2"
-                                href={`/events/${eventId}/records/${item.recordId}`}
-                              >
-                                {recordsById.get(item.recordId)?.name ??
-                                  "Unavailable record"}
-                              </Link>
-                            </p>
-                          )}
-                          {item.notes === undefined ? null : (
-                            <p className="mt-1 text-sm leading-relaxed text-muted">
-                              {item.notes}
-                            </p>
-                          )}
-                        </div>
-                        {canEdit ? (
-                          <details className="relative sm:justify-self-end">
-                            <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-lg px-2 hover:bg-soft">
-                              <MoreHorizontal
-                                className="h-4 w-4"
-                                aria-hidden="true"
-                              />
-                              <span className="sr-only">
-                                Actions for {item.title}
-                              </span>
-                            </summary>
-                            <div className="grid min-w-36 gap-1 rounded-lg border border-line bg-card p-2 shadow-lg sm:absolute sm:right-0 sm:z-10">
-                              <Button
-                                type="button"
-                                variant="danger"
-                                size="sm"
-                                aria-label={`Archive ${item.title}`}
-                                onClick={() => onArchive(item)}
-                                disabled={isArchiving === item._id}
-                              >
-                                {isArchiving === item._id ? (
-                                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Trash2
-                                    className="h-4 w-4"
-                                    aria-hidden="true"
-                                  />
+                                    {item.movementTypeLabel}
+                                  </Badge>
                                 )}
-                                Archive
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="soft"
-                                size="sm"
-                                onClick={() => duplicateItem(item)}
-                              >
-                                <Copy className="h-4 w-4" aria-hidden="true" />
-                                Duplicate
-                              </Button>
-                            </div>
-                          </details>
-                        ) : null}
-                      </li>
+                                {item.tags === undefined ||
+                                item.tags.length === 0 ? null : (
+                                  <p className="mt-1 flex flex-wrap gap-1">
+                                    {item.tags.map((tag) => (
+                                      <Badge key={tag._id} variant="info">
+                                        {tag.name}
+                                      </Badge>
+                                    ))}
+                                  </p>
+                                )}
+                                {item.assignments === undefined ||
+                                item.assignments.length === 0 ? null : (
+                                  <p className="mt-1 text-xs text-muted">
+                                    Assigned:{" "}
+                                    {item.assignments
+                                      .map((assignment) => assignment.label)
+                                      .join(", ")}
+                                  </p>
+                                )}
+                                <p className="mt-1 text-xs font-medium text-muted">
+                                  {operationalDayLabel(item, sections ?? [])}
+                                </p>
+                                {item.location === undefined ? null : (
+                                  <p className="mt-1 text-sm text-muted">
+                                    {item.location}
+                                  </p>
+                                )}
+                                {item.recordId === undefined ? null : (
+                                  <p className="mt-1 text-xs font-medium text-green-ink">
+                                    Linked location:{" "}
+                                    <Link
+                                      className="underline underline-offset-2"
+                                      href={`/events/${eventId}/records/${item.recordId}`}
+                                    >
+                                      {recordsById.get(item.recordId)?.name ??
+                                        "Unavailable record"}
+                                    </Link>
+                                  </p>
+                                )}
+                                {item.notes === undefined ? null : (
+                                  <p className="mt-1 text-sm leading-relaxed text-muted">
+                                    {item.notes}
+                                  </p>
+                                )}
+                              </div>
+                              {canEdit ? (
+                                <details className="relative sm:justify-self-end">
+                                  <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-lg px-2 hover:bg-soft">
+                                    <MoreHorizontal
+                                      className="h-4 w-4"
+                                      aria-hidden="true"
+                                    />
+                                    <span className="sr-only">
+                                      Actions for {item.title}
+                                    </span>
+                                  </summary>
+                                  <div className="grid min-w-36 gap-1 rounded-lg border border-line bg-card p-2 shadow-lg sm:absolute sm:right-0 sm:z-10">
+                                    <Button
+                                      type="button"
+                                      variant="danger"
+                                      size="sm"
+                                      aria-label={`Archive ${item.title}`}
+                                      onClick={() => onArchive(item)}
+                                      disabled={isArchiving === item._id}
+                                    >
+                                      {isArchiving === item._id ? (
+                                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Trash2
+                                          className="h-4 w-4"
+                                          aria-hidden="true"
+                                        />
+                                      )}
+                                      Archive
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="soft"
+                                      size="sm"
+                                      onClick={() => duplicateItem(item)}
+                                    >
+                                      <Copy
+                                        className="h-4 w-4"
+                                        aria-hidden="true"
+                                      />
+                                      Duplicate
+                                    </Button>
+                                  </div>
+                                </details>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ol>
+                      </section>
                     ))}
-                  </ol>
-                </>
+                  </div>
+                </section>
               )}
             </>
           )}
@@ -1173,23 +1119,6 @@ export function ItineraryPlan({
                 </label>
               )}
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-1.5 text-sm font-medium text-ink">
-                  Travel leg <span className="text-muted">(optional)</span>
-                  <select
-                    value={draft.travelContextId}
-                    onChange={(event) =>
-                      updateDraft("travelContextId", event.target.value)
-                    }
-                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
-                  >
-                    <option value="">No travel leg</option>
-                    {(logistics?.travelContexts ?? []).map((travel) => (
-                      <option key={travel._id} value={travel._id}>
-                        {travel.fromName} → {travel.toName}
-                      </option>
-                    ))}
-                  </select>
-                </label>
                 <label className="grid gap-1.5 text-sm font-medium text-ink">
                   Service window <span className="text-muted">(optional)</span>
                   <select
