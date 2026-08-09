@@ -778,6 +778,8 @@ export default defineSchema({
       v.literal("work.commented"),
       v.literal("record.created"),
       v.literal("record.updated"),
+      // Preserve historical travel audit entries after retiring the travel model.
+      v.literal("record.travelUpdated"),
       v.literal("record.vocabularyChanged"),
       v.literal("logistics.updated"),
       v.literal("file.uploaded"),
