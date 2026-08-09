@@ -22,7 +22,6 @@ export type ScreenId =
   | "spectator-info"
   | "attention"
   | "plan"
-  | "plan-import"
   | "plan-export"
   | "work"
   | "work-templates"
@@ -142,16 +141,6 @@ const legacy: ScreenDefinition[] = [
     description: "The shared schedule of movements for this event.",
     icon: Route,
     minRole: "crew",
-    hidden: true,
-  },
-  {
-    id: "plan-import",
-    segment: "plan/import",
-    label: "Import plan",
-    shortLabel: "Import",
-    description: "Stage, review, and safely commit a schedule.",
-    icon: FileText,
-    minRole: "manager",
     hidden: true,
   },
   {

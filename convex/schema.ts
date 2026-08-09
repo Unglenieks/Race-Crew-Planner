@@ -70,8 +70,6 @@ export default defineSchema({
   }).index("by_name", ["name"]),
   itineraryItems: defineTable({
     eventId: v.id("events"),
-    /** The staged plan import that created this movement, if any. */
-    importId: v.optional(v.id("planImports")),
     title: v.string(),
     /** A local date/time in the event's declared IANA time zone. */
     scheduledFor: v.string(),
@@ -118,8 +116,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_eventId", ["eventId"])
-    .index("by_eventId_scheduledFor", ["eventId", "scheduledFor"])
-    .index("by_importId", ["importId"]),
+    .index("by_eventId_scheduledFor", ["eventId", "scheduledFor"]),
   /** Configurable movement classifications such as departure and service. */
   eventMovementTypes: defineTable({
     eventId: v.id("events"),
@@ -180,79 +177,6 @@ export default defineSchema({
   })
     .index("by_itemId", ["itineraryItemId"])
     .index("by_eventId_itemId", ["eventId", "itineraryItemId"]),
-  /**
-   * A durable review session. Source binaries remain in eventFiles so they
-   * retain the same event-scoped access controls as other evidence.
-   */
-  planImports: defineTable({
-    eventId: v.id("events"),
-    sourceKind: v.union(
-      v.literal("pdf"),
-      v.literal("csv"),
-      v.literal("xlsx"),
-      v.literal("pasted"),
-    ),
-    sourceName: v.string(),
-    sourceFileId: v.optional(v.id("eventFiles")),
-    status: v.union(
-      v.literal("reviewing"),
-      v.literal("committed"),
-      v.literal("rolledBack"),
-    ),
-    detectedSections: v.array(v.string()),
-    createdBy: v.string(),
-    createdAt: v.number(),
-    committedAt: v.optional(v.number()),
-    committedBy: v.optional(v.string()),
-    committedMovementCount: v.optional(v.number()),
-    rolledBackAt: v.optional(v.number()),
-    rolledBackBy: v.optional(v.string()),
-  }).index("by_eventId_createdAt", ["eventId", "createdAt"]),
-  /** Rows are review artifacts, never live movements until explicitly committed. */
-  planImportRows: defineTable({
-    importId: v.id("planImports"),
-    sourcePage: v.optional(v.number()),
-    sourceRow: v.number(),
-    rawValues: v.record(v.string(), v.string()),
-    operationalDay: v.optional(v.string()),
-    normalizedDate: v.optional(v.string()),
-    normalizedTime: v.optional(v.string()),
-    normalizedEndTime: v.optional(v.string()),
-    placeText: v.optional(v.string()),
-    proposedVenueId: v.optional(v.id("eventRecords")),
-    description: v.string(),
-    rawPersonnel: v.optional(v.string()),
-    resolvedAssignments: v.array(v.string()),
-    proposedMovementType: v.union(
-      v.literal("exact"),
-      v.literal("approximate"),
-      v.literal("range"),
-      v.literal("allDay"),
-      v.literal("unspecified"),
-    ),
-    proposedTags: v.array(v.string()),
-    fieldConfidence: v.object({
-      date: v.number(),
-      time: v.number(),
-      place: v.number(),
-      description: v.number(),
-      personnel: v.number(),
-      movementType: v.number(),
-      tags: v.number(),
-    }),
-    issues: v.array(
-      v.object({
-        severity: v.union(v.literal("error"), v.literal("warning")),
-        field: v.string(),
-        message: v.string(),
-      }),
-    ),
-    warningsAccepted: v.boolean(),
-    importedMovementId: v.optional(v.id("itineraryItems")),
-    updatedAt: v.number(),
-  })
-    .index("by_importId_sourceRow", ["importId", "sourceRow"])
-    .index("by_importId", ["importId"]),
   eventRecords: defineTable({
     eventId: v.id("events"),
     name: v.string(),
@@ -847,9 +771,6 @@ export default defineSchema({
       v.literal("movement.archived"),
       v.literal("movement.restored"),
       v.literal("movement.published"),
-      v.literal("planImport.staged"),
-      v.literal("planImport.committed"),
-      v.literal("planImport.rolledBack"),
       v.literal("work.created"),
       v.literal("work.updated"),
       v.literal("work.completed"),

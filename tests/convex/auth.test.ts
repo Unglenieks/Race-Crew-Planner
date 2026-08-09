@@ -86,7 +86,11 @@ import {
   syncIdentityProfile,
 } from "../../convex/userProfiles";
 import { recordHeartbeat } from "../../convex/scheduler";
-import { remove as removeFile, save as saveFile } from "../../convex/files";
+import {
+  acceptedFile,
+  remove as removeFile,
+  save as saveFile,
+} from "../../convex/files";
 import {
   create as createPlanExport,
   sameItems,
@@ -264,6 +268,13 @@ describe("Convex authorization helpers", () => {
     });
   });
 
+  it("does not accept spreadsheet uploads after plan import removal", () => {
+    expect(() => acceptedFile("text/csv", 1)).toThrow(
+      "Files must be a PDF, image, or plain-text file",
+    );
+    expect(() => acceptedFile("application/pdf", 1)).not.toThrow();
+  });
+
   it("rejects a file from another event and limits removal to managers", async () => {
     await expect(
       saveFile._handler(
@@ -406,8 +417,7 @@ describe("Convex authorization helpers", () => {
             return {
               withIndex: () => ({
                 unique: async () => ({ role: "owner" }),
-                collect: async () =>
-                  table === "planImports" ? [{ _id: "planImports:one" }] : [],
+                collect: async () => [],
               }),
               filter: () => ({
                 collect: async () =>
@@ -421,8 +431,6 @@ describe("Convex authorization helpers", () => {
       { eventId: "events:sample" as never },
     );
     expect(queriedTables).toContain("eventRecordCategoryAssignments");
-    expect(queriedTables).toContain("planImports");
-    expect(queriedTables).toContain("planImportRows");
     expect(queriedTables).toContain("eventMemberships");
     expect(deleted).toEqual(["eventRecords:one", "events:sample"]);
   });

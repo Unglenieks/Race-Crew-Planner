@@ -584,12 +584,6 @@ export function ItineraryPlan({
               {canEdit ? (
                 <>
                   <Link
-                    className="inline-flex min-h-11 items-center rounded-lg border border-btnline bg-card px-3 text-xs font-semibold text-ink2 hover:bg-soft"
-                    href={`/events/${eventId}/plan/import`}
-                  >
-                    Import plan
-                  </Link>
-                  <Link
                     href={`/events/${eventId}/plan/reconcile`}
                     className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-green-ink underline-offset-4 hover:underline focus-visible:outline-3 focus-visible:outline-focus"
                   >
