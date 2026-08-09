@@ -3,11 +3,217 @@
 import Link from "next/link";
 import { ExternalLink, MapPin, Navigation } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabTrigger } from "@/components/ui/tabs";
 import { OpenStreetMapMap } from "@/components/openstreetmap-map";
 import { useEventWorkspace } from "@/components/workspace/event-workspace";
-import { recordsApi, type MapLocation } from "@/lib/events-api";
+import {
+  recordsApi,
+  type EventRecord,
+  type MapLocation,
+} from "@/lib/events-api";
+
+type SupportCategory = NonNullable<EventRecord["supportCategories"]>[number];
+
+const supportOptions = [
+  "fuel",
+  "grocery",
+  "parts",
+  "tire",
+  "medical",
+  "towing",
+  "other",
+] as const;
+
+function AddMapLocation({ eventId }: { eventId: string }) {
+  const create = useMutation(recordsApi.create);
+  const saveDetails = useMutation(recordsApi.saveVenueDetails);
+  const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState<"venue" | "support">("venue");
+  const [categories, setCategories] = useState<SupportCategory[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const toggleCategory = (category: SupportCategory) =>
+    setCategories((current) =>
+      current.includes(category)
+        ? current.filter((value) => value !== category)
+        : [...current, category],
+    );
+  async function submit(form: React.FormEvent<HTMLFormElement>) {
+    form.preventDefault();
+    const values = new FormData(form.currentTarget);
+    const number = (name: string) => {
+      const value = String(values.get(name) ?? "").trim();
+      return value === "" ? undefined : Number(value);
+    };
+    setSaving(true);
+    setError(null);
+    try {
+      const recordId = await create({
+        eventId,
+        name: String(values.get("name") ?? ""),
+        type: kind === "support" ? "service" : "venue",
+        address: String(values.get("address") ?? "") || undefined,
+        supportCategories:
+          kind === "support"
+            ? categories.length
+              ? categories
+              : ["other"]
+            : [],
+        spectatorVisible: values.get("spectatorVisible") === "on",
+      });
+      await saveDetails({
+        eventId,
+        recordId,
+        address: String(values.get("address") ?? "") || undefined,
+        hours: String(values.get("hours") ?? "") || undefined,
+        latitude: number("latitude"),
+        longitude: number("longitude"),
+        supportCategories:
+          kind === "support"
+            ? categories.length
+              ? categories
+              : ["other"]
+            : [],
+        spectatorVisible: values.get("spectatorVisible") === "on",
+        confirmationStatus: "unconfirmed",
+      });
+      form.currentTarget.reset();
+      setCategories([]);
+      setOpen(false);
+    } catch {
+      setError(
+        "We could not save this location. Coordinates must be valid and entered as a pair.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <section className="rounded-xl border border-line bg-card p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold text-ink">Locations</h2>
+          <p className="mt-1 text-sm text-muted">
+            Add a venue or a crew support stop to the shared map.
+          </p>
+        </div>
+        {!open ? (
+          <Button type="button" size="sm" onClick={() => setOpen(true)}>
+            Add location
+          </Button>
+        ) : null}
+      </div>
+      {open ? (
+        <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={submit}>
+          <label className="grid gap-1.5 text-sm font-medium">
+            Location kind
+            <select
+              value={kind}
+              onChange={(event) => {
+                setKind(event.target.value as "venue" | "support");
+                setCategories([]);
+              }}
+              className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
+            >
+              <option value="venue">Venue</option>
+              <option value="support">Support location</option>
+            </select>
+          </label>
+          <label className="grid gap-1.5 text-sm font-medium">
+            Name
+            <Input name="name" required maxLength={160} />
+          </label>
+          <label className="grid gap-1.5 text-sm font-medium">
+            Address
+            <Input name="address" maxLength={300} />
+          </label>
+          <label className="grid gap-1.5 text-sm font-medium">
+            Hours
+            <Input name="hours" maxLength={240} />
+          </label>
+          <label className="grid gap-1.5 text-sm font-medium">
+            Latitude
+            <Input
+              name="latitude"
+              type="number"
+              step="any"
+              min="-90"
+              max="90"
+            />
+          </label>
+          <label className="grid gap-1.5 text-sm font-medium">
+            Longitude
+            <Input
+              name="longitude"
+              type="number"
+              step="any"
+              min="-180"
+              max="180"
+            />
+          </label>
+          {kind === "support" ? (
+            <fieldset className="md:col-span-2">
+              <legend className="text-sm font-medium">Support available</legend>
+              <div className="mt-2 flex flex-wrap gap-3">
+                {supportOptions.map((category) => (
+                  <label
+                    key={category}
+                    className="flex items-center gap-2 text-sm capitalize"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={categories.includes(category)}
+                      onChange={() => toggleCategory(category)}
+                    />
+                    {category}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          ) : null}
+          <label className="flex items-start gap-3 rounded-lg border border-line p-3 text-sm md:col-span-2">
+            <input
+              name="spectatorVisible"
+              type="checkbox"
+              className="mt-1 h-4 w-4 accent-[var(--color-green)]"
+            />
+            <span>
+              <span className="block font-semibold">
+                Show in spectator info
+              </span>
+              <span className="mt-1 block text-muted">
+                Spectators can see the location and navigation link.
+              </span>
+            </span>
+          </label>
+          <div className="flex gap-2 md:col-span-2">
+            <Button type="submit" variant="primary" disabled={saving}>
+              {saving ? "Saving…" : "Save location"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setOpen(false);
+                setError(null);
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : null}
+      {error ? (
+        <p className="mt-3 text-sm text-danger-tx" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </section>
+  );
+}
 
 function mapsHref(location: MapLocation) {
   const destination =
@@ -18,7 +224,7 @@ function mapsHref(location: MapLocation) {
 }
 
 export function MapExplorer({ spectator = false }: { spectator?: boolean }) {
-  const { event } = useEventWorkspace();
+  const { event, role } = useEventWorkspace();
   const locations = useQuery(recordsApi.listMapLocations, {
     eventId: event.id,
   });
@@ -133,6 +339,9 @@ export function MapExplorer({ spectator = false }: { spectator?: boolean }) {
           ) : null}
         </div>
       </section>
+      {!spectator && (role === "owner" || role === "manager") ? (
+        <AddMapLocation eventId={event.id} />
+      ) : null}
       {spectator ? (
         <section>
           <h2 className="mb-3 font-semibold text-ink">Spectator locations</h2>
