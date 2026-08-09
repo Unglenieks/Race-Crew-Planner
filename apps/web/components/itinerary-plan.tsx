@@ -154,11 +154,8 @@ export function ItineraryPlan({
     },
   );
   const [selectedType, setSelectedType] = useState("");
-  const [selectedTag, setSelectedTag] = useState("");
-  const [selectedAssignment, setSelectedAssignment] = useState("");
   const [selectedVenue, setSelectedVenue] = useState("");
   const [search, setSearch] = useState("");
-  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isArchiving, setIsArchiving] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
@@ -224,14 +221,6 @@ export function ItineraryPlan({
       const matchesDay = activeDay === null || calendarDay(item) === activeDay;
       const matchesType =
         selectedType.length === 0 || item.movementTypeId === selectedType;
-      const matchesTag =
-        selectedTag.length === 0 ||
-        (item.tags ?? []).some((tag) => tag._id === selectedTag);
-      const matchesAssignment =
-        selectedAssignment.length === 0 ||
-        (item.assignments ?? []).some(
-          (assignment) => assignment.label === selectedAssignment,
-        );
       const venueName =
         item.recordId === undefined
           ? item.location
@@ -252,22 +241,11 @@ export function ItineraryPlan({
       return (
         matchesDay &&
         matchesType &&
-        matchesTag &&
-        matchesAssignment &&
         matchesVenue &&
         (query.length === 0 || haystack.includes(query))
       );
     });
-  }, [
-    items,
-    recordsById,
-    search,
-    selectedAssignment,
-    activeDay,
-    selectedTag,
-    selectedType,
-    selectedVenue,
-  ]);
+  }, [items, recordsById, search, activeDay, selectedType, selectedVenue]);
   const groupedItems = useMemo(() => {
     const groups = new Map<string, ItineraryItem[]>();
     for (const item of visibleItems) {
@@ -295,17 +273,6 @@ export function ItineraryPlan({
       observer.disconnect();
     };
   }, [groupedItems]);
-  const assignmentOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          (items ?? []).flatMap((item) =>
-            (item.assignments ?? []).map((assignment) => assignment.label),
-          ),
-        ),
-      ).sort(),
-    [items],
-  );
   const venueOptions = useMemo(
     () =>
       Array.from(
@@ -321,12 +288,6 @@ export function ItineraryPlan({
       ).sort(),
     [items, recordsById],
   );
-  const activeSecondaryFilterCount = [
-    selectedType,
-    selectedTag,
-    selectedAssignment,
-    selectedVenue,
-  ].filter(Boolean).length;
   function updateDraft(field: keyof Draft, value: string) {
     setDraft((current) => ({ ...current, [field]: value }));
   }
@@ -334,8 +295,6 @@ export function ItineraryPlan({
   function clearFilters() {
     selectDay(null);
     setSelectedType("");
-    setSelectedTag("");
-    setSelectedAssignment("");
     setSelectedVenue("");
     setSearch("");
   }
@@ -633,132 +592,79 @@ export function ItineraryPlan({
             />
           ) : (
             <>
-              <div className="grid gap-3 border-b border-line pb-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <label
-                    className="text-sm font-medium text-ink"
-                    htmlFor="movement-day"
-                  >
-                    Schedule view
-                  </label>
-                  <select
-                    id="movement-day"
-                    value={activeDay ?? "all"}
-                    onChange={(event) =>
-                      selectDay(
-                        event.target.value === "all"
-                          ? null
-                          : event.target.value,
-                      )
-                    }
-                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm text-ink"
-                  >
-                    <option value="all">All days</option>
-                    {days.map((day) => (
-                      <option key={day} value={day}>
-                        {displayDay(day)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 border-b border-line pb-4">
+                <label
+                  className="text-sm font-medium text-ink"
+                  htmlFor="movement-day"
+                >
+                  Schedule view
+                </label>
+                <select
+                  id="movement-day"
+                  value={activeDay ?? "all"}
+                  onChange={(event) =>
+                    selectDay(
+                      event.target.value === "all" ? null : event.target.value,
+                    )
+                  }
+                  className="min-h-9 rounded-lg border border-line bg-card px-3 text-sm text-ink"
+                >
+                  <option value="all">All days</option>
+                  {days.map((day) => (
+                    <option key={day} value={day}>
+                      {displayDay(day)}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Filter by movement type"
+                  value={selectedType}
+                  onChange={(event) => setSelectedType(event.target.value)}
+                  className="min-h-9 rounded-lg border border-line bg-card px-3 text-sm"
+                >
+                  <option value="">All types</option>
+                  {(directory?.types ?? []).map((type) => (
+                    <option key={type._id} value={type._id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Filter by venue"
+                  value={selectedVenue}
+                  onChange={(event) => setSelectedVenue(event.target.value)}
+                  className="min-h-9 rounded-lg border border-line bg-card px-3 text-sm"
+                >
+                  <option value="">All venues</option>
+                  {venueOptions.map((venue) => (
+                    <option key={venue}>{venue}</option>
+                  ))}
+                </select>
+                <div className="relative w-full sm:w-56">
                   <label className="sr-only" htmlFor="movement-search">
                     Search movements
                   </label>
-                  <div className="relative min-w-[min(100%,17rem)] flex-1">
-                    <Search
-                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
-                      aria-hidden="true"
-                    />
-                    <Input
-                      id="movement-search"
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                      className="pl-9"
-                      placeholder="Search movement, type, tag, assignment, place, or notes"
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    className="md:hidden"
-                    aria-expanded={isFiltersOpen}
-                    aria-controls="movement-secondary-filters"
-                    onClick={() => setIsFiltersOpen((open) => !open)}
-                  >
-                    Filters
-                    {activeSecondaryFilterCount === 0
-                      ? ""
-                      : ` (${activeSecondaryFilterCount})`}
+                  <Search
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+                    aria-hidden="true"
+                  />
+                  <Input
+                    id="movement-search"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    className="h-9 pl-9"
+                    placeholder="Search movements"
+                  />
+                </div>
+                {(activeDay !== null ||
+                  selectedType.length > 0 ||
+                  selectedVenue.length > 0 ||
+                  search.length > 0) && (
+                  <Button type="button" size="sm" onClick={clearFilters}>
+                    <X className="h-4 w-4" aria-hidden="true" />
+                    Clear filters
                   </Button>
-                </div>
-                <div
-                  id="movement-secondary-filters"
-                  className={`${isFiltersOpen ? "flex" : "hidden"} flex-wrap items-center gap-2 md:flex`}
-                >
-                  <select
-                    aria-label="Filter by movement type"
-                    value={selectedType}
-                    onChange={(event) => setSelectedType(event.target.value)}
-                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
-                  >
-                    <option value="">All types</option>
-                    {(directory?.types ?? []).map((type) => (
-                      <option key={type._id} value={type._id}>
-                        {type.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    aria-label="Filter by movement tag"
-                    value={selectedTag}
-                    onChange={(event) => setSelectedTag(event.target.value)}
-                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
-                  >
-                    <option value="">All tags</option>
-                    {(directory?.tags ?? []).map((tag) => (
-                      <option key={tag._id} value={tag._id}>
-                        {tag.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    aria-label="Filter by assignment"
-                    value={selectedAssignment}
-                    onChange={(event) =>
-                      setSelectedAssignment(event.target.value)
-                    }
-                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
-                  >
-                    <option value="">All assignments</option>
-                    {assignmentOptions.map((assignment) => (
-                      <option key={assignment}>{assignment}</option>
-                    ))}
-                  </select>
-                  <select
-                    aria-label="Filter by venue"
-                    value={selectedVenue}
-                    onChange={(event) => setSelectedVenue(event.target.value)}
-                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
-                  >
-                    <option value="">All venues</option>
-                    {venueOptions.map((venue) => (
-                      <option key={venue}>{venue}</option>
-                    ))}
-                  </select>
-                  {(activeDay !== null ||
-                    selectedType.length > 0 ||
-                    selectedTag.length > 0 ||
-                    selectedAssignment.length > 0 ||
-                    selectedVenue.length > 0 ||
-                    search.length > 0) && (
-                    <Button type="button" size="sm" onClick={clearFilters}>
-                      <X className="h-4 w-4" aria-hidden="true" />
-                      Clear filters
-                    </Button>
-                  )}
-                </div>
+                )}
                 <p className="text-xs text-muted" aria-live="polite">
                   Showing {visibleItems.length} of {items.length} movement
                   {items.length === 1 ? "" : "s"}
