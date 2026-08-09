@@ -1,8 +1,10 @@
 "use client";
 
-import { CloudSun, Fuel, Gauge, LoaderCircle } from "lucide-react";
+import { CloudSun, Fuel, Gauge, LoaderCircle, Pencil } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useEventWorkspace } from "@/components/workspace/event-workspace";
 import { logisticsApi, recordsApi } from "@/lib/events-api";
@@ -101,6 +103,151 @@ function Weather({
   );
 }
 
+function ProfileEditor({
+  eventId,
+  profile,
+  onClose,
+}: {
+  eventId: string;
+  profile: NonNullable<
+    ReturnType<typeof useQuery<typeof logisticsApi.getOverview>>
+  >["profile"];
+  onClose: () => void;
+}) {
+  const saveProfile = useMutation(logisticsApi.saveProfile);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    const values = new FormData(event.currentTarget);
+    const number = (name: string) => {
+      const value = String(values.get(name) ?? "").trim();
+      return value ? Number(value) : undefined;
+    };
+    try {
+      const noticeBoardCode = String(
+        values.get("noticeBoardCode") ?? "",
+      ).trim();
+      await saveProfile({
+        eventId,
+        carNumber: String(values.get("carNumber") ?? "") || undefined,
+        makeModel: String(values.get("makeModel") ?? "") || undefined,
+        driverNames: String(values.get("driverNames") ?? "")
+          .split(",")
+          .map((name) => name.trim())
+          .filter(Boolean),
+        fuelCapacityGallons: number("fuelCapacity"),
+        stageMpg: number("stageMpg"),
+        transitMpg: number("transitMpg"),
+        defaultFuelReservePercent: number("reserve") ?? 0,
+        documentAccessCodes: noticeBoardCode
+          ? [
+              {
+                label: "Notice board",
+                kind: "accessCode",
+                value: noticeBoardCode,
+              },
+            ]
+          : [],
+      });
+      onClose();
+    } catch {
+      setError(
+        "We could not save the event information. Check the numeric fields and try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+  const noticeBoardCode =
+    profile?.documentAccessCodes.find((code) =>
+      code.label.toLowerCase().includes("notice"),
+    )?.value ?? "";
+  return (
+    <form
+      className="grid gap-3 border-t border-line pt-4 md:grid-cols-2"
+      onSubmit={submit}
+    >
+      <label className="grid gap-1.5">
+        <span className="text-sm font-medium">Car number</span>
+        <Input name="carNumber" defaultValue={profile?.carNumber ?? ""} />
+      </label>
+      <label className="grid gap-1.5">
+        <span className="text-sm font-medium">Car / model</span>
+        <Input name="makeModel" defaultValue={profile?.makeModel ?? ""} />
+      </label>
+      <label className="grid gap-1.5 md:col-span-2">
+        <span className="text-sm font-medium">Driver names</span>
+        <Input
+          name="driverNames"
+          defaultValue={profile?.driverNames?.join(", ") ?? ""}
+          placeholder="Driver, Co-driver"
+        />
+      </label>
+      <label className="grid gap-1.5">
+        <span className="text-sm font-medium">Notice board code</span>
+        <Input name="noticeBoardCode" defaultValue={noticeBoardCode} />
+      </label>
+      <label className="grid gap-1.5">
+        <span className="text-sm font-medium">Fuel capacity (gal)</span>
+        <Input
+          name="fuelCapacity"
+          type="number"
+          min="0"
+          step="0.1"
+          defaultValue={profile?.fuelCapacityGallons}
+        />
+      </label>
+      <label className="grid gap-1.5">
+        <span className="text-sm font-medium">Stage MPG</span>
+        <Input
+          name="stageMpg"
+          type="number"
+          min="0"
+          step="0.1"
+          defaultValue={profile?.stageMpg}
+        />
+      </label>
+      <label className="grid gap-1.5">
+        <span className="text-sm font-medium">Transit MPG</span>
+        <Input
+          name="transitMpg"
+          type="number"
+          min="0"
+          step="0.1"
+          defaultValue={profile?.transitMpg}
+        />
+      </label>
+      <label className="grid gap-1.5">
+        <span className="text-sm font-medium">Fuel reserve (%)</span>
+        <Input
+          name="reserve"
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          defaultValue={profile?.defaultFuelReservePercent ?? 0}
+        />
+      </label>
+      <div className="flex items-end gap-2">
+        <Button type="submit" variant="primary" disabled={saving}>
+          {saving ? "Saving…" : "Save event info"}
+        </Button>
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+      </div>
+      {error ? (
+        <p className="md:col-span-2 text-sm text-danger-tx" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
 export function EventInfo() {
   const { event, role } = useEventWorkspace();
   const privateOverview = useQuery(
@@ -114,6 +261,7 @@ export function EventInfo() {
   const locations = useQuery(recordsApi.listMapLocations, {
     eventId: event.id,
   });
+  const [editingProfile, setEditingProfile] = useState(false);
   const overview = role === "spectator" ? publicOverview : privateOverview;
   const totals = useMemo(
     () =>
@@ -156,7 +304,19 @@ export function EventInfo() {
     <div className="grid gap-4">
       <Card>
         <CardHeader>
-          <CardTitle>Race profile</CardTitle>
+          <div className="flex items-start justify-between gap-3">
+            <CardTitle>Race profile</CardTitle>
+            {role === "owner" || role === "manager" ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setEditingProfile((current) => !current)}
+              >
+                <Pencil className="h-4 w-4" />
+                {editingProfile ? "Close editor" : "Edit event info"}
+              </Button>
+            ) : null}
+          </div>
         </CardHeader>
         <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
           <p>
@@ -166,6 +326,13 @@ export function EventInfo() {
               .filter(Boolean)
               .join(" · ") || "Not recorded"}
           </p>
+          {overview.profile?.driverNames?.length ? (
+            <p>
+              <b>Drivers</b>
+              <br />
+              {overview.profile.driverNames.join(" · ")}
+            </p>
+          ) : null}
           {role === "spectator" ? (
             <p>
               <b>Event mileage</b>
@@ -191,6 +358,15 @@ export function EventInfo() {
             </>
           )}
         </CardContent>
+        {editingProfile && role !== "spectator" ? (
+          <CardContent>
+            <ProfileEditor
+              eventId={event.id}
+              profile={profile ?? null}
+              onClose={() => setEditingProfile(false)}
+            />
+          </CardContent>
+        ) : null}
       </Card>
       <Card>
         <CardHeader>

@@ -173,7 +173,6 @@ const legacy: ScreenDefinition[] = [
     description: "Shared checklists and assignments.",
     icon: ClipboardList,
     minRole: "crew",
-    hidden: true,
   },
   {
     id: "work-templates",
@@ -243,7 +242,6 @@ const legacy: ScreenDefinition[] = [
     description: "Templates and submissions.",
     icon: FileText,
     minRole: "crew",
-    hidden: true,
   },
   {
     id: "activity",
@@ -270,7 +268,10 @@ const legacy: ScreenDefinition[] = [
 export const screens = [...core, ...legacy];
 export type ScreenGroup = { label: string | null; screenIds: ScreenId[] };
 export const screenGroups: ScreenGroup[] = [
-  { label: null, screenIds: core.map((screen) => screen.id) },
+  {
+    label: null,
+    screenIds: [...core.map((screen) => screen.id), "work", "forms"],
+  },
 ];
 const screensById = new Map(screens.map((screen) => [screen.id, screen]));
 export function getScreen(id: ScreenId) {

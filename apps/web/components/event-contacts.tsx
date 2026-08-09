@@ -1,10 +1,9 @@
 "use client";
 
-import { LoaderCircle, Send, Trash2 } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { LoaderCircle, Mail, Phone, Send, Trash2 } from "lucide-react";
+import { FormEvent, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { invitationsApi, type EventContact } from "@/lib/events-api";
-import { Badge } from "@/components/ui/badge";
+import { invitationsApi, roleLabel, type EventContact } from "@/lib/events-api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,12 +11,8 @@ import { ConfirmDestructiveAction } from "@/components/ui/confirm-destructive-ac
 import { useEventWorkspace } from "@/components/workspace/event-workspace";
 
 type InvitationRole = "manager" | "crew" | "spectator";
-
-function contactLabel(contact: EventContact) {
-  return (
-    contact.name || contact.email || contact.phoneNumber || "Profile pending"
-  );
-}
+const label = (contact: EventContact) =>
+  contact.name || contact.email || contact.phoneNumber || "Profile pending";
 
 export function EventContacts({ eventId }: { eventId: string }) {
   const { role: currentRole } = useEventWorkspace();
@@ -28,8 +23,6 @@ export function EventContacts({ eventId }: { eventId: string }) {
   const removeMember = useMutation(invitationsApi.removeMember);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<InvitationRole>("crew");
-  const [query, setQuery] = useState("");
-  const [isInviting, setIsInviting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<{
@@ -37,29 +30,18 @@ export function EventContacts({ eventId }: { eventId: string }) {
     id: string;
     label: string;
   } | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
-  const matches = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (normalized === "" || contacts === undefined) return [];
-    return contacts.filter((contact) =>
-      [contact.name, contact.email, contact.phoneNumber].some((value) =>
-        value?.toLowerCase().includes(normalized),
-      ),
-    );
-  }, [contacts, query]);
-
-  async function onInvite(event: FormEvent<HTMLFormElement>) {
+  async function invite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setIsInviting(true);
+    setBusyId("invite");
     try {
       const response = await fetch("/api/event-invitations", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ eventId, email, role }),
       });
-      if (!response.ok) throw new Error("Invitation failed");
+      if (!response.ok) throw new Error();
       setEmail("");
       setRole("crew");
     } catch {
@@ -67,47 +49,31 @@ export function EventContacts({ eventId }: { eventId: string }) {
         "We could not send this invitation. Check the email address and try again.",
       );
     } finally {
-      setIsInviting(false);
+      setBusyId(null);
     }
   }
-
-  async function onRevoke(invitationId: string) {
+  async function changeRole(id: string, nextRole: InvitationRole) {
     setError(null);
-    setMessage(null);
-    setBusyId(invitationId);
+    setBusyId(id);
     try {
-      await revoke({ eventId, invitationId });
-      setMessage("The invitation was cancelled.");
-      setConfirmation(null);
+      await updateMemberRole({ eventId, membershipId: id, role: nextRole });
     } catch {
-      setError("We could not cancel this invitation. Please try again.");
+      setError("We could not update this crew member's access.");
     } finally {
       setBusyId(null);
     }
   }
-
-  async function updateRole(id: string, role: InvitationRole) {
+  async function confirm() {
+    if (!confirmation) return;
     setError(null);
-    setBusyId(id);
+    setBusyId(confirmation.id);
     try {
-      await updateMemberRole({ eventId, membershipId: id, role });
-    } catch {
-      setError("We could not update this person's access.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function remove(id: string) {
-    setError(null);
-    setMessage(null);
-    setBusyId(id);
-    try {
-      await removeMember({ eventId, membershipId: id });
-      setMessage("The member no longer has access to this event.");
+      if (confirmation.kind === "revoke")
+        await revoke({ eventId, invitationId: confirmation.id });
+      else await removeMember({ eventId, membershipId: confirmation.id });
       setConfirmation(null);
     } catch {
-      setError("We could not remove this person's access.");
+      setError("We could not update this roster entry.");
     } finally {
       setBusyId(null);
     }
@@ -116,26 +82,23 @@ export function EventContacts({ eventId }: { eventId: string }) {
   return (
     <Card>
       <CardHeader>
-        <div>
-          <CardTitle>Team contacts</CardTitle>
-          <p className="mt-1 text-sm text-muted">
-            Search people already connected to this event, or send a Clerk email
-            invitation.
-          </p>
-        </div>
+        <CardTitle>Team & crew</CardTitle>
+        <p className="mt-1 text-sm text-muted">
+          The roster is updated automatically when an invitation is accepted.
+        </p>
       </CardHeader>
       <CardContent className="grid gap-5">
-        {confirmation === null ? null : (
+        {confirmation ? (
           <ConfirmDestructiveAction
             title={
               confirmation.kind === "revoke"
                 ? "Cancel invitation?"
-                : "Remove member?"
+                : "Remove crew member?"
             }
             description={
               confirmation.kind === "revoke"
-                ? `Cancel the invitation for ${confirmation.label}. They will need a new invitation to join this event.`
-                : `Remove ${confirmation.label} from this event. They will lose access to its plan and operational data.`
+                ? `Cancel the invitation for ${confirmation.label}.`
+                : `Remove ${confirmation.label} from this event.`
             }
             confirmLabel={
               confirmation.kind === "revoke"
@@ -144,209 +107,173 @@ export function EventContacts({ eventId }: { eventId: string }) {
             }
             isPending={busyId === confirmation.id}
             onCancel={() => setConfirmation(null)}
-            onConfirm={() =>
-              void (confirmation.kind === "revoke"
-                ? onRevoke(confirmation.id)
-                : remove(confirmation.id))
-            }
+            onConfirm={() => void confirm()}
           />
-        )}
-        {message === null ? null : (
-          <p className="text-sm text-success-tx" role="status">
-            {message}
-          </p>
-        )}
-        <div className="grid gap-1.5">
-          <label
-            className="text-sm font-medium text-ink"
-            htmlFor="contact-search"
-          >
-            Search existing contacts
-          </label>
-          <Input
-            id="contact-search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Name, email, or phone"
-            autoComplete="off"
-          />
-          {query.trim() !== "" && matches.length === 0 ? (
-            <p className="text-sm text-muted">No matching contacts.</p>
-          ) : matches.length === 0 ? null : (
-            <ul className="rounded-lg border border-line">
-              {matches.map((contact) => (
-                <li
-                  key={contact.id}
-                  className="flex items-center justify-between gap-3 border-b border-line p-3 last:border-0"
-                >
-                  <span>
-                    <span className="block text-sm font-medium text-ink">
-                      {contactLabel(contact)}
-                    </span>
-                    <span className="block text-xs text-muted">
-                      {contact.email || contact.phoneNumber}
-                    </span>
-                  </span>
-                  <Badge
-                    variant={contact.type === "member" ? "success" : "neutral"}
-                  >
-                    {contact.type === "member" ? contact.role : "Invited"}
-                  </Badge>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        ) : null}
         {contacts === undefined ? (
-          <div className="flex items-center text-sm text-muted" role="status">
-            <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-            Loading contacts…
-          </div>
+          <p className="flex items-center gap-2 text-sm text-muted">
+            <LoaderCircle className="h-4 w-4 animate-spin" />
+            Loading crew…
+          </p>
         ) : (
-          <ul className="divide-y divide-line">
-            {contacts.map((contact) => (
-              <li
-                key={contact.id}
-                className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-ink">
-                    {contactLabel(contact)}
-                  </span>
-                  <span className="block truncate text-xs text-muted">
-                    {contact.email || contact.phoneNumber || "Profile pending"}
-                  </span>
-                </span>
-                {canManage &&
-                contact.type === "member" &&
-                contact.role !== "owner" ? (
-                  <select
-                    aria-label={`Role for ${contactLabel(contact)}`}
-                    value={contact.role}
-                    disabled={busyId === contact.id}
-                    onChange={(event) =>
-                      void updateRole(
-                        contact.id,
-                        event.target.value as InvitationRole,
-                      )
-                    }
-                    className="rounded-md border border-line bg-card px-2 py-1 text-sm text-ink"
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-line text-xs uppercase tracking-wide text-muted">
+                <tr>
+                  <th className="pb-2 pr-3">Title</th>
+                  <th className="pb-2 pr-3">Name</th>
+                  <th className="pb-2 pr-3">Email</th>
+                  <th className="pb-2 pr-3">Phone</th>
+                  {canManage ? <th className="pb-2">Actions</th> : null}
+                </tr>
+              </thead>
+              <tbody>
+                {contacts.map((contact) => (
+                  <tr
+                    key={contact.id}
+                    className="border-b border-line2 last:border-0"
                   >
-                    <option value="manager">Manager</option>
-                    <option value="crew">Crew</option>
-                    <option value="spectator">Spectator</option>
-                  </select>
-                ) : (
-                  <Badge
-                    variant={contact.type === "member" ? "success" : "neutral"}
-                  >
-                    {contact.type === "member" ? contact.role : "Pending"}
-                  </Badge>
-                )}
-                {canManage && contact.type === "invitation" ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={busyId === contact.id}
-                    onClick={() =>
-                      setConfirmation({
-                        kind: "revoke",
-                        id: contact.id,
-                        label: contactLabel(contact),
-                      })
-                    }
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Cancel
-                  </Button>
-                ) : canManage && contact.role !== "owner" ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={busyId === contact.id}
-                    onClick={() =>
-                      setConfirmation({
-                        kind: "remove",
-                        id: contact.id,
-                        label: contactLabel(contact),
-                      })
-                    }
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Remove
-                  </Button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+                    <td className="py-3 pr-3">
+                      {contact.type === "member" &&
+                      canManage &&
+                      contact.role !== "owner" ? (
+                        <select
+                          aria-label={`Role for ${label(contact)}`}
+                          value={contact.role}
+                          disabled={busyId === contact.id}
+                          onChange={(event) =>
+                            void changeRole(
+                              contact.id,
+                              event.target.value as InvitationRole,
+                            )
+                          }
+                          className="rounded-md border border-line bg-card px-2 py-1 text-sm text-ink"
+                        >
+                          <option value="manager">Crew Chief</option>
+                          <option value="crew">Crew</option>
+                          <option value="spectator">Spectator</option>
+                        </select>
+                      ) : contact.type === "member" ? (
+                        roleLabel(contact.role)
+                      ) : (
+                        "Invited"
+                      )}
+                    </td>
+                    <td className="py-3 pr-3 font-medium text-ink">
+                      {label(contact)}
+                    </td>
+                    <td className="py-3 pr-3">
+                      {contact.email ? (
+                        <a
+                          className="inline-flex items-center gap-1 text-green-ink underline"
+                          href={`mailto:${contact.email}`}
+                        >
+                          <Mail className="h-4 w-4" />
+                          {contact.email}
+                        </a>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="py-3 pr-3">
+                      {contact.phoneNumber ? (
+                        <a
+                          className="inline-flex items-center gap-1 text-green-ink underline"
+                          href={`tel:${contact.phoneNumber}`}
+                        >
+                          <Phone className="h-4 w-4" />
+                          {contact.phoneNumber}
+                        </a>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    {canManage ? (
+                      <td className="py-3">
+                        {contact.type === "member" &&
+                        contact.role === "owner" ? (
+                          "—"
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={busyId === contact.id}
+                            onClick={() =>
+                              setConfirmation({
+                                kind:
+                                  contact.type === "invitation"
+                                    ? "revoke"
+                                    : "remove",
+                                id: contact.id,
+                                label: label(contact),
+                              })
+                            }
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            {contact.type === "invitation"
+                              ? "Cancel"
+                              : "Remove"}
+                          </Button>
+                        )}
+                      </td>
+                    ) : null}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
         {canManage ? (
           <form
-            className="grid gap-4 border-t border-line pt-5"
-            onSubmit={onInvite}
+            className="grid gap-3 border-t border-line pt-5 sm:grid-cols-[1fr_12rem_auto]"
+            onSubmit={invite}
           >
-            <div className="grid gap-1.5">
-              <label
-                className="text-sm font-medium text-ink"
-                htmlFor="invite-email"
-              >
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium text-ink">
                 Email address
-              </label>
+              </span>
               <Input
-                id="invite-email"
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                required
                 placeholder="teammate@example.com"
+                required
               />
-            </div>
-            <div className="grid gap-1.5">
-              <label
-                className="text-sm font-medium text-ink"
-                htmlFor="invite-role"
-              >
-                Access level
-              </label>
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium text-ink">Access level</span>
               <select
-                id="invite-role"
                 value={role}
                 onChange={(event) =>
                   setRole(event.target.value as InvitationRole)
                 }
-                className="rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink"
+                className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm text-ink"
               >
-                <option value="crew">Crew — can view the plan</option>
-                <option value="spectator">
-                  Spectator — event info and spectator locations only
-                </option>
-                <option value="manager">Manager — can edit the plan</option>
+                <option value="crew">Crew</option>
+                <option value="manager">Crew Chief</option>
+                <option value="spectator">Spectator</option>
               </select>
-            </div>
-            {error === null ? null : (
-              <p
-                className="rounded-md border border-danger-tx bg-danger-bg px-3 py-2 text-sm text-danger-tx"
-                role="alert"
-              >
-                {error}
-              </p>
-            )}
+            </label>
             <Button
               type="submit"
               variant="primary"
-              disabled={isInviting}
-              className="w-fit"
+              disabled={busyId === "invite"}
+              className="self-end"
             >
-              {isInviting ? (
+              {busyId === "invite" ? (
                 <LoaderCircle className="h-4 w-4 animate-spin" />
               ) : (
                 <Send className="h-4 w-4" />
               )}
-              Send invitation
+              Invite
             </Button>
           </form>
+        ) : null}
+        {error ? (
+          <p className="text-sm text-danger-tx" role="alert">
+            {error}
+          </p>
         ) : null}
       </CardContent>
     </Card>
