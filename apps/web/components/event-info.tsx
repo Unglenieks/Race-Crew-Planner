@@ -1,6 +1,7 @@
 "use client";
 
 import { CloudSun, Fuel, Gauge, LoaderCircle, Pencil } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Button } from "@/components/ui/button";
@@ -302,6 +303,23 @@ export function EventInfo() {
   );
   return (
     <div className="grid gap-4">
+      <nav
+        className="flex gap-1 overflow-x-auto border-b border-line pb-3"
+        aria-label="Event information sections"
+      >
+        <span
+          className="flex min-h-10 items-center rounded-lg bg-green px-3 text-sm font-semibold text-card"
+          aria-current="page"
+        >
+          Overview
+        </span>
+        <Link
+          href={`/events/${event.id}/files`}
+          className="flex min-h-10 items-center rounded-lg border border-btnline bg-card px-3 text-sm font-semibold text-ink2 hover:bg-soft focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
+        >
+          Files &amp; sources
+        </Link>
+      </nav>
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between gap-3">
