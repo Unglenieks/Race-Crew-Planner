@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDestructiveAction } from "@/components/ui/confirm-destructive-action";
-import { PlanChangeDelivery } from "@/components/plan-change-delivery";
 import {
   itineraryApi,
   logisticsApi,
@@ -92,16 +91,12 @@ export function MovementDetail({
   const update = useMutation(itineraryApi.update);
   const archive = useMutation(itineraryApi.archive);
   const ensureDefaults = useMutation(movementsApi.ensureDefaults);
-  const setTags = useMutation(movementsApi.setTags);
-  const setAssignments = useMutation(movementsApi.setAssignments);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [isArchiveConfirmationOpen, setIsArchiveConfirmationOpen] =
     useState(false);
-  const [openPublisher, setOpenPublisher] = useState(false);
-  const [isUpdatingStructure, setIsUpdatingStructure] = useState(false);
   const canEdit = role === "owner" || role === "manager";
   useEffect(() => {
     if (!canEdit) return;
@@ -167,9 +162,6 @@ export function MovementDetail({
     if (currentDraft === null) return;
     setError(null);
     setIsSaving(true);
-    const publishAfterSave =
-      ((event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null)
-        ?.value === "publish";
     try {
       const operationalDay =
         currentDraft.operationalDay ||
@@ -210,7 +202,6 @@ export function MovementDetail({
         spectatorVisible: currentDraft.spectatorVisible,
       });
       setDraft(null);
-      setOpenPublisher(publishAfterSave);
       router.replace(`/events/${eventId}/plan/${itemId}`);
     } catch {
       setError("We could not save this movement. Your changes were not saved.");
@@ -231,64 +222,8 @@ export function MovementDetail({
     }
   }
 
-  async function saveTags(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setIsUpdatingStructure(true);
-    try {
-      const form = new FormData(event.currentTarget);
-      await setTags({
-        eventId,
-        itemId,
-        tagIds: form.getAll("tag").map(String),
-      });
-    } catch {
-      setError(
-        "We could not update movement tags. Your changes were not saved.",
-      );
-    } finally {
-      setIsUpdatingStructure(false);
-    }
-  }
-
-  async function saveAssignments(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setIsUpdatingStructure(true);
-    try {
-      const form = new FormData(event.currentTarget);
-      await setAssignments({
-        eventId,
-        itemId,
-        assignments: [
-          ...form.getAll("member").map((targetUserId) => ({
-            targetKind: "member" as const,
-            targetUserId: String(targetUserId),
-          })),
-          ...form.getAll("team").map((teamId) => ({
-            targetKind: "team" as const,
-            teamId: String(teamId),
-          })),
-          ...form.getAll("operationalRole").map((operationalRoleId) => ({
-            targetKind: "operationalRole" as const,
-            operationalRoleId: String(operationalRoleId),
-          })),
-        ],
-      });
-    } catch {
-      setError(
-        "We could not update movement assignments. Your changes were not saved.",
-      );
-    } finally {
-      setIsUpdatingStructure(false);
-    }
-  }
-
   return (
-    <section
-      aria-labelledby="movement-detail-heading"
-      className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]"
-    >
+    <section aria-labelledby="movement-detail-heading" className="grid gap-4">
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -306,9 +241,6 @@ export function MovementDetail({
               >
                 {item.title}
               </h1>
-              <p className="mt-1 text-sm text-muted">
-                Changes are private until an authorized operator publishes them.
-              </p>
               <p className="mt-1 text-xs text-muted">Event time: {timeZone}</p>
             </div>
             <Badge variant={canEdit ? "success" : "neutral"}>
@@ -559,15 +491,6 @@ export function MovementDetail({
                   )}{" "}
                   Save movement
                 </Button>
-                <Button
-                  type="submit"
-                  name="intent"
-                  value="publish"
-                  variant="secondary"
-                  disabled={isSaving}
-                >
-                  Save & publish change
-                </Button>
                 <Link
                   href={`/events/${eventId}/plan/${itemId}`}
                   className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-muted hover:bg-soft hover:text-ink focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
@@ -659,149 +582,6 @@ export function MovementDetail({
           ) : null}
         </CardContent>
       </Card>
-      {canEdit && !isEditing ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Manage movement</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <p className="text-sm text-muted">
-              Review the current instruction before changing it. Publish only
-              after a saved change needs crew acknowledgement.
-            </p>
-            <Link
-              href={`/events/${eventId}/plan/${itemId}?edit=1`}
-              className="w-fit text-sm font-semibold text-green-ink underline underline-offset-4"
-            >
-              Edit movement
-            </Link>
-            <form
-              className="grid gap-2 border-t border-line pt-3"
-              onSubmit={saveTags}
-            >
-              <label
-                className="text-sm font-semibold text-ink"
-                htmlFor="movement-tags"
-              >
-                Control codes and tags
-              </label>
-              <select
-                id="movement-tags"
-                name="tag"
-                multiple
-                defaultValue={(item.tags ?? []).map((tag) => tag._id)}
-                className="min-h-28 rounded-lg border border-line bg-card px-3 py-2 text-sm"
-              >
-                {directory.tags
-                  .filter((tag) => tag.archivedAt === undefined)
-                  .map((tag) => (
-                    <option key={tag._id} value={tag._id}>
-                      {tag.name}
-                    </option>
-                  ))}
-              </select>
-              <p className="text-xs text-muted">
-                Use tags for control or subtype vocabulary such as FCI, FCO,
-                MTC, Service A, and Service B.
-              </p>
-              <Button type="submit" size="sm" disabled={isUpdatingStructure}>
-                Save tags
-              </Button>
-            </form>
-            <form
-              className="grid gap-2 border-t border-line pt-3"
-              onSubmit={saveAssignments}
-            >
-              <p className="text-sm font-semibold text-ink">
-                Operational assignments
-              </p>
-              <label className="grid gap-1 text-xs text-muted">
-                Event members
-                <select
-                  name="member"
-                  multiple
-                  defaultValue={(item.assignments ?? [])
-                    .filter((assignment) => assignment.targetKind === "member")
-                    .map((assignment) => assignment.targetUserId)
-                    .filter((value): value is string => value !== undefined)}
-                  className="min-h-20 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink"
-                >
-                  {directory.members.map((member) => (
-                    <option key={member.userId} value={member.userId}>
-                      {member.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="grid gap-1 text-xs text-muted">
-                Teams
-                <select
-                  name="team"
-                  multiple
-                  defaultValue={(item.assignments ?? [])
-                    .filter((assignment) => assignment.targetKind === "team")
-                    .map((assignment) => assignment.teamId)
-                    .filter((value): value is string => value !== undefined)}
-                  className="min-h-20 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink"
-                >
-                  {directory.teams
-                    .filter((team) => team.archivedAt === undefined)
-                    .map((team) => (
-                      <option key={team._id} value={team._id}>
-                        {team.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label className="grid gap-1 text-xs text-muted">
-                Operational roles
-                <select
-                  name="operationalRole"
-                  multiple
-                  defaultValue={(item.assignments ?? [])
-                    .filter(
-                      (assignment) =>
-                        assignment.targetKind === "operationalRole",
-                    )
-                    .map((assignment) => assignment.operationalRoleId)
-                    .filter((value): value is string => value !== undefined)}
-                  className="min-h-20 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink"
-                >
-                  {directory.operationalRoles
-                    .filter(
-                      (operationalRole) =>
-                        operationalRole.archivedAt === undefined,
-                    )
-                    .map((operationalRole) => (
-                      <option
-                        key={operationalRole._id}
-                        value={operationalRole._id}
-                      >
-                        {operationalRole.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <p className="text-xs text-muted">
-                These are operational targets only. They never grant application
-                permissions.
-              </p>
-              <Button type="submit" size="sm" disabled={isUpdatingStructure}>
-                Save assignments
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      ) : null}
-      {isEditing ? null : (
-        <PlanChangeDelivery
-          eventId={eventId}
-          role={role}
-          items={[item]}
-          movementId={itemId}
-          openComposer={openPublisher}
-        />
-      )}
     </section>
   );
 }
