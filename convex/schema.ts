@@ -79,8 +79,6 @@ export default defineSchema({
     scheduledUntil: v.optional(v.string()),
     location: v.optional(v.string()),
     recordId: v.optional(v.id("eventRecords")),
-    /** Optional operational context, validated by itinerary mutations. */
-    travelContextId: v.optional(v.id("travelContexts")),
     serviceIntervalId: v.optional(v.id("serviceIntervals")),
     notes: v.optional(v.string()),
     /** Event-local operational classification, separate from permission roles. */
@@ -334,7 +332,7 @@ export default defineSchema({
   eventRecordTypes: defineTable({
     eventId: v.id("events"),
     name: v.string(),
-    /** Lets a custom vocabulary participate safely in venue and travel flows. */
+    /** Lets a custom vocabulary participate safely in venue flows. */
     isLocation: v.boolean(),
     archivedAt: v.optional(v.number()),
     createdAt: v.number(),
@@ -362,27 +360,6 @@ export default defineSchema({
     .index("by_recordId", ["recordId"])
     .index("by_categoryId", ["categoryId"])
     .index("by_eventId_recordId", ["eventId", "recordId"]),
-  travelContexts: defineTable({
-    eventId: v.id("events"),
-    fromRecordId: v.id("eventRecords"),
-    toRecordId: v.id("eventRecords"),
-    /** Legacy free-text estimate retained until each row is reviewed. */
-    estimate: v.optional(v.string()),
-    calculation: v.optional(v.string()),
-    routeNote: v.optional(v.string()),
-    distanceMiles: v.optional(v.number()),
-    expectedDurationMinutes: v.optional(v.number()),
-    source: v.optional(v.string()),
-    routeNotes: v.optional(v.string()),
-    /** Legacy or incomplete rows are surfaced for review. */
-    requiresReview: v.optional(v.boolean()),
-    createdBy: v.string(),
-    createdAt: v.number(),
-    updatedAt: v.number(),
-  })
-    .index("by_eventId", ["eventId"])
-    .index("by_fromRecordId", ["fromRecordId"])
-    .index("by_toRecordId", ["toRecordId"]),
   eventLogisticsProfiles: defineTable({
     eventId: v.id("events"),
     carNumber: v.optional(v.string()),
@@ -662,15 +639,6 @@ export default defineSchema({
             notes: v.optional(v.string()),
           }),
         ),
-        travel: v.array(
-          v.object({
-            from: v.string(),
-            to: v.string(),
-            estimate: v.string(),
-            calculation: v.optional(v.string()),
-            routeNote: v.optional(v.string()),
-          }),
-        ),
         fuel: v.array(
           v.object({
             name: v.string(),
@@ -713,7 +681,6 @@ export default defineSchema({
         rallyFuel: v.boolean(),
         service: v.boolean(),
         weather: v.boolean(),
-        travelRoutes: v.boolean(),
         supportServices: v.boolean(),
         documentAccessCodes: v.boolean(),
         externalContactIds: v.array(v.id("externalContacts")),
@@ -764,16 +731,6 @@ export default defineSchema({
             windMph: v.optional(v.number()),
             source: v.string(),
             asOf: v.number(),
-          }),
-        ),
-        travel: v.array(
-          v.object({
-            from: v.string(),
-            to: v.string(),
-            distanceMiles: v.optional(v.number()),
-            expectedDurationMinutes: v.optional(v.number()),
-            source: v.optional(v.string()),
-            routeNotes: v.optional(v.string()),
           }),
         ),
         supportServices: v.array(
@@ -901,7 +858,6 @@ export default defineSchema({
       v.literal("record.created"),
       v.literal("record.updated"),
       v.literal("record.vocabularyChanged"),
-      v.literal("record.travelUpdated"),
       v.literal("logistics.updated"),
       v.literal("file.uploaded"),
       v.literal("file.removed"),

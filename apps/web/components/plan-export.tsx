@@ -108,7 +108,6 @@ function appendices(exported: SavedExport) {
     exported.appendices ?? {
       venues: [],
       officialContacts: [],
-      travel: [],
       fuel: [],
       weather: [],
       supportServices: [],
@@ -170,13 +169,6 @@ export function planExportCsv(exported: SavedExport) {
         contact.contactDetail,
         contact.notes,
       ]
-        .filter(Boolean)
-        .join(" · "),
-    ]),
-    ...details.travel.map((travel) => [
-      "Travel",
-      `${travel.from} → ${travel.to}`,
-      [travel.estimate, travel.calculation, travel.routeNote]
         .filter(Boolean)
         .join(" · "),
     ]),
@@ -375,7 +367,6 @@ function CrewBrief({ exported }: { exported: SavedExport }) {
 
       {details.officialContacts.length === 0 &&
       appendixSections.length === 0 &&
-      details.travel.length === 0 &&
       (exported.logistics?.documentAccessCodes.length ?? 0) === 0 ? null : (
         <section
           className="mt-8 border-t-2 border-black pt-4"
@@ -430,31 +421,6 @@ function CrewBrief({ exported }: { exported: SavedExport }) {
                 </ul>
               </section>
             )}
-            {details.travel.length === 0 ? null : (
-              <section>
-                <h3 className="font-bold">Travel</h3>
-                <ul className="mt-2 grid gap-2">
-                  {details.travel.map((travel, index) => (
-                    <li
-                      key={`${travel.from}-${travel.to}-${index}`}
-                      className="break-inside-avoid"
-                    >
-                      <strong>
-                        {travel.from} → {travel.to}
-                      </strong>
-                      <p>{travel.estimate}</p>
-                      {[travel.calculation, travel.routeNote]
-                        .filter(Boolean)
-                        .map((value) => (
-                          <p key={value} className="text-muted">
-                            {value}
-                          </p>
-                        ))}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
             {appendixSections.map(({ title, entries }) => (
               <section key={title}>
                 <h3 className="font-bold">{title}</h3>
@@ -497,7 +463,6 @@ export function PlanExport({
     rallyFuel: false,
     service: false,
     weather: false,
-    travelRoutes: false,
     supportServices: false,
     documentAccessCodes: false,
     externalContactIds: [],
@@ -630,7 +595,6 @@ export function PlanExport({
                   ["rallyFuel", "Rally & fuel summary"],
                   ["service", "Service summary"],
                   ["weather", "Weather summary"],
-                  ["travelRoutes", "Travel-route appendix"],
                   ["supportServices", "Support-service appendix"],
                   ["documentAccessCodes", "Document/access-code appendix"],
                 ] as const

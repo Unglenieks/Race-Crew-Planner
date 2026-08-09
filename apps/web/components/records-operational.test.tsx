@@ -40,7 +40,6 @@ vi.mock("convex/react", () => ({
           },
         ],
         categories: [],
-        travelContexts: [],
       };
     return [];
   },

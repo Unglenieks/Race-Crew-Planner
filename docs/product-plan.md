@@ -25,12 +25,12 @@ stated plainly rather than described as partial.
 Event context and membership, Clerk identity with Convex-side authorization,
 movement plan with sections and publish/acknowledge delivery tracking, work
 checklists with templates and item detail, records directory with configurable
-types, categories, venue detail and travel context, versioned forms with
+types, categories, and venue detail, versioned forms with
 structured field validation, activity and comments with text sources, people and
 permissions, file evidence, print and CSV export, event archive/restore, and a
 bounded browser-backed offline package with queued work completion.
 
-26 Convex tables. 20 workspace routes. 14 registry screens.
+25 Convex tables. 19 workspace routes. 13 registry screens.
 
 ## Prerequisites — build these first
 

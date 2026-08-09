@@ -1,15 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/data-display";
 import { Input } from "@/components/ui/input";
 import { useEventWorkspace } from "@/components/workspace/event-workspace";
-import { isLocationRecord, locationRecords } from "@/lib/record-locations";
+import { isLocationRecord } from "@/lib/record-locations";
 import { recordsApi } from "@/lib/events-api";
 
 const canManage = (role: string) => role === "owner" || role === "manager";
@@ -90,12 +89,6 @@ export function RecordDetail({ recordId }: { recordId: string }) {
           </h1>
           <p className="mt-1 text-sm text-muted">{record.type}</p>
         </div>
-        <Link
-          href={`/events/${event.id}/records/travel`}
-          className="text-sm font-semibold text-green-ink underline underline-offset-4"
-        >
-          Add travel context
-        </Link>
       </div>
       {error === null ? null : (
         <Banner variant="danger" label="Venue details" role="alert">
@@ -357,33 +350,6 @@ export function RecordDetail({ recordId }: { recordId: string }) {
           </CardContent>
         </Card>
       )}
-      <Card>
-        <CardHeader>
-          <CardTitle>Travel context</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {record.travelContexts.length === 0 ? (
-            <EmptyState
-              title="No travel context yet"
-              description="Add an estimate or route note between two locations."
-            />
-          ) : (
-            <ul className="grid gap-3">
-              {record.travelContexts.map((travel) => (
-                <li
-                  key={travel._id}
-                  className="border-t border-line pt-3 text-sm"
-                >
-                  <b>{travel.estimate}</b>
-                  {travel.routeNote ? (
-                    <p className="mt-1 text-muted">{travel.routeNote}</p>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
     </section>
   );
 }
@@ -466,7 +432,7 @@ export function TypesCategoriesScreen() {
           <CardContent className="grid gap-4">
             <p className="text-sm text-muted">
               Built-in types remain available. Custom types can be marked as
-              locations for venues and travel.
+              locations for venues.
             </p>
             {types === undefined ? (
               <p className="text-sm text-muted">Loading…</p>
@@ -605,214 +571,6 @@ export function TypesCategoriesScreen() {
           </CardContent>
         </Card>
       </div>
-    </section>
-  );
-}
-
-export function TravelScreen() {
-  const { event, role } = useEventWorkspace();
-  const records = useQuery(recordsApi.list, { eventId: event.id });
-  const types = useQuery(recordsApi.listTypes, { eventId: event.id });
-  const travel = useQuery(recordsApi.listTravel, { eventId: event.id });
-  const save = useMutation(recordsApi.saveTravel);
-  const [error, setError] = useState<string | null>(null);
-  const locations = useMemo(
-    () => locationRecords(records ?? [], types ?? []),
-    [records, types],
-  );
-  async function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const formElement = e.currentTarget;
-    const form = new FormData(formElement);
-    setError(null);
-    try {
-      await save({
-        eventId: event.id,
-        fromRecordId: String(form.get("from")),
-        toRecordId: String(form.get("to")),
-        estimate: String(form.get("estimate") || "") || undefined,
-        calculation: String(form.get("calculation") || "") || undefined,
-        routeNote: String(form.get("routeNote") || "") || undefined,
-        distanceMiles:
-          String(form.get("distanceMiles") || "") === ""
-            ? undefined
-            : Number(form.get("distanceMiles")),
-        expectedDurationMinutes:
-          String(form.get("expectedDurationMinutes") || "") === ""
-            ? undefined
-            : Number(form.get("expectedDurationMinutes")),
-        source: String(form.get("source") || "") || undefined,
-        routeNotes: String(form.get("routeNotes") || "") || undefined,
-      });
-      formElement.reset();
-    } catch {
-      setError("We could not save travel context. Choose two event locations.");
-    }
-  }
-  return (
-    <section aria-labelledby="travel-heading" className="grid gap-4">
-      <div>
-        <Link
-          href={`/events/${event.id}/records`}
-          className="text-sm font-semibold text-green-ink underline underline-offset-4"
-        >
-          Records & venues
-        </Link>
-        <h1
-          id="travel-heading"
-          className="mt-2 font-serif text-3xl font-semibold tracking-tight text-ink"
-        >
-          Travel context
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          Place-to-place estimates and last-mile route notes.
-        </p>
-      </div>
-      {error ? (
-        <Banner variant="danger" label="Travel update failed">
-          {error}
-        </Banner>
-      ) : null}
-      <Card>
-        <CardHeader>
-          <CardTitle>Saved travel context</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {travel === undefined ? (
-            <p className="text-sm text-muted">Loading…</p>
-          ) : travel.length === 0 ? (
-            <EmptyState title="No travel context yet" />
-          ) : (
-            <ul className="grid gap-3">
-              {travel.map((item) => (
-                <li
-                  key={item._id}
-                  className="border-t border-line pt-3 text-sm"
-                >
-                  <b>{item.estimate ?? "Structured travel leg"}</b>
-                  {item.requiresReview ? (
-                    <span className="ml-2 font-semibold text-danger">
-                      Legacy entry needs conversion
-                    </span>
-                  ) : null}
-                  {item.distanceMiles !== undefined ? (
-                    <span className="text-muted">
-                      {` · ${item.distanceMiles} mi · ${item.expectedDurationMinutes} min`}
-                    </span>
-                  ) : null}
-                  {item.calculation ? (
-                    <span className="text-muted"> · {item.calculation}</span>
-                  ) : null}
-                  {item.routeNote ? (
-                    <p className="mt-1 text-muted">{item.routeNote}</p>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-      {canManage(role) ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Add or convert travel context</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form className="grid gap-4" onSubmit={submit}>
-              <label className={field}>
-                From
-                <select name="from" className={control} required>
-                  <option value="">Choose a location…</option>
-                  {locations.map((record) => (
-                    <option key={record._id} value={record._id}>
-                      {record.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className={field}>
-                To
-                <select name="to" className={control} required>
-                  <option value="">Choose a location…</option>
-                  {locations.map((record) => (
-                    <option key={record._id} value={record._id}>
-                      {record.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className={field}>
-                Legacy estimate <span className="text-muted">(optional)</span>
-                <Input
-                  name="estimate"
-                  maxLength={120}
-                  placeholder="e.g. 15 minutes"
-                />
-              </label>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className={field}>
-                  Distance (miles)
-                  <Input
-                    name="distanceMiles"
-                    type="number"
-                    min="0"
-                    step="any"
-                  />
-                </label>
-                <label className={field}>
-                  Expected duration (minutes)
-                  <Input
-                    name="expectedDurationMinutes"
-                    type="number"
-                    min="0"
-                    step="any"
-                  />
-                </label>
-              </div>
-              <p className="text-xs text-muted">
-                Enter both numeric values to create a complete travel leg. A
-                legacy estimate is retained only for incomplete historical
-                entries.
-              </p>
-              <label className={field}>
-                Calculation / source
-                <Input
-                  name="calculation"
-                  maxLength={240}
-                  placeholder="e.g. Google Maps · 07:30"
-                />
-              </label>
-              <label className={field}>
-                Structured source
-                <Input
-                  name="source"
-                  maxLength={240}
-                  placeholder="e.g. route planner"
-                />
-              </label>
-              <label className={field}>
-                Route note
-                <textarea
-                  name="routeNote"
-                  className={control}
-                  maxLength={1000}
-                />
-              </label>
-              <label className={field}>
-                Structured route notes
-                <textarea
-                  name="routeNotes"
-                  className={control}
-                  maxLength={1000}
-                />
-              </label>
-              <Button type="submit" variant="primary">
-                Save travel context
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      ) : null}
     </section>
   );
 }

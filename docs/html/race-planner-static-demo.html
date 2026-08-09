@@ -356,7 +356,6 @@ html[data-theme=night] .toast{background:#e9f2ea;color:#0d1512;border-color:#000
     <button data-page="records"><span class="dot" aria-hidden="true">⌖</span>Records directory</button>
     <button class="indent" data-page="place" data-parent="records">Venue / place detail</button>
     <button class="indent" data-page="types" data-parent="records">Types &amp; categories</button>
-    <button class="indent" data-page="travel" data-parent="records">Travel context</button>
 
     <div class="group" role="presentation">Forms</div>
     <button data-page="forms"><span class="dot" aria-hidden="true">▣</span>Forms &amp; inspections</button>
@@ -1136,7 +1135,6 @@ html[data-theme=night] .toast{background:#e9f2ea;color:#0d1512;border-color:#000
         <span class="pin c">Fuel</span>
       </div>
       <div class="toolbar" style="margin-top:11px">
-        <button class="tool" data-go="travel">Add travel context</button>
         <button class="tool" data-say="Handed off to device navigation with the access note attached — “enter west lot, avoid spectator gate” — not just the address.">Directions</button>
         <button class="tool" data-say="Acknowledgement requested from the driver, co-driver and service crew. You will see who has and has not been reached.">Request acknowledgement</button>
       </div>
@@ -1174,7 +1172,7 @@ html[data-theme=night] .toast{background:#e9f2ea;color:#0d1512;border-color:#000
         <button class="tool" data-say="New type asks for a name, icon, default fields and allowed links. Nothing is locked afterwards.">+ Type</button>
       </div>
       <div class="field"><label>Venue</label><span>Address, access notes, hours, confirmation, source<button class="tool" data-say="Editing a type changes future records and offers to backfill existing ones — it never silently rewrites them.">Edit</button></span></div>
-      <div class="field"><label>Service</label><span>Categories, contacts, travel context<button class="tool" data-say="Renaming is safe: 12 existing services keep every field and link, and search finds both names for 30 days.">Rename</button></span></div>
+      <div class="field"><label>Service</label><span>Categories, contacts<button class="tool" data-say="Renaming is safe: 12 existing services keep every field and link, and search finds both names for 30 days.">Rename</button></span></div>
       <div class="field"><label>Vehicle</label><span>Roster, identifiers, linked history</span></div>
       <div class="field"><label>Marshal post</label><span>Created by this team on Jan 9 · 6 records<button class="tool"
         data-confirm-title="Archive the “Marshal post” type?"
@@ -1200,31 +1198,6 @@ html[data-theme=night] .toast{background:#e9f2ea;color:#0d1512;border-color:#000
         data-confirm-cta="Archive anyway"
         data-confirm-done="Category archived. 2 places are now uncategorised and flagged in the records list.">Archive</button></span></div>
       <div class="callout"><b>Guardrail A in practice</b>Reversible steps — reorder, rename, archive — happen with an undo. Merge and delete cannot be undone, so they state exactly what breaks before you commit.</div>
-    </div>
-  </div>
-</section>
-
-<!-- ==================================================== TRAVEL -->
-<section class="page" id="p-travel" aria-labelledby="t-travel">
-  <div class="head">
-    <div>
-      <div class="mono">Place-to-place context</div>
-      <h1 id="t-travel" tabindex="-1">Travel estimate</h1>
-    </div>
-    <p>“15 minutes from the paddock” is more actionable than a street address — as long as the crew can see who estimated it, how, and when.</p>
-  </div>
-
-  <div class="detail">
-    <div class="form">
-      <div class="input"><label for="tv-from">From</label><select id="tv-from"><option>Service Park</option><option>Briley Park</option><option>Lewiston hotel</option></select></div>
-      <div class="input"><label for="tv-to">To</label><select id="tv-to"><option>Briley Park</option><option>Service Park</option><option>Grayling fuel</option></select></div>
-      <div class="input"><label for="tv-est">Estimate</label><input id="tv-est" value="15 minutes"></div>
-      <div class="input"><label for="tv-auth">Calculation / author</label><input id="tv-auth" value="Google Maps · Dan · Feb 7"><span class="hint">Recorded so a stale estimate can be judged rather than trusted.</span></div>
-      <div class="input full"><label for="tv-note">Route note</label><textarea id="tv-note">Use the west lot entrance. Add 10 minutes during the spectator arrival window (09:00–09:45).</textarea></div>
-    </div>
-    <div class="actions">
-      <button class="tool" data-go="place">Cancel</button>
-      <button class="btn primary" data-say="Travel context saved. It now appears in the plan, on the map and on both place details, with your name and today’s date.">Save travel context</button>
     </div>
   </div>
 </section>
@@ -1912,7 +1885,7 @@ var TITLES = {
   today:'Today', attention:'Attention & acknowledgements', events:'Events',
   plan:'Movement plan', movement:'Movement detail', publish:'Publish change', export:'Export & print',
   work:'Work & checklists', task:'Work item detail', templates:'Templates', automation:'Automation setup',
-  records:'Records directory', place:'Venue detail', types:'Types & categories', travel:'Travel context',
+  records:'Records directory', place:'Venue detail', types:'Types & categories',
   forms:'Forms & inspections', builder:'Form builder', submission:'Form submission', versions:'Template versions',
   library:'Files & sources', activity:'Activity & comments', views:'Views & fields', people:'People & permissions',
   offline:'Offline manager', archive:'Archive & restore',

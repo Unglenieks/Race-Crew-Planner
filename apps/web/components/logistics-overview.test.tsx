@@ -33,16 +33,6 @@ const overview = {
       },
     },
   ],
-  travelContexts: [
-    {
-      _id: "travel:1",
-      fromName: "Service",
-      toName: "Stage",
-      estimate: "20 min",
-      requiresReview: true,
-      movements: [{ _id: "move:1", title: "Depart" }],
-    },
-  ],
   serviceIntervals: [
     {
       _id: "service:1",
@@ -67,14 +57,10 @@ const overview = {
 };
 
 describe("LogisticsOverview", () => {
-  it("keeps a crew brief read-only while flagging stale weather and legacy travel", () => {
+  it("keeps a crew brief read-only while flagging stale weather", () => {
     render(<LogisticsOverview eventId="events:one" role="crew" />);
     expect(screen.getByText(/crew brief/i)).toBeTruthy();
     expect(screen.getByText(/stale \(over 12 hours\)/i)).toBeTruthy();
-    expect(screen.getByText(/legacy entry needs conversion/i)).toBeTruthy();
     expect(screen.queryByText("Edit profile")).toBeNull();
-    expect(
-      screen.getByRole("link", { name: "Depart" }).getAttribute("href"),
-    ).toBe("/events/events:one/plan/move:1");
   });
 });
