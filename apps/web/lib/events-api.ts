@@ -832,6 +832,20 @@ export const logisticsApi = {
     },
     string
   >("logistics:createExternalContact"),
+  createExternalContacts: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      contacts: Array<{
+        title: string;
+        name: string;
+        organization?: string;
+        phone?: string;
+        email?: string;
+      }>;
+    },
+    string[]
+  >("logistics:createExternalContacts"),
   updateExternalContact: makeFunctionReference<
     "mutation",
     {
