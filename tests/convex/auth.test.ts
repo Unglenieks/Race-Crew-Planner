@@ -1198,7 +1198,6 @@ describe("Convex authorization helpers", () => {
       saveVenueDetails._handler(context as never, {
         eventId: "events:one" as never,
         recordId: "eventRecords:one" as never,
-        confirmationStatus: "confirmed",
       }),
     ).rejects.toThrow("Forbidden");
   });
@@ -2686,6 +2685,36 @@ describe("regressions found reviewing the outage integration", () => {
         fuelOverrideReason: "Known detour",
       }),
     ).rejects.toThrow("Rally leg not found");
+  });
+
+  it("keeps a historical leg reserve when the simplified leg editor omits it", async () => {
+    const patches: Array<Record<string, unknown>> = [];
+    const context = managerContext(
+      {
+        get: async () => ({
+          eventId: "events:one",
+          reservePercent: 12,
+        }),
+        patch: async (_id: string, value: Record<string, unknown>) => {
+          patches.push(value);
+        },
+      },
+      "owner",
+    );
+
+    await updateLeg._handler(context as never, {
+      eventId: "events:one" as never,
+      legId: "rallyLegs:one" as never,
+      name: "Leg 1",
+      order: 0,
+      stageCount: 3,
+      stageMiles: 45,
+      transitMiles: 20,
+    });
+
+    expect(patches).toContainEqual(
+      expect.objectContaining({ reservePercent: 12 }),
+    );
   });
 
   it("rejects a service window owned by another event", async () => {

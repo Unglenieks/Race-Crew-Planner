@@ -58,5 +58,7 @@ describe("RecordDetail fields", () => {
     expect(
       screen.getByRole("link", { name: "https://example.com/manual" }),
     ).toBeDefined();
+    expect(screen.queryByText("Categories")).toBeNull();
+    expect(screen.queryByText("Records & venues")).toBeNull();
   });
 });

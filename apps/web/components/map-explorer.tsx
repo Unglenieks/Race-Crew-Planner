@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabTrigger } from "@/components/ui/tabs";
 import { OpenStreetMapMap } from "@/components/openstreetmap-map";
 import { useEventWorkspace } from "@/components/workspace/event-workspace";
+import { resolveLocation } from "@/lib/location-resolution";
 import {
   recordsApi,
   type EventRecord,
@@ -42,22 +43,24 @@ function AddMapLocation({ eventId }: { eventId: string }) {
     );
   async function submit(form: React.FormEvent<HTMLFormElement>) {
     form.preventDefault();
-    const values = new FormData(form.currentTarget);
-    const number = (name: string) => {
-      const value = String(values.get(name) ?? "").trim();
-      return value === "" ? undefined : Number(value);
-    };
+    const formElement = form.currentTarget;
+    const values = new FormData(formElement);
     setSaving(true);
     setError(null);
     try {
+      const location = await resolveLocation(
+        eventId,
+        String(values.get("locationQuery") ?? ""),
+      );
       await saveMapLocation({
         eventId,
         name: String(values.get("name") ?? ""),
         kind,
-        address: String(values.get("address") ?? "") || undefined,
+        address: location.address,
+        notes: String(values.get("notes") ?? "") || undefined,
         hours: String(values.get("hours") ?? "") || undefined,
-        latitude: number("latitude"),
-        longitude: number("longitude"),
+        latitude: location.latitude,
+        longitude: location.longitude,
         supportCategories:
           kind === "support"
             ? categories.length
@@ -66,12 +69,14 @@ function AddMapLocation({ eventId }: { eventId: string }) {
             : [],
         spectatorVisible: values.get("spectatorVisible") === "on",
       });
-      form.currentTarget.reset();
+      formElement.reset();
       setCategories([]);
       setOpen(false);
-    } catch {
+    } catch (reason) {
       setError(
-        "We could not save this location. Coordinates must be valid and entered as a pair.",
+        reason instanceof Error
+          ? reason.message
+          : "We could not save this location. Try again.",
       );
     } finally {
       setSaving(false);
@@ -112,32 +117,28 @@ function AddMapLocation({ eventId }: { eventId: string }) {
             Name
             <Input name="name" required maxLength={160} />
           </label>
-          <label className="grid gap-1.5 text-sm font-medium">
-            Address
-            <Input name="address" maxLength={300} />
+          <label className="grid gap-1.5 text-sm font-medium md:col-span-2">
+            Address or Plus Code
+            <Input
+              name="locationQuery"
+              required
+              maxLength={300}
+              placeholder="123 Rally Road, Town, State or 849VCWC8+R9"
+            />
+            <span className="text-xs font-normal text-muted">
+              Use a full address, or add a city or region to a short Plus Code.
+            </span>
           </label>
           <label className="grid gap-1.5 text-sm font-medium">
             Hours
             <Input name="hours" maxLength={240} />
           </label>
-          <label className="grid gap-1.5 text-sm font-medium">
-            Latitude
-            <Input
-              name="latitude"
-              type="number"
-              step="any"
-              min="-90"
-              max="90"
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium">
-            Longitude
-            <Input
-              name="longitude"
-              type="number"
-              step="any"
-              min="-180"
-              max="180"
+          <label className="grid gap-1.5 text-sm font-medium md:col-span-2">
+            Notes
+            <textarea
+              name="notes"
+              className="min-h-24 rounded-lg border border-line bg-card px-3 py-2 text-sm"
+              maxLength={1000}
             />
           </label>
           {kind === "support" ? (
