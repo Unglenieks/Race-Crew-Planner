@@ -51,11 +51,17 @@ export function RecordDetail({ recordId }: { recordId: string }) {
     setMessage(null);
     setError(null);
     const form = new FormData(eventForm.currentTarget);
+    const coordinate = (name: string) => {
+      const value = String(form.get(name) || "").trim();
+      return value === "" ? undefined : Number(value);
+    };
     try {
       await saveDetails({
         eventId: event.id,
         recordId,
         address: String(form.get("address") || "") || undefined,
+        latitude: coordinate("latitude"),
+        longitude: coordinate("longitude"),
         accessNotes: String(form.get("accessNotes") || "") || undefined,
         hours: String(form.get("hours") || "") || undefined,
         contactDetail: String(form.get("contact") || "") || undefined,
@@ -272,6 +278,30 @@ export function RecordDetail({ recordId }: { recordId: string }) {
                       name="contact"
                       defaultValue={record.contactDetail ?? ""}
                       maxLength={300}
+                    />
+                  </label>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className={field}>
+                    Latitude <span className="text-muted">(for map pin)</span>
+                    <Input
+                      name="latitude"
+                      type="number"
+                      step="any"
+                      min="-90"
+                      max="90"
+                      defaultValue={record.latitude}
+                    />
+                  </label>
+                  <label className={field}>
+                    Longitude <span className="text-muted">(for map pin)</span>
+                    <Input
+                      name="longitude"
+                      type="number"
+                      step="any"
+                      min="-180"
+                      max="180"
+                      defaultValue={record.longitude}
                     />
                   </label>
                 </div>

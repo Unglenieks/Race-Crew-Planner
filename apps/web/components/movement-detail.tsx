@@ -37,6 +37,7 @@ type Draft = {
   sectionId: string;
   operationalDay: string;
   displayTime: "standard" | "2400";
+  spectatorVisible: boolean;
 };
 
 const timeKindLabels: Record<Draft["timeKind"], string> = {
@@ -64,6 +65,7 @@ function toDraft(item: ItineraryItem): Draft {
     sectionId: item.sectionId ?? "",
     operationalDay: item.operationalDay ?? "",
     displayTime: item.displayTime ?? "standard",
+    spectatorVisible: item.spectatorVisible === true,
   };
 }
 
@@ -153,7 +155,7 @@ export function MovementDetail({
     );
   }
 
-  function updateDraft(field: keyof Draft, value: string) {
+  function updateDraft(field: keyof Draft, value: Draft[keyof Draft]) {
     setDraft(
       (current) =>
         ({ ...(current ?? toDraft(item!)), [field]: value }) as Draft,
@@ -205,6 +207,7 @@ export function MovementDetail({
           currentDraft.timeKind === "allDay"
             ? "standard"
             : currentDraft.displayTime,
+        spectatorVisible: currentDraft.spectatorVisible,
       });
       setDraft(null);
       setOpenPublisher(publishAfterSave);
@@ -334,6 +337,24 @@ export function MovementDetail({
                   required
                   className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm font-normal text-ink shadow-sm"
                 />
+              </label>
+              <label className="flex items-start gap-3 rounded-lg border border-line p-3 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={currentDraft.spectatorVisible}
+                  onChange={(event) =>
+                    updateDraft("spectatorVisible", event.target.checked)
+                  }
+                  className="mt-1 h-4 w-4 accent-[var(--color-green)]"
+                />
+                <span>
+                  <span className="block font-semibold">
+                    Show on spectator schedule
+                  </span>
+                  <span className="mt-1 block text-muted">
+                    Publish this event to spectators.
+                  </span>
+                </span>
               </label>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-1.5 text-sm font-medium text-ink">

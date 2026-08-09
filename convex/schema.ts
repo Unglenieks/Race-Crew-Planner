@@ -77,6 +77,8 @@ export default defineSchema({
     scheduledUntil: v.optional(v.string()),
     location: v.optional(v.string()),
     recordId: v.optional(v.id("eventRecords")),
+    /** Explicitly publishes this movement to members with spectator access. */
+    spectatorVisible: v.optional(v.boolean()),
     serviceIntervalId: v.optional(v.id("serviceIntervals")),
     notes: v.optional(v.string()),
     /** Event-local operational classification, separate from permission roles. */
@@ -116,7 +118,13 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_eventId", ["eventId"])
-    .index("by_eventId_scheduledFor", ["eventId", "scheduledFor"]),
+    .index("by_eventId_scheduledFor", ["eventId", "scheduledFor"])
+    .index("by_eventId_spectatorVisible_archivedAt_scheduledFor", [
+      "eventId",
+      "spectatorVisible",
+      "archivedAt",
+      "scheduledFor",
+    ]),
   /** Configurable movement classifications such as departure and service. */
   eventMovementTypes: defineTable({
     eventId: v.id("events"),

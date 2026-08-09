@@ -27,6 +27,7 @@
   --color-soft: #e5f2df;
   --color-dark: #173e33;
   --color-focus: #0f5f45;
+  --color-support: #2563a8;
 
   --color-success-bg: #dcefd4;
   --color-success-tx: #1c5731;
@@ -80,6 +81,7 @@
   --color-soft: #1c3a2b;
   --color-dark: #0b1712;
   --color-focus: #7fd8ab;
+  --color-support: #6bb8e7;
 
   --color-success-bg: #1d3a28;
   --color-success-tx: #8fe0ac;
@@ -116,6 +118,7 @@
   --color-soft: #ededed;
   --color-dark: #000000;
   --color-focus: #0000c7;
+  --color-support: #003f70;
 
   --color-success-bg: #e4f4e4;
   --color-success-tx: #00330f;
@@ -139,6 +142,31 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   letter-spacing: -0.015em;
+}
+
+.race-map-pin {
+  background: transparent;
+  border: 0;
+}
+
+.race-map-pin__dot {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border: 3px solid white;
+  border-radius: 9999px;
+  background: var(--color-green);
+  box-shadow: 0 1px 5px rgb(0 0 0 / 35%);
+}
+
+.race-map-pin__dot--support {
+  background: var(--color-support);
+}
+
+.race-map-pin__dot--selected {
+  box-shadow:
+    0 0 0 3px var(--color-lime),
+    0 1px 5px rgb(0 0 0 / 35%);
 }
 
 html {

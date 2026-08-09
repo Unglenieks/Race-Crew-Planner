@@ -29,7 +29,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/data-display";
 import { Input } from "@/components/ui/input";
-import { OperationalSections } from "@/components/operational-sections";
 import { planSectionsApi, type PlanSection } from "@/lib/events-api";
 import {
   calendarDay,
@@ -59,6 +58,7 @@ type Draft = {
   operationalDay: string;
   displayTime: "standard" | "2400";
   serviceIntervalId: string;
+  spectatorVisible: boolean;
 };
 
 const emptyDraft: Draft = {
@@ -76,6 +76,7 @@ const emptyDraft: Draft = {
   operationalDay: "",
   displayTime: "standard",
   serviceIntervalId: "",
+  spectatorVisible: false,
 };
 
 function sectionDate(sectionId: string, sections: PlanSection[]) {
@@ -141,10 +142,6 @@ export function ItineraryPlan({
   const archiveItem = useMutation(itineraryApi.archive);
   const restoreItem = useMutation(itineraryApi.restore);
   const ensureDefaults = useMutation(movementsApi.ensureDefaults);
-  const createType = useMutation(movementsApi.createType);
-  const createTag = useMutation(movementsApi.createTag);
-  const createTeam = useMutation(movementsApi.createTeam);
-  const createOperationalRole = useMutation(movementsApi.createOperationalRole);
   const canEdit = role === "owner" || role === "manager";
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [selectedDay, setSelectedDay] = useState<string | null | undefined>(
@@ -168,9 +165,6 @@ export function ItineraryPlan({
   const [undoItem, setUndoItem] = useState<ItineraryItem | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isCreatorOpen, setIsCreatorOpen] = useState(false);
-  const [vocabularyKind, setVocabularyKind] = useState("type");
-  const [vocabularyName, setVocabularyName] = useState("");
-  const [isSavingVocabulary, setIsSavingVocabulary] = useState(false);
   const [isStagingOpen, setIsStagingOpen] = useState(false);
   const firstInputRef = useRef<HTMLInputElement>(null);
   const dayCardsRef = useRef<HTMLDivElement>(null);
@@ -383,6 +377,7 @@ export function ItineraryPlan({
       notes: draft.notes || undefined,
       movementTypeId: draft.movementTypeId || null,
       serviceIntervalId: draft.serviceIntervalId || undefined,
+      spectatorVisible: draft.spectatorVisible,
     };
 
     try {
@@ -418,24 +413,6 @@ export function ItineraryPlan({
       );
     } finally {
       setIsSubmitting(false);
-    }
-  }
-
-  async function addVocabulary(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setIsSavingVocabulary(true);
-    try {
-      const input = { eventId, name: vocabularyName };
-      if (vocabularyKind === "type") await createType(input);
-      else if (vocabularyKind === "tag") await createTag(input);
-      else if (vocabularyKind === "team") await createTeam(input);
-      else await createOperationalRole(input);
-      setVocabularyName("");
-    } catch {
-      setError("We could not add that operational value. It was not saved.");
-    } finally {
-      setIsSavingVocabulary(false);
     }
   }
 
@@ -518,6 +495,7 @@ export function ItineraryPlan({
       sectionId: item.sectionId ?? "",
       displayTime: item.displayTime ?? "standard",
       serviceIntervalId: item.serviceIntervalId ?? "",
+      spectatorVisible: item.spectatorVisible === true,
     });
     setIsCreatorOpen(true);
     setIsStagingOpen(false);
@@ -583,12 +561,6 @@ export function ItineraryPlan({
               </Badge>
               {canEdit ? (
                 <>
-                  <Link
-                    href={`/events/${eventId}/plan/reconcile`}
-                    className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-green-ink underline-offset-4 hover:underline focus-visible:outline-3 focus-visible:outline-focus"
-                  >
-                    Reconcile venues
-                  </Link>
                   <Button
                     size="sm"
                     onClick={() => {
@@ -1303,6 +1275,27 @@ export function ItineraryPlan({
                   placeholder="e.g. Depart for service area"
                 />
               </div>
+              <label className="flex items-start gap-3 rounded-lg border border-line p-3 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={draft.spectatorVisible}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      spectatorVisible: event.target.checked,
+                    }))
+                  }
+                  className="mt-1 h-4 w-4 accent-[var(--color-green)]"
+                />
+                <span>
+                  <span className="block font-semibold">
+                    Show on spectator schedule
+                  </span>
+                  <span className="mt-1 block text-muted">
+                    Only published schedule events are visible to spectators.
+                  </span>
+                </span>
+              </label>
               <div className="grid gap-1.5">
                 <label
                   className="text-sm font-medium text-ink"
@@ -1376,52 +1369,6 @@ export function ItineraryPlan({
           </CardContent>
         </Card>
       ) : null}
-      {canEdit ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Operational vocabulary</CardTitle>
-            <p className="mt-1 text-sm text-muted">
-              Add event-local movement types, control tags, teams, and
-              operational roles. These do not change member permissions.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <form className="flex flex-wrap gap-2" onSubmit={addVocabulary}>
-              <select
-                aria-label="Operational vocabulary kind"
-                value={vocabularyKind}
-                onChange={(event) => setVocabularyKind(event.target.value)}
-                className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
-              >
-                <option value="type">Movement type</option>
-                <option value="tag">Control code or tag</option>
-                <option value="team">Team</option>
-                <option value="role">Operational role</option>
-              </select>
-              <Input
-                aria-label="Operational vocabulary name"
-                value={vocabularyName}
-                onChange={(event) => setVocabularyName(event.target.value)}
-                maxLength={80}
-                required
-                placeholder={
-                  vocabularyKind === "tag"
-                    ? "e.g. FCI"
-                    : vocabularyKind === "team"
-                      ? "e.g. RRC"
-                      : vocabularyKind === "role"
-                        ? "e.g. Stage Captain"
-                        : "e.g. Regroup"
-                }
-              />
-              <Button type="submit" disabled={isSavingVocabulary}>
-                {isSavingVocabulary ? "Adding…" : "Add"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      ) : null}
-      <OperationalSections eventId={eventId} role={role} />
     </div>
   );
 }
