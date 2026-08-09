@@ -282,9 +282,16 @@ export const listSpectator = query({
           (item) =>
             item.archivedAt === undefined && item.spectatorVisible === true,
         )
-        .map(async (item) => ({
-          ...item,
-          ...(await movementStructuredFields(ctx, item)),
+        .map((item) => ({
+          _id: item._id,
+          title: item.title,
+          scheduledFor: item.scheduledFor,
+          scheduledUntil: item.scheduledUntil,
+          location: item.location,
+          notes: item.notes,
+          timeKind: item.timeKind,
+          operationalDay: item.operationalDay,
+          displayTime: item.displayTime,
         })),
     );
   },
