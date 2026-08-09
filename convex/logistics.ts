@@ -276,7 +276,11 @@ export const getSpectatorOverview = query({
     ]);
     return {
       profile: profile
-        ? { carNumber: profile.carNumber, makeModel: profile.makeModel }
+        ? {
+            carNumber: profile.carNumber,
+            makeModel: profile.makeModel,
+            driverNames: profile.driverNames,
+          }
         : null,
       legs: legs.map((leg) => ({
         _id: leg._id,
@@ -295,6 +299,7 @@ export const saveProfile = mutation({
     eventId: v.id("events"),
     carNumber: v.optional(v.string()),
     makeModel: v.optional(v.string()),
+    driverNames: v.optional(v.array(v.string())),
     fuelCapacityGallons: v.optional(v.number()),
     stageMpg: v.optional(v.number()),
     transitMpg: v.optional(v.number()),
@@ -306,6 +311,12 @@ export const saveProfile = mutation({
     const data = {
       carNumber: text(args.carNumber, 40, "Car number"),
       makeModel: text(args.makeModel, 160, "Make/model"),
+      driverNames:
+        args.driverNames === undefined
+          ? undefined
+          : args.driverNames
+              .map((name) => required(name, 120, "Driver name"))
+              .slice(0, 4),
       fuelCapacityGallons:
         args.fuelCapacityGallons === undefined
           ? undefined
@@ -570,6 +581,25 @@ export const updateExternalContact = mutation({
     await manager(ctx, args.eventId);
     await eventRow(ctx, args.eventId, args.contactId, "External contact");
     await ctx.db.patch(args.contactId, contactData(args));
+  },
+});
+
+/** Removes an event-owned official/support contact after Crew Chief authorization. */
+export const removeExternalContact = mutation({
+  args: { eventId: v.id("events"), contactId: v.id("externalContacts") },
+  handler: async (ctx, { eventId, contactId }) => {
+    const { identity } = await manager(ctx, eventId);
+    const contact = await eventRow(ctx, eventId, contactId, "External contact");
+    await ctx.db.delete(contactId);
+    await writeAudit(ctx, {
+      eventId,
+      actorId: identity.subject,
+      kind: "logistics.updated",
+      message: `Removed event contact: ${contact.name}`,
+      objectType: "externalContact",
+      objectId: contactId,
+      objectLabel: contact.name,
+    });
   },
 });
 

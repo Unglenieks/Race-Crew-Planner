@@ -803,7 +803,117 @@ export function ItineraryPlan({
                       </div>
                     ))}
                   </div>
-                  <ol className="divide-y divide-line border-y border-line">
+                  <div className="overflow-x-auto rounded-lg border border-line">
+                    <table className="min-w-[900px] w-full text-left text-sm">
+                      <thead className="border-b border-line bg-topbg text-xs uppercase tracking-wide text-muted">
+                        <tr>
+                          <th className="px-3 py-3">Day / time</th>
+                          <th className="px-3 py-3">Movement</th>
+                          <th className="px-3 py-3">Venue</th>
+                          <th className="px-3 py-3">Type & crew</th>
+                          <th className="px-3 py-3">Notes</th>
+                          {canEdit ? (
+                            <th className="px-3 py-3">Actions</th>
+                          ) : null}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visibleItems.map((item) => (
+                          <tr
+                            key={item._id}
+                            className="border-b border-line2 align-top last:border-0"
+                          >
+                            <td className="px-3 py-3 font-mono text-xs text-green-ink">
+                              <span className="block font-sans font-semibold text-ink">
+                                {displayDay(calendarDay(item))}
+                              </span>
+                              <time aria-label={movementTimeLabel(item)}>
+                                {displayMovementTime(item)}
+                              </time>
+                              <span className="mt-1 block font-sans text-muted">
+                                {operationalDayLabel(item, sections ?? [])}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3">
+                              <Link
+                                href={`/events/${eventId}/plan/${item._id}`}
+                                className="font-semibold text-ink underline-offset-4 hover:underline"
+                              >
+                                {item.title}
+                              </Link>
+                              {item.tags?.length ? (
+                                <p className="mt-2 flex flex-wrap gap-1">
+                                  {item.tags.map((tag) => (
+                                    <Badge key={tag._id} variant="info">
+                                      {tag.name}
+                                    </Badge>
+                                  ))}
+                                </p>
+                              ) : null}
+                            </td>
+                            <td className="px-3 py-3">
+                              {item.recordId ? (
+                                <Link
+                                  className="font-medium text-green-ink underline"
+                                  href={`/events/${eventId}/records/${item.recordId}`}
+                                >
+                                  {recordsById.get(item.recordId)?.name ??
+                                    "Unavailable record"}
+                                </Link>
+                              ) : (
+                                (item.location ?? "—")
+                              )}
+                            </td>
+                            <td className="px-3 py-3">
+                              {item.movementTypeLabel ? (
+                                <Badge variant="neutral">
+                                  {item.movementTypeLabel}
+                                </Badge>
+                              ) : (
+                                "—"
+                              )}
+                              {item.assignments?.length ? (
+                                <p className="mt-2 text-xs text-muted">
+                                  {item.assignments
+                                    .map((assignment) => assignment.label)
+                                    .join(", ")}
+                                </p>
+                              ) : null}
+                            </td>
+                            <td className="px-3 py-3 text-muted">
+                              {item.notes ?? "—"}
+                            </td>
+                            {canEdit ? (
+                              <td className="px-3 py-3">
+                                <span className="flex gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => duplicateItem(item)}
+                                  >
+                                    <Copy className="h-4 w-4" />
+                                    Duplicate
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    disabled={isArchiving === item._id}
+                                    onClick={() => onArchive(item)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Archive
+                                  </Button>
+                                </span>
+                              </td>
+                            ) : null}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <ol className="hidden divide-y divide-line border-y border-line">
                     {visibleItems.map((item, index) => (
                       <li
                         key={item._id}

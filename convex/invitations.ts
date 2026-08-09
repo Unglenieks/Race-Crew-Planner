@@ -24,7 +24,7 @@ function normalizedEmail(email: string) {
   return value;
 }
 
-async function requireOwner(
+async function requireCrewChief(
   ctx: QueryCtx | MutationCtx,
   eventId: Id<"events">,
 ) {
@@ -35,7 +35,7 @@ async function requireOwner(
       index.eq("eventId", eventId).eq("userId", identity.subject),
     )
     .unique();
-  requireRole(membership?.role, ["owner"]);
+  requireRole(membership?.role, ["owner", "manager"]);
   return identity;
 }
 
@@ -120,11 +120,11 @@ export const claimVerifiedEmail = internalMutation({
   },
 });
 
-/** Creates an event-scoped pending invitation after owner authorization. */
+/** Creates an event-scoped pending invitation after Crew Chief authorization. */
 export const create = mutation({
   args: { eventId: v.id("events"), email: v.string(), role: invitationRole },
   handler: async (ctx, { eventId, email, role }) => {
-    const identity = await requireOwner(ctx, eventId);
+    const identity = await requireCrewChief(ctx, eventId);
     const normalized = normalizedEmail(email);
     const existing = await ctx.db
       .query("eventInvitations")
@@ -150,11 +150,11 @@ export const create = mutation({
   },
 });
 
-/** Revokes a pending invitation if the matching event owner asks to cancel it. */
+/** Revokes a pending invitation if the matching Crew Chief asks to cancel it. */
 export const revoke = mutation({
   args: { eventId: v.id("events"), invitationId: v.id("eventInvitations") },
   handler: async (ctx, { eventId, invitationId }) => {
-    await requireOwner(ctx, eventId);
+    await requireCrewChief(ctx, eventId);
     const invitation = await ctx.db.get(invitationId);
     if (invitation === null || invitation.eventId !== eventId)
       throw new Error("Invitation not found");
@@ -170,7 +170,7 @@ export const updateMemberRole = mutation({
     role: invitationRole,
   },
   handler: async (ctx, { eventId, membershipId, role }) => {
-    await requireOwner(ctx, eventId);
+    await requireCrewChief(ctx, eventId);
     const membership = await ctx.db.get(membershipId);
     if (membership === null || membership.eventId !== eventId)
       throw new Error("Member not found");
@@ -183,7 +183,7 @@ export const updateMemberRole = mutation({
 export const removeMember = mutation({
   args: { eventId: v.id("events"), membershipId: v.id("eventMemberships") },
   handler: async (ctx, { eventId, membershipId }) => {
-    await requireOwner(ctx, eventId);
+    await requireCrewChief(ctx, eventId);
     const membership = await ctx.db.get(membershipId);
     if (membership === null || membership.eventId !== eventId)
       throw new Error("Member not found");
@@ -193,7 +193,7 @@ export const removeMember = mutation({
   },
 });
 
-/** Returns the crew roster to crew members; only owners see pending invitations. */
+/** Returns the crew roster to crew; Crew Chiefs also see pending invitations. */
 export const listContacts = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {

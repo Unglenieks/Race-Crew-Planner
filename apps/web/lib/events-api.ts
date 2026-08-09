@@ -154,6 +154,7 @@ export type LogisticsOverview = {
   profile: {
     carNumber?: string;
     makeModel?: string;
+    driverNames?: string[];
     fuelCapacityGallons?: number;
     stageMpg?: number;
     transitMpg?: number;
@@ -229,7 +230,11 @@ export type LogisticsOverview = {
   }>;
 };
 export type SpectatorEventInfo = {
-  profile: { carNumber?: string; makeModel?: string } | null;
+  profile: {
+    carNumber?: string;
+    makeModel?: string;
+    driverNames?: string[];
+  } | null;
   legs: Array<{
     _id: string;
     name: string;
@@ -794,6 +799,7 @@ export const logisticsApi = {
       eventId: string;
       carNumber?: string;
       makeModel?: string;
+      driverNames?: string[];
       fuelCapacityGallons?: number;
       stageMpg?: number;
       transitMpg?: number;
@@ -863,6 +869,24 @@ export const logisticsApi = {
     },
     string
   >("logistics:createExternalContact"),
+  updateExternalContact: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      contactId: string;
+      title: string;
+      name: string;
+      organization?: string;
+      phone?: string;
+      email?: string;
+    },
+    null
+  >("logistics:updateExternalContact"),
+  removeExternalContact: makeFunctionReference<
+    "mutation",
+    { eventId: string; contactId: string },
+    null
+  >("logistics:removeExternalContact"),
 };
 
 export const planImportsApi = {

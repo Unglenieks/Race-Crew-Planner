@@ -387,6 +387,7 @@ export default defineSchema({
     eventId: v.id("events"),
     carNumber: v.optional(v.string()),
     makeModel: v.optional(v.string()),
+    driverNames: v.optional(v.array(v.string())),
     fuelCapacityGallons: v.optional(v.number()),
     stageMpg: v.optional(v.number()),
     transitMpg: v.optional(v.number()),
