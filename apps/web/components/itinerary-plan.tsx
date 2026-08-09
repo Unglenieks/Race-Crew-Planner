@@ -936,7 +936,7 @@ export function ItineraryPlan({
             <div>
               <CardTitle>Add movement</CardTitle>
               <p className="mt-1 text-sm text-muted">
-                Open an existing movement to review its details.
+                Add a time and description; place and notes are optional.
               </p>
             </div>
           </CardHeader>

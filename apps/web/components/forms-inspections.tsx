@@ -440,7 +440,7 @@ function SubmissionForm({
   };
   async function save(announce = true) {
     setWorking(true);
-    setMessage(null);
+    if (announce) setMessage(null);
     setError(null);
     try {
       const id = await saveDraft({
@@ -454,6 +454,7 @@ function SubmissionForm({
         setMessage("Draft saved. You can return before submitting.");
       return id;
     } catch {
+      setMessage(null);
       setError(
         "Your draft was not saved. Correct any invalid values and try again.",
       );
