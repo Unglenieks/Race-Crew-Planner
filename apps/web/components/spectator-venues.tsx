@@ -42,9 +42,7 @@ export function SpectatorVenues() {
   const locations = useQuery(recordsApi.listMapLocations, {
     eventId: event.id,
   });
-  const create = useMutation(recordsApi.create);
-  const update = useMutation(recordsApi.update);
-  const saveDetails = useMutation(recordsApi.saveVenueDetails);
+  const saveMapLocation = useMutation(recordsApi.saveMapLocation);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [editing, setEditing] = useState<MapLocation | null>(null);
   const [saving, setSaving] = useState(false);
@@ -61,34 +59,17 @@ export function SpectatorVenues() {
     setSaving(true);
     setError(null);
     try {
-      let recordId = editing?._id;
-      if (editing) {
-        await update({
-          eventId: event.id,
-          recordId: editing._id,
-          name: draft.name,
-          type: editing.type as "venue" | "place" | "service",
-          address: draft.address || undefined,
-          spectatorVisible: true,
-        });
-      } else {
-        recordId = await create({
-          eventId: event.id,
-          name: draft.name,
-          type: "venue",
-          address: draft.address || undefined,
-          spectatorVisible: true,
-        });
-      }
-      await saveDetails({
+      await saveMapLocation({
         eventId: event.id,
-        recordId: recordId!,
+        recordId: editing?._id,
+        kind: "venue",
+        name: draft.name,
         address: draft.address || undefined,
         hours: draft.hours || undefined,
         latitude: coordinate(draft.latitude),
         longitude: coordinate(draft.longitude),
+        supportCategories: [],
         spectatorVisible: true,
-        confirmationStatus: "unconfirmed",
       });
       setDraft(null);
       setEditing(null);

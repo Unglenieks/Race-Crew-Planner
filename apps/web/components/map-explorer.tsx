@@ -28,8 +28,7 @@ const supportOptions = [
 ] as const;
 
 function AddMapLocation({ eventId }: { eventId: string }) {
-  const create = useMutation(recordsApi.create);
-  const saveDetails = useMutation(recordsApi.saveVenueDetails);
+  const saveMapLocation = useMutation(recordsApi.saveMapLocation);
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<"venue" | "support">("venue");
   const [categories, setCategories] = useState<SupportCategory[]>([]);
@@ -51,22 +50,10 @@ function AddMapLocation({ eventId }: { eventId: string }) {
     setSaving(true);
     setError(null);
     try {
-      const recordId = await create({
+      await saveMapLocation({
         eventId,
         name: String(values.get("name") ?? ""),
-        type: kind === "support" ? "service" : "venue",
-        address: String(values.get("address") ?? "") || undefined,
-        supportCategories:
-          kind === "support"
-            ? categories.length
-              ? categories
-              : ["other"]
-            : [],
-        spectatorVisible: values.get("spectatorVisible") === "on",
-      });
-      await saveDetails({
-        eventId,
-        recordId,
+        kind,
         address: String(values.get("address") ?? "") || undefined,
         hours: String(values.get("hours") ?? "") || undefined,
         latitude: number("latitude"),
@@ -78,7 +65,6 @@ function AddMapLocation({ eventId }: { eventId: string }) {
               : ["other"]
             : [],
         spectatorVisible: values.get("spectatorVisible") === "on",
-        confirmationStatus: "unconfirmed",
       });
       form.currentTarget.reset();
       setCategories([]);

@@ -274,25 +274,25 @@ export const listSpectator = query({
     if (membership.role !== "spectator") throw new Error("Forbidden");
     const items = await ctx.db
       .query("itineraryItems")
-      .withIndex("by_eventId_scheduledFor", (q) => q.eq("eventId", eventId))
+      .withIndex("by_eventId_spectatorVisible_archivedAt_scheduledFor", (q) =>
+        q
+          .eq("eventId", eventId)
+          .eq("spectatorVisible", true)
+          .eq("archivedAt", undefined),
+      )
       .collect();
     return await Promise.all(
-      items
-        .filter(
-          (item) =>
-            item.archivedAt === undefined && item.spectatorVisible === true,
-        )
-        .map((item) => ({
-          _id: item._id,
-          title: item.title,
-          scheduledFor: item.scheduledFor,
-          scheduledUntil: item.scheduledUntil,
-          location: item.location,
-          notes: item.notes,
-          timeKind: item.timeKind,
-          operationalDay: item.operationalDay,
-          displayTime: item.displayTime,
-        })),
+      items.map((item) => ({
+        _id: item._id,
+        title: item.title,
+        scheduledFor: item.scheduledFor,
+        scheduledUntil: item.scheduledUntil,
+        location: item.location,
+        notes: item.notes,
+        timeKind: item.timeKind,
+        operationalDay: item.operationalDay,
+        displayTime: item.displayTime,
+      })),
     );
   },
 });

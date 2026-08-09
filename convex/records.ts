@@ -631,6 +631,86 @@ export const saveVenueDetails = mutation({
   },
 });
 
+/** Creates or updates a canonical map location in one authorized transaction. */
+export const saveMapLocation = mutation({
+  args: {
+    eventId: v.id("events"),
+    recordId: v.optional(v.id("eventRecords")),
+    kind: v.union(v.literal("venue"), v.literal("support")),
+    name: v.string(),
+    address: v.optional(v.string()),
+    latitude: v.optional(v.number()),
+    longitude: v.optional(v.number()),
+    hours: v.optional(v.string()),
+    supportCategories: v.array(supportCategory),
+    spectatorVisible: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const { identity } = await manager(ctx, args.eventId);
+    const now = Date.now();
+    const input = validatedRecordInput({
+      name: args.name,
+      type: args.kind === "support" ? "service" : "venue",
+      address: args.address,
+    });
+    const categories =
+      normalizedSupportCategories(args.supportCategories) ?? [];
+    const common = {
+      address: optionalText(args.address, 300),
+      ...resolvedCoordinates(args, {}),
+      hours: optionalText(args.hours, 240),
+      supportCategories: categories,
+      spectatorVisible: args.spectatorVisible,
+      verifiedAt: now,
+      verifiedBy: identity.subject,
+      updatedAt: now,
+    };
+    let recordId = args.recordId;
+    if (recordId === undefined) {
+      recordId = await ctx.db.insert("eventRecords", {
+        eventId: args.eventId,
+        ...input,
+        ...common,
+        confirmationStatus: "unconfirmed",
+        createdAt: now,
+      });
+      await writeAudit(ctx, {
+        eventId: args.eventId,
+        actorId: identity.subject,
+        kind: "record.created",
+        message: `Created map location: ${input.name}`,
+        objectType: "record",
+        objectId: recordId,
+        objectLabel: input.name,
+        href: `/events/${args.eventId}/records/${recordId}`,
+        createdAt: now,
+      });
+    } else {
+      const record = await recordInEvent(ctx, args.eventId, recordId);
+      if (!(await isLocationRecord(ctx, record)))
+        throw new Error("Map locations require a location record");
+      const coordinates = resolvedCoordinates(args, record);
+      await ctx.db.patch(recordId, {
+        name: input.name,
+        ...common,
+        ...coordinates,
+      });
+      await writeAudit(ctx, {
+        eventId: args.eventId,
+        actorId: identity.subject,
+        kind: "record.updated",
+        message: `Updated map location: ${input.name}`,
+        objectType: "record",
+        objectId: recordId,
+        objectLabel: input.name,
+        href: `/events/${args.eventId}/records/${recordId}`,
+        createdAt: now,
+      });
+    }
+    return recordId;
+  },
+});
+
 export const listTypes = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, args) => {

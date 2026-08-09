@@ -412,6 +412,20 @@ export const removeLeg = mutation({
     const { identity } = await manager(ctx, args.eventId);
     const leg = await eventRow(ctx, args.eventId, args.legId, "Rally leg");
     await ctx.db.delete(args.legId);
+    const remaining = await ctx.db
+      .query("rallyLegs")
+      .withIndex("by_eventId_order", (q) => q.eq("eventId", args.eventId))
+      .collect();
+    await Promise.all(
+      remaining
+        .filter((candidate) => candidate.order > leg.order)
+        .map((candidate) =>
+          ctx.db.patch(candidate._id, {
+            order: candidate.order - 1,
+            updatedAt: Date.now(),
+          }),
+        ),
+    );
     await writeAudit(ctx, {
       eventId: args.eventId,
       actorId: identity.subject,

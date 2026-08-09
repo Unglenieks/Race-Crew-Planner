@@ -899,6 +899,22 @@ export const recordsApi = {
     },
     null
   >("records:saveVenueDetails"),
+  saveMapLocation: makeFunctionReference<
+    "mutation",
+    {
+      eventId: string;
+      recordId?: string;
+      kind: "venue" | "support";
+      name: string;
+      address?: string;
+      latitude?: number;
+      longitude?: number;
+      hours?: string;
+      supportCategories: NonNullable<EventRecord["supportCategories"]>;
+      spectatorVisible: boolean;
+    },
+    string
+  >("records:saveMapLocation"),
   listTypes: makeFunctionReference<"query", { eventId: string }, RecordType[]>(
     "records:listTypes",
   ),

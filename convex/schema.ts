@@ -118,7 +118,13 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_eventId", ["eventId"])
-    .index("by_eventId_scheduledFor", ["eventId", "scheduledFor"]),
+    .index("by_eventId_scheduledFor", ["eventId", "scheduledFor"])
+    .index("by_eventId_spectatorVisible_archivedAt_scheduledFor", [
+      "eventId",
+      "spectatorVisible",
+      "archivedAt",
+      "scheduledFor",
+    ]),
   /** Configurable movement classifications such as departure and service. */
   eventMovementTypes: defineTable({
     eventId: v.id("events"),
