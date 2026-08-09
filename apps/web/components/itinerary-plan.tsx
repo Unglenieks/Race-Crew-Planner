@@ -56,7 +56,6 @@ type Draft = {
   sectionId: string;
   operationalDay: string;
   displayTime: "standard" | "2400";
-  travelContextId: string;
   serviceIntervalId: string;
 };
 
@@ -74,7 +73,6 @@ const emptyDraft: Draft = {
   sectionId: "",
   operationalDay: "",
   displayTime: "standard",
-  travelContextId: "",
   serviceIntervalId: "",
 };
 
@@ -341,7 +339,6 @@ export function ItineraryPlan({
       location: draft.location || undefined,
       notes: draft.notes || undefined,
       movementTypeId: draft.movementTypeId || null,
-      travelContextId: draft.travelContextId || undefined,
       serviceIntervalId: draft.serviceIntervalId || undefined,
     };
 
@@ -477,7 +474,6 @@ export function ItineraryPlan({
       movementTypeId: item.movementTypeId ?? "",
       sectionId: item.sectionId ?? "",
       displayTime: item.displayTime ?? "standard",
-      travelContextId: item.travelContextId ?? "",
       serviceIntervalId: item.serviceIntervalId ?? "",
     });
     setIsCreatorOpen(true);
@@ -1173,23 +1169,6 @@ export function ItineraryPlan({
                 </label>
               )}
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-1.5 text-sm font-medium text-ink">
-                  Travel leg <span className="text-muted">(optional)</span>
-                  <select
-                    value={draft.travelContextId}
-                    onChange={(event) =>
-                      updateDraft("travelContextId", event.target.value)
-                    }
-                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
-                  >
-                    <option value="">No travel leg</option>
-                    {(logistics?.travelContexts ?? []).map((travel) => (
-                      <option key={travel._id} value={travel._id}>
-                        {travel.fromName} → {travel.toName}
-                      </option>
-                    ))}
-                  </select>
-                </label>
                 <label className="grid gap-1.5 text-sm font-medium text-ink">
                   Service window <span className="text-muted">(optional)</span>
                   <select

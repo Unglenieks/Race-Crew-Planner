@@ -27,7 +27,6 @@ export type ScreenId =
   | "work"
   | "work-templates"
   | "records"
-  | "travel"
   | "logistics"
   | "files"
   | "offline"
@@ -191,16 +190,6 @@ const legacy: ScreenDefinition[] = [
     shortLabel: "Records",
     description: "Places, services, vehicles, equipment, and organisations.",
     icon: MapPinned,
-    minRole: "crew",
-    hidden: true,
-  },
-  {
-    id: "travel",
-    segment: "records/travel",
-    label: "Travel reference",
-    shortLabel: "Travel",
-    description: "Place-to-place estimates and notes.",
-    icon: Route,
     minRole: "crew",
     hidden: true,
   },

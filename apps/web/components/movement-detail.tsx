@@ -31,7 +31,6 @@ type Draft = {
   location: string;
   recordId: string;
   notes: string;
-  travelContextId: string;
   serviceIntervalId: string;
   timeKind: NonNullable<ItineraryItem["timeKind"]>;
   movementTypeId: string;
@@ -59,7 +58,6 @@ function toDraft(item: ItineraryItem): Draft {
     location: item.location ?? "",
     recordId: item.recordId ?? "",
     notes: item.notes ?? "",
-    travelContextId: item.travelContextId ?? "",
     serviceIntervalId: item.serviceIntervalId ?? "",
     timeKind: item.timeKind ?? "exact",
     movementTypeId: item.movementTypeId ?? "",
@@ -194,7 +192,6 @@ export function MovementDetail({
             : undefined,
         location: currentDraft.location || undefined,
         recordId: currentDraft.recordId || undefined,
-        travelContextId: currentDraft.travelContextId || undefined,
         serviceIntervalId: currentDraft.serviceIntervalId || undefined,
         notes: currentDraft.notes || undefined,
         movementTypeId: currentDraft.movementTypeId || null,
@@ -508,24 +505,6 @@ export function MovementDetail({
               </label>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-1.5 text-sm font-medium text-ink">
-                  Travel leg{" "}
-                  <span className="font-normal text-muted">(optional)</span>
-                  <select
-                    value={currentDraft.travelContextId}
-                    onChange={(event) =>
-                      updateDraft("travelContextId", event.target.value)
-                    }
-                    className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm font-normal text-ink shadow-sm"
-                  >
-                    <option value="">No travel leg</option>
-                    {logistics.travelContexts.map((travel) => (
-                      <option key={travel._id} value={travel._id}>
-                        {travel.fromName} → {travel.toName}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="grid gap-1.5 text-sm font-medium text-ink">
                   Service window{" "}
                   <span className="font-normal text-muted">(optional)</span>
                   <select
@@ -640,16 +619,9 @@ export function MovementDetail({
               <div>
                 <dt className="font-semibold text-ink">Logistics links</dt>
                 <dd className="mt-1 text-muted">
-                  {item.travelContextId
-                    ? logistics.travelContexts.find(
-                        (travel) => travel._id === item.travelContextId,
-                      )
-                      ? `Travel: ${logistics.travelContexts.find((travel) => travel._id === item.travelContextId)?.fromName} → ${logistics.travelContexts.find((travel) => travel._id === item.travelContextId)?.toName}`
-                      : "Linked travel leg"
-                    : "No travel leg"}
                   {item.serviceIntervalId
-                    ? ` · Service: ${logistics.serviceIntervals.find((service) => service._id === item.serviceIntervalId)?.name ?? "linked service window"}`
-                    : ""}
+                    ? `Service: ${logistics.serviceIntervals.find((service) => service._id === item.serviceIntervalId)?.name ?? "linked service window"}`
+                    : "No service window"}
                 </dd>
               </div>
             </dl>

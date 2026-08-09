@@ -307,12 +307,6 @@ export function RecordsDirectory({
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Link
-                className="inline-flex min-h-11 items-center rounded-lg border border-btnline bg-card px-3 text-sm font-semibold text-green-ink hover:border-green focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
-                href={`/events/${eventId}/records/travel`}
-              >
-                Travel reference
-              </Link>
-              <Link
                 className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-green-ink underline underline-offset-4 focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
                 href={`/events/${eventId}/records/types`}
               >

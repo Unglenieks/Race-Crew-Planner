@@ -56,7 +56,6 @@ import {
   restoreCategory,
   restoreType,
   resolvedCoordinates,
-  saveTravel,
   saveVenueDetails,
   update as updateRecord,
   validatedRecordInput,
@@ -164,7 +163,6 @@ describe("Convex authorization helpers", () => {
           appendices: expect.objectContaining({
             venues: [],
             officialContacts: [],
-            travel: [],
           }),
           items: [
             expect.objectContaining({
@@ -1173,7 +1171,7 @@ describe("Convex authorization helpers", () => {
     });
   });
 
-  it("does not let crew update venue or travel context", async () => {
+  it("does not let crew update venue details", async () => {
     const context = {
       auth: {
         getUserIdentity: async () => ({
@@ -1193,14 +1191,6 @@ describe("Convex authorization helpers", () => {
         eventId: "events:one" as never,
         recordId: "eventRecords:one" as never,
         confirmationStatus: "confirmed",
-      }),
-    ).rejects.toThrow("Forbidden");
-    await expect(
-      saveTravel._handler(context as never, {
-        eventId: "events:one" as never,
-        fromRecordId: "eventRecords:one" as never,
-        toRecordId: "eventRecords:two" as never,
-        estimate: "15 minutes",
       }),
     ).rejects.toThrow("Forbidden");
   });
@@ -2690,7 +2680,7 @@ describe("regressions found reviewing the outage integration", () => {
     ).rejects.toThrow("Rally leg not found");
   });
 
-  it("rejects a movement reference to logistics owned by another event", async () => {
+  it("rejects a service window owned by another event", async () => {
     const context = managerContext(
       { get: async () => ({ eventId: "events:other" }) },
       "manager",
@@ -2700,8 +2690,8 @@ describe("regressions found reviewing the outage integration", () => {
         eventId: "events:one" as never,
         title: "Transit to service",
         scheduledFor: "2026-10-16T08:30",
-        travelContextId: "travelContexts:other" as never,
+        serviceIntervalId: "serviceIntervals:other" as never,
       }),
-    ).rejects.toThrow("Travel context not found");
+    ).rejects.toThrow("Service interval not found");
   });
 });

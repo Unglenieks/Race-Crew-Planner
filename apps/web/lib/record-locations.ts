@@ -32,7 +32,7 @@ export function isLocationRecord(
   );
 }
 
-/** Filters a record list down to the places a movement or travel leg can use. */
+/** Filters a record list down to the places a movement can use. */
 export function locationRecords<Record extends LocationCandidate>(
   records: readonly Record[],
   types: readonly TypeCandidate[],
