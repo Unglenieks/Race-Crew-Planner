@@ -117,8 +117,7 @@ export function Sidebar() {
               {event.name}
             </b>
             <small className="mt-0.5 block text-xs text-muted">
-              {event.timeZone} ·{" "}
-              {role === "owner" || role === "manager" ? "Crew Chief" : role}
+              {event.timeZone} · {role === "manager" ? "Crew Chief" : role}
               {events.length > 1 ? ` · ${events.length} events` : ""}
             </small>
           </span>

@@ -243,9 +243,19 @@ export function MovementDetail({
               </h1>
               <p className="mt-1 text-xs text-muted">Event time: {timeZone}</p>
             </div>
-            <Badge variant={canEdit ? "success" : "neutral"}>
-              {canEdit ? "Can edit" : "View only"}
-            </Badge>
+            <div className="flex items-center gap-2">
+              {canEdit && !isEditing ? (
+                <Link
+                  href={`/events/${eventId}/plan/${itemId}?edit=1`}
+                  className="inline-flex min-h-9 items-center rounded-lg border border-line px-3 text-sm font-medium text-ink hover:bg-soft focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
+                >
+                  Edit
+                </Link>
+              ) : null}
+              <Badge variant={canEdit ? "success" : "neutral"}>
+                {canEdit ? "Can edit" : "View only"}
+              </Badge>
+            </div>
           </div>
         </CardHeader>
         <CardContent>

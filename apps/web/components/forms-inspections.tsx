@@ -438,9 +438,9 @@ function SubmissionForm({
     }
     return errors;
   };
-  async function save() {
+  async function save(announce = true) {
     setWorking(true);
-    setMessage(null);
+    if (announce) setMessage(null);
     setError(null);
     try {
       const id = await saveDraft({
@@ -450,9 +450,11 @@ function SubmissionForm({
         answers,
       });
       setSubmissionId(id);
-      setMessage("Draft saved. You can return before submitting.");
+      if (announce)
+        setMessage("Draft saved. You can return before submitting.");
       return id;
     } catch {
+      setMessage(null);
       setError(
         "Your draft was not saved. Correct any invalid values and try again.",
       );
@@ -475,9 +477,11 @@ function SubmissionForm({
     // Always persist the current answers first. Submitting an existing draft
     // without saving would submit whatever was stored at the last save and throw
     // away every edit made since.
-    const id = await save();
+    setMessage("Saving current answers before submitting…");
+    const id = await save(false);
     if (!id) return;
     setWorking(true);
+    setMessage("Submitting inspection…");
     try {
       await submit({ eventId, submissionId: id });
       setIsSubmitted(true);

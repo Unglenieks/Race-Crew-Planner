@@ -593,53 +593,67 @@ export function ItineraryPlan({
           ) : (
             <>
               <div className="flex flex-wrap items-center gap-2 border-b border-line pb-4">
-                <label
-                  className="text-sm font-medium text-ink"
-                  htmlFor="movement-day"
+                <div
+                  aria-label="Schedule view"
+                  className="flex items-center gap-2"
+                  role="group"
                 >
-                  Schedule view
-                </label>
-                <select
-                  id="movement-day"
-                  value={activeDay ?? "all"}
-                  onChange={(event) =>
-                    selectDay(
-                      event.target.value === "all" ? null : event.target.value,
-                    )
-                  }
-                  className="min-h-9 rounded-lg border border-line bg-card px-3 text-sm text-ink"
+                  <label
+                    className="text-sm font-medium text-ink"
+                    htmlFor="movement-day"
+                  >
+                    Schedule view
+                  </label>
+                  <select
+                    id="movement-day"
+                    value={activeDay ?? "all"}
+                    onChange={(event) =>
+                      selectDay(
+                        event.target.value === "all"
+                          ? null
+                          : event.target.value,
+                      )
+                    }
+                    className="min-h-9 rounded-lg border border-line bg-card px-3 text-sm text-ink"
+                  >
+                    <option value="all">All days</option>
+                    {days.map((day) => (
+                      <option key={day} value={day}>
+                        {displayDay(day)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div
+                  aria-label="Schedule filters"
+                  className="flex items-center gap-2 border-l border-line pl-2"
+                  role="group"
                 >
-                  <option value="all">All days</option>
-                  {days.map((day) => (
-                    <option key={day} value={day}>
-                      {displayDay(day)}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Filter by movement type"
-                  value={selectedType}
-                  onChange={(event) => setSelectedType(event.target.value)}
-                  className="min-h-9 rounded-lg border border-line bg-card px-3 text-sm"
-                >
-                  <option value="">All types</option>
-                  {(directory?.types ?? []).map((type) => (
-                    <option key={type._id} value={type._id}>
-                      {type.name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Filter by venue"
-                  value={selectedVenue}
-                  onChange={(event) => setSelectedVenue(event.target.value)}
-                  className="min-h-9 rounded-lg border border-line bg-card px-3 text-sm"
-                >
-                  <option value="">All venues</option>
-                  {venueOptions.map((venue) => (
-                    <option key={venue}>{venue}</option>
-                  ))}
-                </select>
+                  <select
+                    aria-label="Filter by movement type"
+                    value={selectedType}
+                    onChange={(event) => setSelectedType(event.target.value)}
+                    className="min-h-9 rounded-lg border border-line bg-card px-3 text-sm"
+                  >
+                    <option value="">All types</option>
+                    {(directory?.types ?? []).map((type) => (
+                      <option key={type._id} value={type._id}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Filter by venue"
+                    value={selectedVenue}
+                    onChange={(event) => setSelectedVenue(event.target.value)}
+                    className="min-h-9 rounded-lg border border-line bg-card px-3 text-sm"
+                  >
+                    <option value="">All venues</option>
+                    {venueOptions.map((venue) => (
+                      <option key={venue}>{venue}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="relative w-full sm:w-56">
                   <label className="sr-only" htmlFor="movement-search">
                     Search movements
@@ -653,10 +667,10 @@ export function ItineraryPlan({
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     className="h-9 pl-9"
-                    placeholder="Search movements"
+                    placeholder="Search title, place, or notes"
                   />
                 </div>
-                {(activeDay !== null ||
+                {(selectedDay !== undefined ||
                   selectedType.length > 0 ||
                   selectedVenue.length > 0 ||
                   search.length > 0) && (
@@ -922,8 +936,7 @@ export function ItineraryPlan({
             <div>
               <CardTitle>Add movement</CardTitle>
               <p className="mt-1 text-sm text-muted">
-                Open an existing movement to review its details or make a
-                change.
+                Add a time and description; place and notes are optional.
               </p>
             </div>
           </CardHeader>
@@ -1198,7 +1211,7 @@ export function ItineraryPlan({
                     Show on spectator schedule
                   </span>
                   <span className="mt-1 block text-muted">
-                    Only published schedule events are visible to spectators.
+                    This movement appears on the spectator schedule when saved.
                   </span>
                 </span>
               </label>
