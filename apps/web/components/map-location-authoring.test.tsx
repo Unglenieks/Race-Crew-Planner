@@ -65,6 +65,11 @@ describe("location authoring", () => {
     fireEvent.change(screen.getByLabelText("Notes"), {
       target: { value: "Enter via the west gate." },
     });
+    fireEvent.change(screen.getByRole("textbox", { name: /^Opening hours/ }), {
+      target: {
+        value: "Thu: 08:00-18:00\nFri: 08:00-12:00; 13:00-18:00",
+      },
+    });
     expect(screen.queryByLabelText("Latitude")).toBeNull();
     expect(screen.queryByLabelText("Longitude")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save location" }));
@@ -74,6 +79,7 @@ describe("location authoring", () => {
         expect.objectContaining({
           address: "1 Rally Way, Exampletown",
           notes: "Enter via the west gate.",
+          hours: "Thu: 08:00-18:00\nFri: 08:00-12:00; 13:00-18:00",
           latitude: 42,
           longitude: -71,
         }),

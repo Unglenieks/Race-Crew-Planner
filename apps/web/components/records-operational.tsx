@@ -57,12 +57,13 @@ export function RecordDetail({ recordId }: { recordId: string }) {
       await saveDetails({
         eventId: event.id,
         recordId,
+        name: String(form.get("name") || ""),
         address: location?.address,
+        notes: String(form.get("notes") || "") || undefined,
         latitude: location?.latitude,
         longitude: location?.longitude,
         accessNotes: String(form.get("accessNotes") || "") || undefined,
         hours: String(form.get("hours") || "") || undefined,
-        contactDetail: String(form.get("contact") || "") || undefined,
         spectatorVisible: form.get("spectatorVisible") === "on",
       });
       setMessage("Venue details saved.");
@@ -76,9 +77,17 @@ export function RecordDetail({ recordId }: { recordId: string }) {
     <section aria-labelledby="record-heading" className="grid gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
+          {location ? (
+            <Link
+              href={`/events/${event.id}/map`}
+              className="text-sm font-semibold text-green-ink underline underline-offset-4"
+            >
+              Back to map
+            </Link>
+          ) : null}
           <h1
             id="record-heading"
-            className="font-serif text-3xl font-semibold tracking-tight text-ink"
+            className={`font-serif text-3xl font-semibold tracking-tight text-ink ${location ? "mt-2" : ""}`}
           >
             {record.name}
           </h1>
@@ -163,6 +172,15 @@ export function RecordDetail({ recordId }: { recordId: string }) {
             {canManage(role) ? (
               <form className="grid gap-4" onSubmit={submit}>
                 <label className={field}>
+                  Venue name
+                  <Input
+                    name="name"
+                    defaultValue={record.name}
+                    maxLength={160}
+                    required
+                  />
+                </label>
+                <label className={field}>
                   Address
                   <Input
                     name="address"
@@ -175,6 +193,15 @@ export function RecordDetail({ recordId }: { recordId: string }) {
                   </span>
                 </label>
                 <label className={field}>
+                  Description
+                  <textarea
+                    className={control}
+                    name="notes"
+                    defaultValue={record.notes ?? ""}
+                    maxLength={1000}
+                  />
+                </label>
+                <label className={field}>
                   Access notes
                   <textarea
                     className={control}
@@ -183,24 +210,22 @@ export function RecordDetail({ recordId }: { recordId: string }) {
                     maxLength={1000}
                   />
                 </label>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className={field}>
-                    Hours
-                    <Input
-                      name="hours"
-                      defaultValue={record.hours ?? ""}
-                      maxLength={240}
-                    />
-                  </label>
-                  <label className={field}>
-                    Contact detail
-                    <Input
-                      name="contact"
-                      defaultValue={record.contactDetail ?? ""}
-                      maxLength={300}
-                    />
-                  </label>
-                </div>
+                <label className={field}>
+                  Opening hours
+                  <textarea
+                    className={control}
+                    name="hours"
+                    defaultValue={record.hours ?? ""}
+                    maxLength={1000}
+                    placeholder={
+                      "Thu: 08:00-18:00\nFri: 08:00-12:00; 13:00-18:00\nSat: 07:00-16:00\nSun: Closed"
+                    }
+                  />
+                  <span className="text-xs text-muted">
+                    Add one day per line. Include split hours and closures when
+                    needed.
+                  </span>
+                </label>
                 <label className="flex items-start gap-3 rounded-lg border border-line p-3 text-sm text-ink">
                   <input
                     name="spectatorVisible"
@@ -234,6 +259,12 @@ export function RecordDetail({ recordId }: { recordId: string }) {
                   <dt className="font-semibold">Access</dt>
                   <dd className="text-muted">
                     {record.accessNotes ?? "Not recorded"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="font-semibold">Opening hours</dt>
+                  <dd className="whitespace-pre-wrap text-muted">
+                    {record.hours ?? "Not recorded"}
                   </dd>
                 </div>
               </dl>
