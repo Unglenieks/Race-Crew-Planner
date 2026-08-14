@@ -34,6 +34,7 @@ function Weather({
   timeZone: string;
 }) {
   const [live, setLive] = useState<Forecast[]>([]);
+  const [unit, setUnit] = useState<"C" | "F">("C");
   const latitude = coordinates?.latitude;
   const longitude = coordinates?.longitude;
   useEffect(() => {
@@ -54,7 +55,7 @@ function Weather({
             temperatureLow: daily.temperature_2m_min[index],
             temperatureHigh: daily.temperature_2m_max[index],
             precipitationPercent: daily.precipitation_probability_max[index],
-            source: "Open-Meteo · refreshed on open",
+            source: "Open-Meteo",
             asOf: Date.now(),
           })),
         );
@@ -68,12 +69,31 @@ function Weather({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>
-          <span className="flex items-center gap-2">
-            <CloudSun className="h-5 w-5 text-green-ink" />
-            Weather
-          </span>
-        </CardTitle>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle>
+            <span className="flex items-center gap-2">
+              <CloudSun className="h-5 w-5 text-green-ink" />
+              Weather
+            </span>
+          </CardTitle>
+          <div
+            className="flex rounded-md border border-btnline p-0.5"
+            aria-label="Temperature unit"
+          >
+            {(["C", "F"] as const).map((temperatureUnit) => (
+              <Button
+                key={temperatureUnit}
+                type="button"
+                size="sm"
+                variant={unit === temperatureUnit ? "primary" : "ghost"}
+                aria-pressed={unit === temperatureUnit}
+                onClick={() => setUnit(temperatureUnit)}
+              >
+                °{temperatureUnit}
+              </Button>
+            ))}
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         {display.length === 0 ? (
@@ -93,8 +113,8 @@ function Weather({
                 </p>
                 <p className="mt-1 text-muted">{forecast.conditions}</p>
                 <p className="mt-2 text-green-ink">
-                  {forecast.temperatureLow ?? "—"}–
-                  {forecast.temperatureHigh ?? "—"}° ·{" "}
+                  {formatTemperature(forecast.temperatureLow, unit)}–
+                  {formatTemperature(forecast.temperatureHigh, unit)}°{unit} ·{" "}
                   {forecast.precipitationPercent ?? "—"}% precip.
                 </p>
                 <p className="mt-2 text-xs text-muted">
@@ -108,6 +128,11 @@ function Weather({
       </CardContent>
     </Card>
   );
+}
+
+function formatTemperature(value: number | undefined, unit: "C" | "F") {
+  if (value === undefined) return "—";
+  return (unit === "F" ? value * 1.8 + 32 : value).toFixed(1);
 }
 
 function weatherLabel(code: number) {
@@ -292,8 +317,7 @@ function ProfileEditor({
 type LegDraft = {
   name: string;
   order: string;
-  stageCount: string;
-  stageMiles: string;
+  stages: Array<{ name: string; miles: string }>;
   transitMiles: string;
   startOrder: string;
   precedingCar: string;
@@ -301,8 +325,7 @@ type LegDraft = {
 const emptyLeg: LegDraft = {
   name: "",
   order: "1",
-  stageCount: "0",
-  stageMiles: "0",
+  stages: [{ name: "SS 1", miles: "0" }],
   transitMiles: "0",
   startOrder: "",
   precedingCar: "",
@@ -311,8 +334,10 @@ function draftForLeg(leg: LogisticsOverview["legs"][number]): LegDraft {
   return {
     name: leg.name,
     order: String(leg.order + 1),
-    stageCount: String(leg.stageCount),
-    stageMiles: String(leg.stageMiles),
+    stages: leg.stages?.map((stage) => ({
+      name: stage.name,
+      miles: String(stage.miles),
+    })) ?? [{ name: "Unspecified stages", miles: String(leg.stageMiles) }],
     transitMiles: String(leg.transitMiles),
     startOrder: leg.startOrder?.toString() ?? "",
     precedingCar: leg.precedingCar ?? "",
@@ -332,8 +357,19 @@ function LegEditor({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const set = (key: keyof LegDraft, value: string) =>
+  const set = (key: Exclude<keyof LegDraft, "stages">, value: string) =>
     setDraft((current) => (current ? { ...current, [key]: value } : current));
+  const setStage = (index: number, key: "name" | "miles", value: string) =>
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            stages: current.stages.map((stage, stageIndex) =>
+              stageIndex === index ? { ...stage, [key]: value } : stage,
+            ),
+          }
+        : current,
+    );
   async function save(form: React.FormEvent<HTMLFormElement>) {
     form.preventDefault();
     if (!draft) return;
@@ -345,8 +381,15 @@ function LegEditor({
         eventId,
         name: draft.name,
         order: number(draft.order) - 1,
-        stageCount: number(draft.stageCount),
-        stageMiles: number(draft.stageMiles),
+        stageCount: draft.stages.length,
+        stageMiles: draft.stages.reduce(
+          (total, stage) => total + number(stage.miles),
+          0,
+        ),
+        stages: draft.stages.map((stage) => ({
+          name: stage.name,
+          miles: number(stage.miles),
+        })),
         transitMiles: number(draft.transitMiles),
         startOrder:
           draft.startOrder === "" ? undefined : number(draft.startOrder),
@@ -407,33 +450,12 @@ function LegEditor({
             />
           </label>
           <label className="grid gap-1 text-sm">
-            Stage count
-            <Input
-              type="number"
-              min="0"
-              value={draft.stageCount}
-              onChange={(e) => set("stageCount", e.target.value)}
-              required
-            />
-          </label>
-          <label className="grid gap-1 text-sm">
             Start order
             <Input
               type="number"
               min="0"
               value={draft.startOrder}
               onChange={(e) => set("startOrder", e.target.value)}
-            />
-          </label>
-          <label className="grid gap-1 text-sm">
-            Stage miles
-            <Input
-              type="number"
-              min="0"
-              step="0.1"
-              value={draft.stageMiles}
-              onChange={(e) => set("stageMiles", e.target.value)}
-              required
             />
           </label>
           <label className="grid gap-1 text-sm">
@@ -447,6 +469,83 @@ function LegEditor({
               required
             />
           </label>
+          <fieldset className="grid gap-2 md:col-span-4">
+            <legend className="text-sm font-medium">Special stages</legend>
+            <div className="flex items-center justify-between gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  setDraft((current) =>
+                    current
+                      ? {
+                          ...current,
+                          stages: [
+                            ...current.stages,
+                            {
+                              name: `SS ${current.stages.length + 1}`,
+                              miles: "0",
+                            },
+                          ],
+                        }
+                      : current,
+                  )
+                }
+              >
+                Add stage
+              </Button>
+            </div>
+            {draft.stages.map((stage, index) => (
+              <div
+                className="grid gap-2 sm:grid-cols-[1fr_10rem_auto]"
+                key={index}
+              >
+                <Input
+                  aria-label={`Stage ${index + 1} name`}
+                  value={stage.name}
+                  onChange={(e) => setStage(index, "name", e.target.value)}
+                  required
+                />
+                <Input
+                  aria-label={`Stage ${index + 1} miles`}
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={stage.miles}
+                  onChange={(e) => setStage(index, "miles", e.target.value)}
+                  required
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={draft.stages.length === 1}
+                  onClick={() =>
+                    setDraft((current) =>
+                      current
+                        ? {
+                            ...current,
+                            stages: current.stages.filter(
+                              (_, i) => i !== index,
+                            ),
+                          }
+                        : current,
+                    )
+                  }
+                >
+                  Remove
+                </Button>
+              </div>
+            ))}
+            <p className="text-xs text-muted">
+              {draft.stages.length} stages ·{" "}
+              {draft.stages
+                .reduce((total, stage) => total + (Number(stage.miles) || 0), 0)
+                .toFixed(1)}{" "}
+              stage mi
+            </p>
+          </fieldset>
           <label className="grid gap-1 text-sm">
             Car ahead
             <Input
@@ -637,7 +736,7 @@ export function EventInfo() {
                 <b>Notice board</b>
                 <br />
                 {profile?.documentAccessCodes
-                  .map((code) => `${code.label}: ${code.value}`)
+                  .map((code) => code.value)
                   .join(" · ") || "Not recorded"}
               </p>
             </>
@@ -699,7 +798,23 @@ export function EventInfo() {
                         <td className="py-3 pr-3">
                           {privateLeg?.precedingCar ?? "—"}
                         </td>
-                        <td className="py-3 pr-3">{leg.stageMiles} mi</td>
+                        <td className="py-3 pr-3">
+                          <p>{leg.stageMiles.toFixed(1)} mi</p>
+                          {leg.stages?.length ? (
+                            <details className="mt-1 text-xs text-muted">
+                              <summary className="cursor-pointer">
+                                View {leg.stages.length} stages
+                              </summary>
+                              <ul className="mt-1 grid gap-1">
+                                {leg.stages.map((stage, index) => (
+                                  <li key={`${stage.name}-${index}`}>
+                                    {stage.name}: {stage.miles.toFixed(1)} mi
+                                  </li>
+                                ))}
+                              </ul>
+                            </details>
+                          ) : null}
+                        </td>
                         <td className="py-3 pr-3">{leg.transitMiles} mi</td>
                         <td className="py-3 pr-3">
                           {(leg.stageMiles + leg.transitMiles).toFixed(1)} mi

@@ -28,6 +28,7 @@ type LegInput = {
   order: number;
   stageCount: number;
   stageMiles: number;
+  stages?: Array<{ name: string; miles: number }>;
   transitMiles: number;
   startOrder?: number;
   precedingCar?: string;
@@ -267,6 +268,7 @@ export const getSpectatorOverview = query({
         name: leg.name,
         order: leg.order,
         stageMiles: leg.stageMiles,
+        stages: leg.stages,
         transitMiles: leg.transitMiles,
       })),
       weatherForecasts,
@@ -347,6 +349,14 @@ const legArgs = {
   order: v.number(),
   stageCount: v.number(),
   stageMiles: v.number(),
+  stages: v.optional(
+    v.array(
+      v.object({
+        name: v.string(),
+        miles: v.number(),
+      }),
+    ),
+  ),
   transitMiles: v.number(),
   startOrder: v.optional(v.number()),
   precedingCar: v.optional(v.string()),
@@ -364,11 +374,24 @@ function legData(args: LegInput) {
     throw new Error(
       "A fuel override and override reason must be provided together",
     );
+  const stages = args.stages?.map((stage) => ({
+    name: required(stage.name, 80, "Stage name"),
+    miles: positive(stage.miles, "Stage miles", true),
+  }));
+  if (stages && stages.length > 50)
+    throw new Error("A leg can include at most 50 stages");
+  const stageCount = stages
+    ? stages.length
+    : positive(args.stageCount, "Stage count", true);
+  const stageMiles = stages
+    ? stages.reduce((total, stage) => total + stage.miles, 0)
+    : positive(args.stageMiles, "Stage miles", true);
   return {
     name: required(args.name, 160, "Leg name"),
     order: positive(args.order, "Leg order", true),
-    stageCount: positive(args.stageCount, "Stage count", true),
-    stageMiles: positive(args.stageMiles, "Stage miles", true),
+    stageCount,
+    stageMiles,
+    stages,
     transitMiles: positive(args.transitMiles, "Transit miles", true),
     startOrder:
       args.startOrder === undefined
