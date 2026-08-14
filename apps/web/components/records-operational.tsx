@@ -17,21 +17,6 @@ const field = "grid gap-1.5";
 const control =
   "min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink shadow-sm outline-none focus:border-ink focus:ring-2 focus:ring-ink";
 
-function displayFieldValue(value: string | undefined) {
-  if (value === undefined || value.trim() === "")
-    return { kind: "empty" as const, label: "Not recorded" };
-  if (value === "true" || value === "false")
-    return { kind: "text" as const, label: value === "true" ? "Yes" : "No" };
-  try {
-    const url = new URL(value);
-    if (url.protocol === "http:" || url.protocol === "https:")
-      return { kind: "link" as const, label: value };
-  } catch {
-    // Non-URL values are displayed as saved text.
-  }
-  return { kind: "text" as const, label: value };
-}
-
 export function RecordDetail({ recordId }: { recordId: string }) {
   const { event, role } = useEventWorkspace();
   const record = useQuery(recordsApi.get, { eventId: event.id, recordId });
@@ -104,65 +89,6 @@ export function RecordDetail({ recordId }: { recordId: string }) {
           {message}
         </Banner>
       )}
-      <Card>
-        <CardHeader>
-          <CardTitle>Record details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="grid gap-4 text-sm sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <dt className="font-semibold text-ink">Notes</dt>
-              <dd className="mt-1 whitespace-pre-wrap text-muted">
-                {record.notes?.trim() || "Not recorded"}
-              </dd>
-            </div>
-            {[
-              ...record.fields.map((fieldDefinition) => ({
-                key: fieldDefinition.key,
-                label: fieldDefinition.label,
-              })),
-              ...Object.keys(record.fieldValues ?? {})
-                .filter(
-                  (key) =>
-                    !record.fields.some(
-                      (fieldDefinition) => fieldDefinition.key === key,
-                    ),
-                )
-                .map((key) => ({
-                  key,
-                  label: key.replaceAll("-", " ").replaceAll("_", " "),
-                })),
-            ].map((fieldDefinition) => {
-              const value = displayFieldValue(
-                record.fieldValues?.[fieldDefinition.key],
-              );
-              return (
-                <div key={fieldDefinition.key}>
-                  <dt className="font-semibold capitalize text-ink">
-                    {fieldDefinition.label}
-                  </dt>
-                  <dd
-                    className={`mt-1 whitespace-pre-wrap ${value.kind === "empty" ? "text-muted" : "text-ink"}`}
-                  >
-                    {value.kind === "link" ? (
-                      <a
-                        className="break-all text-green-ink underline"
-                        href={value.label}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {value.label}
-                      </a>
-                    ) : (
-                      value.label
-                    )}
-                  </dd>
-                </div>
-              );
-            })}
-          </dl>
-        </CardContent>
-      </Card>
       {location ? (
         <Card>
           <CardHeader>

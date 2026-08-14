@@ -48,18 +48,11 @@ vi.mock("convex/react", () => ({
 
 import { RecordDetail } from "./records-operational";
 
-describe("RecordDetail fields", () => {
-  it("shows notes, configured values, links, and unknown future fields", () => {
+describe("RecordDetail", () => {
+  it("keeps venue editing focused on venue fields", () => {
     render(<RecordDetail recordId="eventRecords:one" />);
-    expect(screen.getAllByText(/Original notes/)).toHaveLength(2);
-    expect(screen.getByText("Operational status")).toBeDefined();
-    expect(screen.getByText("Ready")).toBeDefined();
-    expect(screen.getByText("Yes")).toBeDefined();
-    expect(
-      screen.getByRole("link", { name: "https://example.com/manual" }),
-    ).toBeDefined();
-    expect(screen.queryByText("Categories")).toBeNull();
-    expect(screen.queryByText("Records & venues")).toBeNull();
+    expect(screen.queryByText("Record details")).toBeNull();
+    expect(screen.queryByText("Operational status")).toBeNull();
     expect(
       screen.getByRole("link", { name: "Back to map" }).getAttribute("href"),
     ).toBe("/events/events:one/map");
