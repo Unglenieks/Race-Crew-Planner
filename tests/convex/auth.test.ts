@@ -354,6 +354,9 @@ describe("Convex authorization helpers", () => {
         delete: async () => undefined,
       },
     });
+    const unauthenticatedContext = {
+      auth: { getUserIdentity: async () => null },
+    };
 
     for (const role of ["owner", "manager"] as const) {
       await expect(
@@ -398,6 +401,26 @@ describe("Convex authorization helpers", () => {
         }),
       ).rejects.toThrow("Forbidden");
     }
+
+    await expect(
+      generateUploadUrl._handler(unauthenticatedContext as never, { eventId }),
+    ).rejects.toThrow("Unauthenticated");
+    await expect(
+      saveFile._handler(unauthenticatedContext as never, {
+        eventId,
+        storageId,
+        name: "brief.pdf",
+      }),
+    ).rejects.toThrow("Unauthenticated");
+    await expect(
+      removeFile._handler(unauthenticatedContext as never, { eventId, fileId }),
+    ).rejects.toThrow("Unauthenticated");
+    await expect(
+      addSource._handler(unauthenticatedContext as never, {
+        eventId,
+        title: "Official bulletin",
+      }),
+    ).rejects.toThrow("Unauthenticated");
   });
 
   it("creates a representative, owner-owned sample event", async () => {
