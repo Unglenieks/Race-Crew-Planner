@@ -453,10 +453,10 @@ export function ItineraryPlan({
             />
           ) : (
             <>
-              <div className="flex flex-wrap items-center gap-2 border-b border-line pb-4">
+              <div className="grid gap-2 border-b border-line pb-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
                 <div
                   aria-label="Schedule view"
-                  className="flex items-center gap-2"
+                  className="grid min-w-0 gap-1.5 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center lg:gap-2"
                   role="group"
                 >
                   <label
@@ -476,7 +476,7 @@ export function ItineraryPlan({
                           : event.target.value,
                       )
                     }
-                    className="min-h-9 rounded-lg border border-line bg-card px-3 text-sm text-ink"
+                    className="min-h-9 min-w-0 w-full rounded-lg border border-line bg-card px-3 text-sm text-ink"
                   >
                     <option value="all">All days</option>
                     {days.map((day) => (
@@ -488,7 +488,7 @@ export function ItineraryPlan({
                 </div>
                 <div
                   aria-label="Schedule filters"
-                  className="flex items-center gap-2 border-l border-line pl-2"
+                  className="grid grid-cols-1 gap-2 min-w-0 lg:grid-cols-2 lg:border-l lg:border-line lg:pl-2"
                   role="group"
                 >
                   <select
@@ -497,7 +497,7 @@ export function ItineraryPlan({
                     aria-label="Movement type filter"
                     value={selectedType}
                     onChange={(event) => setSelectedType(event.target.value)}
-                    className="min-h-9 rounded-lg border border-line bg-card px-3 text-sm"
+                    className="min-h-9 min-w-0 w-full rounded-lg border border-line bg-card px-3 text-sm"
                   >
                     <option value="">All types</option>
                     {(directory?.types ?? []).map((type) => (
@@ -512,7 +512,7 @@ export function ItineraryPlan({
                     aria-label="Venue filter"
                     value={selectedVenue}
                     onChange={(event) => setSelectedVenue(event.target.value)}
-                    className="min-h-9 rounded-lg border border-line bg-card px-3 text-sm"
+                    className="min-h-9 min-w-0 w-full rounded-lg border border-line bg-card px-3 text-sm"
                   >
                     <option value="">All venues</option>
                     {venueOptions.map((venue) => (
@@ -520,7 +520,7 @@ export function ItineraryPlan({
                     ))}
                   </select>
                 </div>
-                <div className="relative w-full sm:w-56">
+                <div className="relative min-w-0 w-full">
                   <label className="sr-only" htmlFor="movement-search">
                     Search movements
                   </label>
@@ -537,21 +537,23 @@ export function ItineraryPlan({
                     placeholder="Search title, place, or notes"
                   />
                 </div>
-                {(selectedDay !== undefined ||
-                  selectedType.length > 0 ||
-                  selectedVenue.length > 0 ||
-                  search.length > 0) && (
-                  <Button type="button" size="sm" onClick={clearFilters}>
-                    <X className="h-4 w-4" aria-hidden="true" />
-                    Clear filters
-                  </Button>
-                )}
-                <p className="text-xs text-muted" aria-live="polite">
-                  Showing {visibleItems.length} of {items.length} movement
-                  {items.length === 1 ? "" : "s"}
-                  {activeDay === null ? "" : ` on ${displayDay(activeDay)}`}
-                  {search.trim().length === 0 ? "" : " matching your search"}.
-                </p>
+                <div className="flex flex-wrap items-center gap-2 lg:col-span-4">
+                  {(selectedDay !== undefined ||
+                    selectedType.length > 0 ||
+                    selectedVenue.length > 0 ||
+                    search.length > 0) && (
+                    <Button type="button" size="sm" onClick={clearFilters}>
+                      <X className="h-4 w-4" aria-hidden="true" />
+                      Clear filters
+                    </Button>
+                  )}
+                  <p className="text-xs text-muted" aria-live="polite">
+                    Showing {visibleItems.length} of {items.length} movement
+                    {items.length === 1 ? "" : "s"}
+                    {activeDay === null ? "" : ` on ${displayDay(activeDay)}`}
+                    {search.trim().length === 0 ? "" : " matching your search"}.
+                  </p>
+                </div>
               </div>
               {visibleItems.length === 0 ? (
                 <EmptyState

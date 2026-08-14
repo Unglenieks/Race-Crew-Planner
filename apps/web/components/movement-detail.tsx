@@ -268,8 +268,8 @@ export function MovementDetail({
                   </span>
                 </span>
               </label>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-1.5 text-sm font-medium text-ink">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <label className="grid min-w-0 gap-1.5 text-sm font-medium text-ink">
                   {currentDraft.timeKind === "allDay" ? "Date" : "Time"}
                   <input
                     type={
@@ -287,7 +287,7 @@ export function MovementDetail({
                     className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm font-normal text-ink shadow-sm disabled:opacity-60"
                   />
                 </label>
-                <label className="grid gap-1.5 text-sm font-medium text-ink">
+                <label className="grid min-w-0 gap-1.5 text-sm font-medium text-ink">
                   Time confidence
                   <select
                     name="movementTimeKind"
@@ -340,8 +340,8 @@ export function MovementDetail({
                     ))}
                 </select>
               </label>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="grid gap-1.5 text-sm font-medium text-ink">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="grid min-w-0 gap-1.5 text-sm font-medium text-ink">
                   <span>Linked venue</span>
                   <VenueLinkCombobox
                     records={locationRecordOptions}
@@ -352,7 +352,7 @@ export function MovementDetail({
                     }}
                   />
                 </div>
-                <label className="grid gap-1.5 text-sm font-medium text-ink">
+                <label className="grid min-w-0 gap-1.5 text-sm font-medium text-ink">
                   Location label{" "}
                   <span className="font-normal text-muted">
                     (saved snapshot or override)

@@ -619,6 +619,147 @@ function LegEditor({
   );
 }
 
+type MileageLeg = {
+  _id: string;
+  name: string;
+  order: number;
+  stageMiles: number;
+  transitMiles: number;
+  stages?: Array<{ name: string; miles: number }>;
+};
+
+function LegCards({
+  legs,
+  privateLegs,
+  fuelByLeg,
+  totals,
+  totalFuel,
+  canViewPrivate,
+}: {
+  legs: MileageLeg[];
+  privateLegs: LogisticsOverview["legs"];
+  fuelByLeg: Map<string, number | undefined>;
+  totals: { stage: number; transit: number };
+  totalFuel: number;
+  canViewPrivate: boolean;
+}) {
+  return (
+    <div className="grid gap-3 xl:hidden" aria-label="Leg cards">
+      {legs.map((leg) => {
+        const privateLeg = privateLegs.find(
+          (candidate) => candidate._id === leg._id,
+        );
+        const fuel = fuelByLeg.get(leg._id);
+        return (
+          <article
+            key={leg._id}
+            className="grid gap-3 rounded-lg border border-line p-3 text-sm"
+          >
+            <div className="min-w-0">
+              <p className="font-semibold text-ink">
+                {leg.order + 1}. {leg.name}
+              </p>
+              <p className="mt-1 text-xs text-muted">Leg {leg.order + 1}</p>
+            </div>
+            {canViewPrivate ? (
+              <div className="grid grid-cols-2 gap-3 text-muted">
+                <p>
+                  <span className="block text-xs font-medium uppercase tracking-wide">
+                    Start order
+                  </span>
+                  {privateLeg?.startOrder ?? "—"}
+                </p>
+                <p>
+                  <span className="block text-xs font-medium uppercase tracking-wide">
+                    Car ahead
+                  </span>
+                  {privateLeg?.precedingCar ?? "—"}
+                </p>
+              </div>
+            ) : null}
+            <div className="grid grid-cols-2 gap-3 text-muted">
+              <p>
+                <span className="block text-xs font-medium uppercase tracking-wide">
+                  Stage
+                </span>
+                {leg.stageMiles.toFixed(1)} mi
+              </p>
+              <p>
+                <span className="block text-xs font-medium uppercase tracking-wide">
+                  Transit
+                </span>
+                {leg.transitMiles.toFixed(1)} mi
+              </p>
+              <p>
+                <span className="block text-xs font-medium uppercase tracking-wide">
+                  Total
+                </span>
+                {(leg.stageMiles + leg.transitMiles).toFixed(1)} mi
+              </p>
+              {canViewPrivate ? (
+                <p>
+                  <span className="block text-xs font-medium uppercase tracking-wide">
+                    Planned fuel
+                  </span>
+                  {fuel ? `${fuel.toFixed(1)} gal` : "—"}
+                </p>
+              ) : null}
+            </div>
+            {leg.stages?.length ? (
+              <details className="text-xs text-muted">
+                <summary className="cursor-pointer">
+                  View {leg.stages.length} stages
+                </summary>
+                <ul className="mt-2 grid gap-1">
+                  {leg.stages.map((stage, index) => (
+                    <li key={`${stage.name}-${index}`}>
+                      {stage.name}: {stage.miles.toFixed(1)} mi
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+          </article>
+        );
+      })}
+      <section
+        className="grid gap-2 rounded-lg border border-line bg-soft/50 p-3 text-sm"
+        aria-label="Overall mileage"
+      >
+        <p className="font-semibold text-ink">Overall</p>
+        <div className="grid grid-cols-2 gap-3 text-muted">
+          <p>
+            <span className="block text-xs font-medium uppercase tracking-wide">
+              Stage
+            </span>
+            {totals.stage.toFixed(1)} mi
+          </p>
+          <p>
+            <span className="block text-xs font-medium uppercase tracking-wide">
+              Transit
+            </span>
+            {totals.transit.toFixed(1)} mi
+          </p>
+          <p>
+            <span className="block text-xs font-medium uppercase tracking-wide">
+              Total
+            </span>
+            {(totals.stage + totals.transit).toFixed(1)} mi
+          </p>
+          {canViewPrivate ? (
+            <p>
+              <span className="block text-xs font-medium uppercase tracking-wide">
+                Fuel
+              </span>
+              {totalFuel ? `${totalFuel.toFixed(1)} gal` : "—"}
+            </p>
+          ) : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function EventInfo() {
   const { event, role } = useEventWorkspace();
   const privateOverview = useQuery(
@@ -765,91 +906,101 @@ export function EventInfo() {
           {overview.legs.length === 0 ? (
             <p className="text-sm text-muted">No race legs recorded.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-line text-xs uppercase tracking-wide text-muted">
-                  <tr>
-                    <th className="pb-2 pr-3">Leg / day</th>
-                    <th className="pb-2 pr-3">Order</th>
-                    <th className="pb-2 pr-3">Car ahead</th>
-                    <th className="pb-2 pr-3">Stage</th>
-                    <th className="pb-2 pr-3">Transit</th>
-                    <th className="pb-2 pr-3">Total</th>
-                    <th className="pb-2">Fuel</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {overview.legs.map((leg) => {
-                    const privateLeg = privateOverview?.legs.find(
-                      (candidate) => candidate._id === leg._id,
-                    );
-                    const fuel = fuelByLeg.get(leg._id);
-                    return (
-                      <tr
-                        key={leg._id}
-                        className="border-b border-line2 last:border-0"
-                      >
-                        <td className="py-3 pr-3 font-semibold text-ink">
-                          {leg.order + 1}. {leg.name}
-                        </td>
-                        <td className="py-3 pr-3">
-                          {privateLeg?.startOrder ?? "—"}
-                        </td>
-                        <td className="py-3 pr-3">
-                          {privateLeg?.precedingCar ?? "—"}
-                        </td>
-                        <td className="py-3 pr-3">
-                          <p>{leg.stageMiles.toFixed(1)} mi</p>
-                          {leg.stages?.length ? (
-                            <details className="mt-1 text-xs text-muted">
-                              <summary className="cursor-pointer">
-                                View {leg.stages.length} stages
-                              </summary>
-                              <ul className="mt-1 grid gap-1">
-                                {leg.stages.map((stage, index) => (
-                                  <li key={`${stage.name}-${index}`}>
-                                    {stage.name}: {stage.miles.toFixed(1)} mi
-                                  </li>
-                                ))}
-                              </ul>
-                            </details>
-                          ) : null}
-                        </td>
-                        <td className="py-3 pr-3">{leg.transitMiles} mi</td>
-                        <td className="py-3 pr-3">
-                          {(leg.stageMiles + leg.transitMiles).toFixed(1)} mi
-                        </td>
-                        <td className="py-3">
-                          {fuel ? (
-                            <span className="inline-flex items-center gap-1">
-                              <Fuel className="h-4 w-4 text-green-ink" />
-                              {fuel.toFixed(1)} gal
-                            </span>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="font-semibold text-ink">
-                    <td className="pt-3" colSpan={3}>
-                      Overall
-                    </td>
-                    <td className="pt-3">{totals.stage.toFixed(1)} mi</td>
-                    <td className="pt-3">{totals.transit.toFixed(1)} mi</td>
-                    <td className="pt-3">
-                      {(totals.stage + totals.transit).toFixed(1)} mi
-                    </td>
-                    <td className="pt-3">
-                      {totalFuel ? `${totalFuel.toFixed(1)} gal` : "—"}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+            <>
+              <LegCards
+                legs={overview.legs}
+                privateLegs={privateOverview?.legs ?? []}
+                fuelByLeg={fuelByLeg}
+                totals={totals}
+                totalFuel={totalFuel}
+                canViewPrivate={role !== "spectator"}
+              />
+              <div className="hidden min-w-0 max-w-full overflow-x-auto xl:block">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-line text-xs uppercase tracking-wide text-muted">
+                    <tr>
+                      <th className="pb-2 pr-3">Leg / day</th>
+                      <th className="pb-2 pr-3">Order</th>
+                      <th className="pb-2 pr-3">Car ahead</th>
+                      <th className="pb-2 pr-3">Stage</th>
+                      <th className="pb-2 pr-3">Transit</th>
+                      <th className="pb-2 pr-3">Total</th>
+                      <th className="pb-2">Fuel</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {overview.legs.map((leg) => {
+                      const privateLeg = privateOverview?.legs.find(
+                        (candidate) => candidate._id === leg._id,
+                      );
+                      const fuel = fuelByLeg.get(leg._id);
+                      return (
+                        <tr
+                          key={leg._id}
+                          className="border-b border-line2 last:border-0"
+                        >
+                          <td className="py-3 pr-3 font-semibold text-ink">
+                            {leg.order + 1}. {leg.name}
+                          </td>
+                          <td className="py-3 pr-3">
+                            {privateLeg?.startOrder ?? "—"}
+                          </td>
+                          <td className="py-3 pr-3">
+                            {privateLeg?.precedingCar ?? "—"}
+                          </td>
+                          <td className="py-3 pr-3">
+                            <p>{leg.stageMiles.toFixed(1)} mi</p>
+                            {leg.stages?.length ? (
+                              <details className="mt-1 text-xs text-muted">
+                                <summary className="cursor-pointer">
+                                  View {leg.stages.length} stages
+                                </summary>
+                                <ul className="mt-1 grid gap-1">
+                                  {leg.stages.map((stage, index) => (
+                                    <li key={`${stage.name}-${index}`}>
+                                      {stage.name}: {stage.miles.toFixed(1)} mi
+                                    </li>
+                                  ))}
+                                </ul>
+                              </details>
+                            ) : null}
+                          </td>
+                          <td className="py-3 pr-3">{leg.transitMiles} mi</td>
+                          <td className="py-3 pr-3">
+                            {(leg.stageMiles + leg.transitMiles).toFixed(1)} mi
+                          </td>
+                          <td className="py-3">
+                            {fuel ? (
+                              <span className="inline-flex items-center gap-1">
+                                <Fuel className="h-4 w-4 text-green-ink" />
+                                {fuel.toFixed(1)} gal
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="font-semibold text-ink">
+                      <td className="pt-3" colSpan={3}>
+                        Overall
+                      </td>
+                      <td className="pt-3">{totals.stage.toFixed(1)} mi</td>
+                      <td className="pt-3">{totals.transit.toFixed(1)} mi</td>
+                      <td className="pt-3">
+                        {(totals.stage + totals.transit).toFixed(1)} mi
+                      </td>
+                      <td className="pt-3">
+                        {totalFuel ? `${totalFuel.toFixed(1)} gal` : "—"}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </>
           )}
         </CardContent>
         {role === "owner" || role === "manager" ? (

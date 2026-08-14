@@ -95,6 +95,57 @@ export function EventContacts({ eventId }: { eventId: string }) {
       setBusyId(null);
     }
   }
+  const contactStatus = (contact: EventContact) =>
+    contact.type === "member"
+      ? roleLabel(contact.role)
+      : contact.status === "claimed"
+        ? "Claimed"
+        : contact.status === "expired"
+          ? "Expired"
+          : contact.status === "canceled"
+            ? "Canceled"
+            : "Pending";
+  const renderRoleControl = (contact: EventContact) =>
+    contact.type === "member" && canManage && contact.role !== "owner" ? (
+      <select
+        aria-label={`Role for ${label(contact)}`}
+        value={contact.role}
+        disabled={busyId === contact.id}
+        onChange={(event) =>
+          void changeRole(contact.id, event.target.value as InvitationRole)
+        }
+        className="min-h-9 rounded-md border border-line bg-card px-2 py-1 text-sm text-ink"
+      >
+        <option value="manager">Crew Chief</option>
+        <option value="crew">Crew</option>
+        <option value="spectator">Spectator</option>
+      </select>
+    ) : (
+      contactStatus(contact)
+    );
+  const renderAction = (contact: EventContact) =>
+    !canManage ||
+    (contact.type === "member" && contact.role === "owner") ? null : (
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={busyId === contact.id}
+        onClick={() =>
+          setConfirmation({
+            kind:
+              contact.type === "invitation" && contact.status === "pending"
+                ? "revoke"
+                : "remove",
+            id: contact.id,
+            label: label(contact),
+          })
+        }
+      >
+        <Trash2 className="h-4 w-4" />
+        {contact.type === "invitation" ? "Cancel invitation" : "Remove"}
+      </Button>
+    );
 
   return (
     <Card>
@@ -133,124 +184,111 @@ export function EventContacts({ eventId }: { eventId: string }) {
             Loading crew…
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-line text-xs uppercase tracking-wide text-muted">
-                <tr>
-                  <th className="pb-2 pr-3">Title</th>
-                  <th className="pb-2 pr-3">Name</th>
-                  <th className="pb-2 pr-3">Email</th>
-                  <th className="pb-2 pr-3">Phone</th>
-                  {canManage ? <th className="pb-2">Actions</th> : null}
-                </tr>
-              </thead>
-              <tbody>
-                {contacts.map((contact) => (
-                  <tr
-                    key={contact.id}
-                    className="border-b border-line2 last:border-0"
-                  >
-                    <td className="py-3 pr-3">
-                      {contact.type === "member" &&
-                      canManage &&
-                      contact.role !== "owner" ? (
-                        <select
-                          aria-label={`Role for ${label(contact)}`}
-                          value={contact.role}
-                          disabled={busyId === contact.id}
-                          onChange={(event) =>
-                            void changeRole(
-                              contact.id,
-                              event.target.value as InvitationRole,
-                            )
-                          }
-                          className="rounded-md border border-line bg-card px-2 py-1 text-sm text-ink"
-                        >
-                          <option value="manager">Crew Chief</option>
-                          <option value="crew">Crew</option>
-                          <option value="spectator">Spectator</option>
-                        </select>
-                      ) : contact.type === "member" ? (
-                        roleLabel(contact.role)
-                      ) : contact.status === "claimed" ? (
-                        "Claimed"
-                      ) : contact.status === "expired" ? (
-                        "Expired"
-                      ) : contact.status === "canceled" ? (
-                        "Canceled"
-                      ) : (
-                        "Pending"
-                      )}
-                    </td>
-                    <td className="py-3 pr-3 font-medium text-ink">
-                      {label(contact)}
-                    </td>
-                    <td className="py-3 pr-3">
-                      {contact.email ? (
-                        <a
-                          className="inline-flex items-center gap-1 text-green-ink underline"
-                          href={`mailto:${contact.email}`}
-                        >
-                          <Mail className="h-4 w-4" />
-                          {contact.email}
-                        </a>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="py-3 pr-3">
-                      {contact.phoneNumber ? (
-                        <a
-                          className="inline-flex items-center gap-1 text-green-ink underline"
-                          href={`tel:${contact.phoneNumber}`}
-                        >
-                          <Phone className="h-4 w-4" />
-                          {contact.phoneNumber}
-                        </a>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    {canManage ? (
-                      <td className="py-3">
-                        {contact.type === "member" &&
-                        contact.role === "owner" ? (
-                          "—"
-                        ) : (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            disabled={busyId === contact.id}
-                            onClick={() =>
-                              setConfirmation({
-                                kind:
-                                  contact.type === "invitation" &&
-                                  contact.status === "pending"
-                                    ? "revoke"
-                                    : "remove",
-                                id: contact.id,
-                                label: label(contact),
-                              })
-                            }
+          <>
+            <div className="grid gap-3 xl:hidden">
+              {contacts.map((contact) => (
+                <article
+                  key={contact.id}
+                  className="grid gap-2 rounded-lg border border-line p-3 text-sm"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-ink">{label(contact)}</p>
+                    <div className="mt-1 text-muted">
+                      {renderRoleControl(contact)}
+                    </div>
+                  </div>
+                  <div className="grid gap-1 text-muted">
+                    {contact.email ? (
+                      <a
+                        className="inline-flex min-w-0 items-center gap-1 break-all text-green-ink underline"
+                        href={`mailto:${contact.email}`}
+                      >
+                        <Mail className="h-4 w-4 shrink-0" />
+                        {contact.email}
+                      </a>
+                    ) : (
+                      <span>Email: —</span>
+                    )}
+                    {contact.phoneNumber ? (
+                      <a
+                        className="inline-flex min-w-0 items-center gap-1 break-all text-green-ink underline"
+                        href={`tel:${contact.phoneNumber}`}
+                      >
+                        <Phone className="h-4 w-4 shrink-0" />
+                        {contact.phoneNumber}
+                      </a>
+                    ) : (
+                      <span>Phone: —</span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {renderAction(contact)}
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="hidden min-w-0 max-w-full overflow-x-auto xl:block">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-line text-xs uppercase tracking-wide text-muted">
+                  <tr>
+                    <th className="pb-2 pr-3">Title</th>
+                    <th className="pb-2 pr-3">Name</th>
+                    <th className="pb-2 pr-3">Email</th>
+                    <th className="pb-2 pr-3">Phone</th>
+                    {canManage ? <th className="pb-2">Actions</th> : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {contacts.map((contact) => (
+                    <tr
+                      key={contact.id}
+                      className="border-b border-line2 last:border-0"
+                    >
+                      <td className="py-3 pr-3">
+                        {renderRoleControl(contact)}
+                      </td>
+                      <td className="py-3 pr-3 font-medium text-ink">
+                        {label(contact)}
+                      </td>
+                      <td className="py-3 pr-3">
+                        {contact.email ? (
+                          <a
+                            className="inline-flex items-center gap-1 text-green-ink underline"
+                            href={`mailto:${contact.email}`}
                           >
-                            <Trash2 className="h-4 w-4" />
-                            {contact.type === "invitation"
-                              ? "Cancel"
-                              : "Remove"}
-                          </Button>
+                            <Mail className="h-4 w-4" />
+                            {contact.email}
+                          </a>
+                        ) : (
+                          "—"
                         )}
                       </td>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      <td className="py-3 pr-3">
+                        {contact.phoneNumber ? (
+                          <a
+                            className="inline-flex items-center gap-1 text-green-ink underline"
+                            href={`tel:${contact.phoneNumber}`}
+                          >
+                            <Phone className="h-4 w-4" />
+                            {contact.phoneNumber}
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      {canManage ? (
+                        <td className="py-3">{renderAction(contact) ?? "—"}</td>
+                      ) : null}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
         {canManage ? (
           <form
-            className="grid gap-3 border-t border-line pt-5 sm:grid-cols-[1fr_12rem_auto]"
+            className="grid gap-3 border-t border-line pt-5 xl:grid-cols-[minmax(0,1fr)_12rem_auto]"
             onSubmit={invite}
           >
             <label className="grid gap-1.5">
@@ -283,7 +321,7 @@ export function EventContacts({ eventId }: { eventId: string }) {
               type="submit"
               variant="primary"
               disabled={busyId === "invite"}
-              className="self-end"
+              className="w-full self-end xl:w-auto"
             >
               {busyId === "invite" ? (
                 <LoaderCircle className="h-4 w-4 animate-spin" />

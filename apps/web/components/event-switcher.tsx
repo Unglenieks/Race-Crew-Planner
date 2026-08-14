@@ -55,7 +55,7 @@ function EventList({
   return (
     <div className="grid gap-2" aria-label="Your events">
       {events.map((event) => (
-        <div key={event.id} className="flex items-stretch gap-2">
+        <div key={event.id} className="grid gap-2 sm:flex sm:items-stretch">
           <Link
             href={screenHref(event.id, defaultScreenId)}
             className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-lg border border-line bg-card p-4 text-left transition-colors hover:border-ink2 focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
@@ -80,7 +80,7 @@ function EventList({
             <Button
               type="button"
               variant="secondary"
-              className="h-auto shrink-0"
+              className="w-full sm:h-auto sm:w-auto sm:shrink-0"
               disabled={removingSampleId === event.id}
               onClick={() => onRemoveSample(event)}
             >
@@ -99,7 +99,7 @@ function EventList({
             <Button
               type="button"
               variant="secondary"
-              className="h-auto shrink-0"
+              className="w-full sm:h-auto sm:w-auto sm:shrink-0"
               disabled={archivingEventId === event.id}
               onClick={() => onArchive(event)}
             >
@@ -134,7 +134,7 @@ function ArchivedEventList({
       {events.map((event) => (
         <div
           key={event.id}
-          className="flex items-center gap-2 rounded-lg border border-line bg-card p-3"
+          className="grid gap-2 rounded-lg border border-line bg-card p-3 sm:flex sm:items-center"
         >
           <span className="min-w-0 flex-1 text-sm text-ink">
             <b className="block truncate">{event.name}</b>
@@ -143,24 +143,26 @@ function ArchivedEventList({
               {new Date(event.purgeAt).toLocaleDateString()}.
             </span>
           </span>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={pendingEventId === event.id}
-            onClick={() => onRestore(event)}
-          >
-            <Undo2 className="h-4 w-4" aria-hidden="true" /> Restore
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={pendingEventId === event.id}
-            onClick={() => onDelete(event)}
-          >
-            <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete
-          </Button>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={pendingEventId === event.id}
+              onClick={() => onRestore(event)}
+            >
+              <Undo2 className="h-4 w-4" aria-hidden="true" /> Restore
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={pendingEventId === event.id}
+              onClick={() => onDelete(event)}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete
+            </Button>
+          </div>
         </div>
       ))}
     </section>
