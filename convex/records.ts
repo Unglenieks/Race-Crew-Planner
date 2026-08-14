@@ -572,7 +572,9 @@ export const saveVenueDetails = mutation({
   args: {
     eventId: v.id("events"),
     recordId: v.id("eventRecords"),
+    name: v.optional(v.string()),
     address: v.optional(v.string()),
+    notes: v.optional(v.string()),
     /**
      * Coordinates use the absent/`null` distinction as well. A caller that does
      * not collect coordinates must not erase ones another surface recorded.
@@ -581,7 +583,6 @@ export const saveVenueDetails = mutation({
     longitude: v.optional(v.union(v.number(), v.null())),
     accessNotes: v.optional(v.string()),
     hours: v.optional(v.string()),
-    contactDetail: v.optional(v.string()),
     supportCategories: v.optional(v.array(supportCategory)),
     spectatorVisible: v.optional(v.boolean()),
   },
@@ -591,12 +592,16 @@ export const saveVenueDetails = mutation({
     if (!(await isLocationRecord(ctx, record)))
       throw new Error("Venue details require a location record");
     const coordinates = resolvedCoordinates(args, record);
+    const name = args.name?.trim() ?? record.name;
+    if (name.length === 0 || name.length > 160)
+      throw new Error("Record name must be between 1 and 160 characters");
     await ctx.db.patch(args.recordId, {
+      name,
       address: optionalText(args.address, 300),
+      notes: optionalText(args.notes, 1000),
       ...coordinates,
       accessNotes: optionalText(args.accessNotes, 1000),
-      hours: optionalText(args.hours, 240),
-      contactDetail: optionalText(args.contactDetail, 300),
+      hours: optionalText(args.hours, 1000),
       ...(args.supportCategories === undefined
         ? {}
         : {
@@ -615,10 +620,10 @@ export const saveVenueDetails = mutation({
       eventId: args.eventId,
       actorId: identity.subject,
       kind: "record.updated",
-      message: `Updated venue details: ${record.name}`,
+      message: `Updated venue details: ${name}`,
       objectType: "record",
       objectId: args.recordId,
-      objectLabel: record.name,
+      objectLabel: name,
       href: `/events/${args.eventId}/records/${args.recordId}`,
     });
   },
@@ -654,7 +659,7 @@ export const saveMapLocation = mutation({
       address: optionalText(args.address, 300),
       notes: input.notes,
       ...resolvedCoordinates(args, {}),
-      hours: optionalText(args.hours, 240),
+      hours: optionalText(args.hours, 1000),
       supportCategories: categories,
       spectatorVisible: args.spectatorVisible,
       verifiedAt: now,

@@ -129,9 +129,20 @@ function AddMapLocation({ eventId }: { eventId: string }) {
               Use a full address, or add a city or region to a short Plus Code.
             </span>
           </label>
-          <label className="grid gap-1.5 text-sm font-medium">
-            Hours
-            <Input name="hours" maxLength={240} />
+          <label className="grid gap-1.5 text-sm font-medium md:col-span-2">
+            Opening hours
+            <textarea
+              name="hours"
+              className="min-h-32 rounded-lg border border-line bg-card px-3 py-2 text-sm"
+              maxLength={1000}
+              placeholder={
+                "Thu: 08:00-18:00\nFri: 08:00-12:00; 13:00-18:00\nSat: 07:00-16:00\nSun: Closed"
+              }
+            />
+            <span className="text-xs font-normal text-muted">
+              Add one day per line. Include split hours and closures when
+              needed.
+            </span>
           </label>
           <label className="grid gap-1.5 text-sm font-medium md:col-span-2">
             Notes

@@ -886,13 +886,14 @@ export const recordsApi = {
     {
       eventId: string;
       recordId: string;
+      name?: string;
       address?: string;
       /** Omit to keep stored coordinates, `null` to clear them. */
       latitude?: number | null;
       longitude?: number | null;
       accessNotes?: string;
       hours?: string;
-      contactDetail?: string;
+      notes?: string;
       supportCategories?: EventRecord["supportCategories"];
       spectatorVisible?: boolean;
     },

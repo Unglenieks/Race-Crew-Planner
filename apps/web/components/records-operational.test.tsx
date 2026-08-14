@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/components/workspace/event-workspace", () => ({
   useEventWorkspace: () => ({
     event: { id: "events:one" },
-    role: "crew",
+    role: "owner",
   }),
 }));
 vi.mock("@/lib/events-api", () => ({
@@ -23,7 +23,7 @@ vi.mock("convex/react", () => ({
       return {
         _id: "eventRecords:one",
         name: "Service vehicle",
-        type: "vehicle",
+        type: "venue",
         notes: "Original notes\nSecond line",
         fieldValues: {
           operational_status: "Ready",
@@ -51,7 +51,7 @@ import { RecordDetail } from "./records-operational";
 describe("RecordDetail fields", () => {
   it("shows notes, configured values, links, and unknown future fields", () => {
     render(<RecordDetail recordId="eventRecords:one" />);
-    expect(screen.getByText(/Original notes/)).toBeDefined();
+    expect(screen.getAllByText(/Original notes/)).toHaveLength(2);
     expect(screen.getByText("Operational status")).toBeDefined();
     expect(screen.getByText("Ready")).toBeDefined();
     expect(screen.getByText("Yes")).toBeDefined();
@@ -60,5 +60,18 @@ describe("RecordDetail fields", () => {
     ).toBeDefined();
     expect(screen.queryByText("Categories")).toBeNull();
     expect(screen.queryByText("Records & venues")).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Back to map" }).getAttribute("href"),
+    ).toBe("/events/events:one/map");
+    expect(
+      (screen.getByLabelText("Venue name") as HTMLInputElement).value,
+    ).toBe("Service vehicle");
+    expect(
+      (screen.getByLabelText("Description") as HTMLTextAreaElement).value,
+    ).toBe("Original notes\nSecond line");
+    expect(
+      screen.getByRole("textbox", { name: /^Opening hours/ }).tagName,
+    ).toBe("TEXTAREA");
+    expect(screen.queryByLabelText("Contact detail")).toBeNull();
   });
 });
