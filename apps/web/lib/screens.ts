@@ -131,7 +131,6 @@ const legacy: ScreenDefinition[] = [
       "Work assigned to you and plan changes awaiting your response.",
     icon: ClipboardList,
     minRole: "crew",
-    hidden: true,
   },
   {
     id: "plan",
@@ -248,7 +247,12 @@ export type ScreenGroup = { label: string | null; screenIds: ScreenId[] };
 export const screenGroups: ScreenGroup[] = [
   {
     label: null,
-    screenIds: [...core.map((screen) => screen.id), "work", "forms"],
+    screenIds: [
+      ...core.map((screen) => screen.id),
+      "attention",
+      "work",
+      "forms",
+    ],
   },
 ];
 const screensById = new Map(screens.map((screen) => [screen.id, screen]));

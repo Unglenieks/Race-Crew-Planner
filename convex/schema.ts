@@ -57,6 +57,8 @@ export default defineSchema({
     ),
     invitedBy: v.string(),
     createdAt: v.number(),
+    /** Pending invitations expire rather than remaining operationally ambiguous. */
+    expiresAt: v.optional(v.number()),
     acceptedBy: v.optional(v.string()),
     acceptedAt: v.optional(v.number()),
   })
@@ -421,6 +423,13 @@ export default defineSchema({
       v.literal("profile"),
       v.literal("movement"),
       v.literal("crew"),
+      v.literal("locations"),
+      v.literal("contacts"),
+      v.literal("legs"),
+      v.literal("vehicle"),
+      v.literal("noticeboard"),
+      v.literal("spectatorVenues"),
+      v.literal("priorityWork"),
     ),
     dismissedAt: v.number(),
   })

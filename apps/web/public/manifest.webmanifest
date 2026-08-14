@@ -1,0 +1,8 @@
+{
+  "name": "Race Planner",
+  "short_name": "Race Planner",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f3ef",
+  "theme_color": "#173c2b"
+}

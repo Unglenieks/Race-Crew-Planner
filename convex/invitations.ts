@@ -126,6 +126,15 @@ export const create = mutation({
   handler: async (ctx, { eventId, email, role }) => {
     const identity = await requireCrewChief(ctx, eventId);
     const normalized = normalizedEmail(email);
+    if (
+      identity.emailVerified &&
+      identity.email !== undefined &&
+      normalizedEmail(identity.email) === normalized
+    ) {
+      throw new Error(
+        "You already belong to this event and cannot invite yourself",
+      );
+    }
     const existing = await ctx.db
       .query("eventInvitations")
       .withIndex("by_eventId_email", (index) =>
@@ -141,6 +150,7 @@ export const create = mutation({
       status: "pending" as const,
       invitedBy: identity.subject,
       createdAt: Date.now(),
+      expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000,
       acceptedBy: undefined,
       acceptedAt: undefined,
     };
@@ -232,14 +242,23 @@ export const listContacts = query({
       .collect();
     return [
       ...people,
-      ...invitations
-        .filter((invitation) => invitation.status === "pending")
-        .map((invitation) => ({
-          id: invitation._id,
-          type: "invitation" as const,
-          role: invitation.role,
-          email: invitation.email,
-        })),
+      ...invitations.map((invitation) => ({
+        id: invitation._id,
+        type: "invitation" as const,
+        role: invitation.role,
+        email: invitation.email,
+        status:
+          invitation.status === "accepted"
+            ? "claimed"
+            : invitation.status === "revoked"
+              ? "canceled"
+              : invitation.expiresAt !== undefined &&
+                  invitation.expiresAt < Date.now()
+                ? "expired"
+                : "pending",
+        createdAt: invitation.createdAt,
+        expiresAt: invitation.expiresAt,
+      })),
     ];
   },
 });

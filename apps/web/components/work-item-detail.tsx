@@ -17,7 +17,6 @@ import {
   type EventRole,
   type WorkItem,
 } from "@/lib/events-api";
-import { queueWorkCompletion } from "@/lib/offline-queue";
 
 type Draft = {
   title: string;
@@ -152,16 +151,9 @@ export function WorkItemDetail({
     setIsCompleting(true);
     try {
       if (!navigator.onLine) {
-        await queueWorkCompletion({
-          eventId,
-          label: `${workItem.status === "completed" ? "Reopen" : "Complete"} ${workItem.title}`,
-          payload: {
-            itemId,
-            completed: workItem.status !== "completed",
-            expectedUpdatedAt: workItem.updatedAt,
-            serverStatusAtQueue: workItem.status,
-          },
-        });
+        setError(
+          "You are offline. Work changes cannot be saved until the connection returns.",
+        );
         return;
       }
       await setCompletion({

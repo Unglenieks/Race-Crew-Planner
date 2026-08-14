@@ -25,6 +25,7 @@ export function EventContacts({ eventId }: { eventId: string }) {
   const [role, setRole] = useState<InvitationRole>("crew");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [inviteStatus, setInviteStatus] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<{
     kind: "revoke" | "remove";
     id: string;
@@ -34,19 +35,35 @@ export function EventContacts({ eventId }: { eventId: string }) {
   async function invite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setInviteStatus("Sending invitation…");
     setBusyId("invite");
     try {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 15_000);
       const response = await fetch("/api/event-invitations", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ eventId, email, role }),
+        signal: controller.signal,
       });
-      if (!response.ok) throw new Error();
+      window.clearTimeout(timeout);
+      const body = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      if (!response.ok) throw new Error(body?.error ?? "Invitation failed");
       setEmail("");
       setRole("crew");
-    } catch {
+      setInviteStatus(
+        response.status === 202
+          ? "Invitation pending. This person can sign in to claim access."
+          : "Invitation sent. It remains pending until claimed.",
+      );
+    } catch (reason) {
+      setInviteStatus(null);
       setError(
-        "We could not send this invitation. Check the email address and try again.",
+        reason instanceof Error && reason.message !== "Invitation failed"
+          ? reason.message
+          : "We could not send this invitation. Check the email address and try again.",
       );
     } finally {
       setBusyId(null);
@@ -155,8 +172,14 @@ export function EventContacts({ eventId }: { eventId: string }) {
                         </select>
                       ) : contact.type === "member" ? (
                         roleLabel(contact.role)
+                      ) : contact.status === "claimed" ? (
+                        "Claimed"
+                      ) : contact.status === "expired" ? (
+                        "Expired"
+                      ) : contact.status === "canceled" ? (
+                        "Canceled"
                       ) : (
-                        "Invited"
+                        "Pending"
                       )}
                     </td>
                     <td className="py-3 pr-3 font-medium text-ink">
@@ -202,7 +225,8 @@ export function EventContacts({ eventId }: { eventId: string }) {
                             onClick={() =>
                               setConfirmation({
                                 kind:
-                                  contact.type === "invitation"
+                                  contact.type === "invitation" &&
+                                  contact.status === "pending"
                                     ? "revoke"
                                     : "remove",
                                 id: contact.id,
@@ -269,6 +293,11 @@ export function EventContacts({ eventId }: { eventId: string }) {
               Invite
             </Button>
           </form>
+        ) : null}
+        {inviteStatus ? (
+          <p className="text-sm text-success-tx" role="status">
+            {inviteStatus}
+          </p>
         ) : null}
         {error ? (
           <p className="text-sm text-danger-tx" role="alert">

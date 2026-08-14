@@ -1,6 +1,16 @@
 "use client";
 
-import { Check, Route, UserRound, Users, X } from "lucide-react";
+import {
+  Check,
+  ClipboardList,
+  FileText,
+  Gauge,
+  MapPinned,
+  Route,
+  UserRound,
+  Users,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,14 +20,14 @@ import {
   type EventRole,
   type SetupStepStatus,
 } from "@/lib/events-api";
-import { screenHref } from "@/lib/screens";
+import { screenHref, type ScreenId } from "@/lib/screens";
 
 const steps: Record<
   SetupStepStatus["id"],
   {
     title: string;
     description: string;
-    screenId?: "plan" | "people";
+    screenId?: ScreenId;
     icon: typeof Route;
   }
 > = {
@@ -37,6 +47,51 @@ const steps: Record<
     description: "Invite people before sharing operational changes.",
     screenId: "people",
     icon: Users,
+  },
+  locations: {
+    title: "Add map coordinates to every location",
+    description:
+      "Event locations without coordinates cannot be relied on in the field.",
+    screenId: "map",
+    icon: MapPinned,
+  },
+  contacts: {
+    title: "Add event contacts",
+    description:
+      "Include organisers and operational contacts before event day.",
+    screenId: "contacts",
+    icon: Users,
+  },
+  legs: {
+    title: "Add race legs",
+    description:
+      "Legs are required for mileage, running order, and fuel planning.",
+    screenId: "logistics",
+    icon: Route,
+  },
+  vehicle: {
+    title: "Complete vehicle and fuel profile",
+    description: "Add the car and fuel figures used by operational planning.",
+    screenId: "event-info",
+    icon: Gauge,
+  },
+  noticeboard: {
+    title: "Publish noticeboard information",
+    description: "Add an event document or source for the crew to reference.",
+    screenId: "files",
+    icon: FileText,
+  },
+  spectatorVenues: {
+    title: "Publish spectator venues",
+    description: "Mark at least one event location as spectator-visible.",
+    screenId: "records",
+    icon: MapPinned,
+  },
+  priorityWork: {
+    title: "Resolve high-priority work",
+    description: "Open high-priority work is an event-data readiness concern.",
+    screenId: "work",
+    icon: ClipboardList,
   },
 };
 
@@ -61,10 +116,10 @@ export function EventSetupGuide({
       <Card className="border-success-ln bg-success-bg">
         <CardHeader>
           <p className="font-mono text-[11px] uppercase tracking-wider text-success-tx">
-            Getting started
+            Event data readiness
           </p>
           <CardTitle id="setup-heading" className="mt-1">
-            Set up {eventName}
+            Prepare {eventName} for event day
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -122,8 +177,8 @@ export function EventSetupGuide({
             })}
           </ol>
           <p className="mt-4 border-t border-success-ln pt-3 text-xs text-success-tx">
-            Steps are tracked independently; completing one never hides the
-            others.
+            These are data-readiness checks, not application errors. Dismissing
+            one does not complete its event data.
           </p>
         </CardContent>
       </Card>

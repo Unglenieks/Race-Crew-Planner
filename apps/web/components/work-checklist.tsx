@@ -23,7 +23,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/data-display";
 import { Input } from "@/components/ui/input";
-import { queueWorkCompletion } from "@/lib/offline-queue";
 
 type WorkFilter = "open" | "completed" | "all";
 type Priority = "low" | "normal" | "high";
@@ -184,18 +183,10 @@ export function WorkChecklist({
     setPendingItemId(item._id);
     try {
       if (!navigator.onLine) {
-        await queueWorkCompletion({
-          eventId,
-          label: `${completed ? "Complete" : "Reopen"} ${item.title}`,
-          payload: {
-            itemId: item._id,
-            completed,
-            expectedUpdatedAt: item.updatedAt,
-            serverStatusAtQueue: item.status,
-          },
-        });
-        setUndoCompletion({ item, completed });
-        return true;
+        setError(
+          "You are offline. Work changes cannot be saved until the connection returns.",
+        );
+        return false;
       }
       await setCompletion({ eventId, itemId: item._id, completed });
       setUndoCompletion({ item, completed });

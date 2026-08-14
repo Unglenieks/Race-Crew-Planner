@@ -76,7 +76,16 @@ export async function POST(request: Request) {
         { status: 502 },
       );
     }
-  } catch {
-    return NextResponse.json({ error: "Invitation rejected" }, { status: 403 });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Invitation rejected";
+    return NextResponse.json(
+      {
+        error: message.includes("cannot invite yourself")
+          ? "You already belong to this event and cannot invite yourself."
+          : "Invitation rejected",
+      },
+      { status: message.includes("cannot invite yourself") ? 409 : 403 },
+    );
   }
 }

@@ -9,6 +9,7 @@ import { UserButton } from "@clerk/nextjs";
 import { WorkspaceNavigationLinks } from "@/components/sidebar";
 import { Button } from "@/components/ui/button";
 import { useEventWorkspace } from "@/components/workspace/event-workspace";
+import { AttentionBadge } from "@/components/workspace/workspace-topbar";
 
 const focusableSelector =
   'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -96,23 +97,26 @@ export function MobileWorkspaceNavigation() {
             aria-hidden="true"
           />
         </Link>
-        <Button
-          ref={menuButtonRef}
-          type="button"
-          variant="secondary"
-          size="sm"
-          aria-expanded={isOpen}
-          aria-controls="workspace-mobile-navigation"
-          aria-label={
-            isOpen
-              ? "Menu: close workspace navigation"
-              : "Menu: open workspace navigation"
-          }
-          onClick={() => setIsOpen((open) => !open)}
-        >
-          <Menu className="h-4 w-4" aria-hidden="true" />
-          Menu
-        </Button>
+        <div className="flex items-center gap-2">
+          {role === "spectator" ? null : <AttentionBadge eventId={event.id} />}
+          <Button
+            ref={menuButtonRef}
+            type="button"
+            variant="secondary"
+            size="sm"
+            aria-expanded={isOpen}
+            aria-controls="workspace-mobile-navigation"
+            aria-label={
+              isOpen
+                ? "Menu: close workspace navigation"
+                : "Menu: open workspace navigation"
+            }
+            onClick={() => setIsOpen((open) => !open)}
+          >
+            <Menu className="h-4 w-4" aria-hidden="true" />
+            Menu
+          </Button>
+        </div>
       </div>
       {isOpen ? (
         <div className="fixed inset-0 z-40 md:hidden">
