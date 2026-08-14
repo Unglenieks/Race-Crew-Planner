@@ -4,7 +4,6 @@ import {
   CalendarPlus,
   ChevronLeft,
   ChevronRight,
-  Copy,
   LoaderCircle,
   MoreHorizontal,
   RotateCcw,
@@ -16,7 +15,6 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   itineraryApi,
-  logisticsApi,
   movementsApi,
   recordsApi,
   type EventRole,
@@ -29,19 +27,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/data-display";
 import { Input } from "@/components/ui/input";
-import { planSectionsApi, type PlanSection } from "@/lib/events-api";
 import {
   calendarDay,
   displayMovementTime,
   movementTimeLabel,
-  operationalDayLabel,
 } from "@/lib/timing";
 import { locationRecords } from "@/lib/record-locations";
 import { VenueLinkCombobox } from "@/components/venue-link-combobox";
-import {
-  ItineraryStagingGrid,
-  type StagedMovement,
-} from "@/components/itinerary-staging-grid";
 
 type Draft = {
   title: string;
@@ -54,10 +46,6 @@ type Draft = {
   venueAddress: string;
   notes: string;
   movementTypeId: string;
-  sectionId: string;
-  operationalDay: string;
-  displayTime: "standard" | "2400";
-  serviceIntervalId: string;
   spectatorVisible: boolean;
 };
 
@@ -72,41 +60,8 @@ const emptyDraft: Draft = {
   venueAddress: "",
   notes: "",
   movementTypeId: "",
-  sectionId: "",
-  operationalDay: "",
-  displayTime: "standard",
-  serviceIntervalId: "",
   spectatorVisible: false,
 };
-
-function sectionDate(sectionId: string, sections: PlanSection[]) {
-  return sections.find((section) => section._id === sectionId)?.operationalDate;
-}
-
-function serverTiming(draft: Draft, sections: PlanSection[]) {
-  const operationalDay =
-    draft.operationalDay || sectionDate(draft.sectionId, sections) || undefined;
-  if (draft.timeKind === "allDay") {
-    return {
-      scheduledFor: `${draft.scheduledFor}T00:00`,
-      operationalDay: operationalDay ?? draft.scheduledFor,
-      displayTime: "standard" as const,
-    };
-  }
-  if (draft.displayTime === "2400") {
-    const day = operationalDay ?? draft.scheduledFor;
-    return {
-      scheduledFor: `${day}T24:00`,
-      operationalDay: day,
-      displayTime: "2400" as const,
-    };
-  }
-  return {
-    scheduledFor: draft.scheduledFor,
-    operationalDay,
-    displayTime: "standard" as const,
-  };
-}
 
 function displayDay(day: string) {
   const [year, month, date] = day.split("-").map(Number);
@@ -131,14 +86,11 @@ export function ItineraryPlan({
 }) {
   const items = useQuery(itineraryApi.list, { eventId });
   const archivedItems = useQuery(itineraryApi.listArchived, { eventId });
-  const sections = useQuery(planSectionsApi.list, { eventId });
   const records = useQuery(recordsApi.list, { eventId });
   const directory = useQuery(movementsApi.listDirectory, { eventId });
   const recordTypes = useQuery(recordsApi.listTypes, { eventId });
-  const logistics = useQuery(logisticsApi.getOverview, { eventId });
   const createItem = useMutation(itineraryApi.create);
   const createWithVenue = useMutation(itineraryApi.createWithVenue);
-  const createMany = useMutation(itineraryApi.createMany);
   const archiveItem = useMutation(itineraryApi.archive);
   const restoreItem = useMutation(itineraryApi.restore);
   const ensureDefaults = useMutation(movementsApi.ensureDefaults);
@@ -161,8 +113,8 @@ export function ItineraryPlan({
   const [isRestoring, setIsRestoring] = useState(false);
   const [undoItem, setUndoItem] = useState<ItineraryItem | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [isCreatorOpen, setIsCreatorOpen] = useState(false);
-  const [isStagingOpen, setIsStagingOpen] = useState(false);
   const firstInputRef = useRef<HTMLInputElement>(null);
   const dayCardsRef = useRef<HTMLDivElement>(null);
   const [canScrollDayCards, setCanScrollDayCards] = useState({
@@ -319,23 +271,22 @@ export function ItineraryPlan({
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setMessage(null);
     setIsSubmitting(true);
 
-    const timing = serverTiming(draft, sections ?? []);
     const input = {
       eventId,
       title: draft.title,
-      scheduledFor: timing.scheduledFor,
+      scheduledFor:
+        draft.timeKind === "allDay"
+          ? `${draft.scheduledFor}T00:00`
+          : draft.scheduledFor,
       scheduledUntil:
         draft.timeKind === "range" ? draft.scheduledUntil : undefined,
       timeKind: draft.timeKind,
-      sectionId: draft.sectionId || undefined,
-      operationalDay: timing.operationalDay,
-      displayTime: timing.displayTime,
       location: draft.location || undefined,
       notes: draft.notes || undefined,
       movementTypeId: draft.movementTypeId || null,
-      serviceIntervalId: draft.serviceIntervalId || undefined,
       spectatorVisible: draft.spectatorVisible,
     };
 
@@ -365,6 +316,7 @@ export function ItineraryPlan({
       } else {
         setDraft(emptyDraft);
         setIsCreatorOpen(false);
+        setMessage("Movement added to the schedule.");
       }
     } catch {
       setError(
@@ -373,91 +325,6 @@ export function ItineraryPlan({
     } finally {
       setIsSubmitting(false);
     }
-  }
-
-  async function saveStagedRows(rows: StagedMovement[]) {
-    setError(null);
-    setIsSubmitting(true);
-    try {
-      const activeTypes = directory?.types.filter(
-        (entry) => entry.archivedAt === undefined,
-      );
-      const activeTags = directory?.tags.filter(
-        (entry) => entry.archivedAt === undefined,
-      );
-      const activeTeams = directory?.teams.filter(
-        (entry) => entry.archivedAt === undefined,
-      );
-      const byName = <T extends { name: string }>(
-        entries: T[] | undefined,
-        name: string,
-      ) =>
-        entries?.find(
-          (entry) =>
-            entry.name.toLocaleLowerCase() === name.trim().toLocaleLowerCase(),
-        );
-      const unresolved = rows.find(
-        (row) =>
-          (row.movementType && !byName(activeTypes, row.movementType)) ||
-          (row.team && !byName(activeTeams, row.team)) ||
-          row.tags
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter(Boolean)
-            .some((tag) => !byName(activeTags, tag)),
-      );
-      if (unresolved)
-        throw new Error(
-          "Use operational vocabulary values that already exist before saving staged rows.",
-        );
-      await createMany({
-        eventId,
-        items: rows.map((row) => ({
-          eventId,
-          title: row.title,
-          scheduledFor: row.scheduledFor,
-          location: row.location || undefined,
-          operationalDay: row.operationalDay || undefined,
-          movementTypeId: byName(activeTypes, row.movementType)?._id ?? null,
-          teamId: byName(activeTeams, row.team)?._id,
-          tagIds: row.tags
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter(Boolean)
-            .map((tag) => byName(activeTags, tag)!._id),
-          timeKind: "exact",
-        })),
-      });
-    } catch {
-      setError(
-        "We could not add the staged movements. Check the rows and try again.",
-      );
-      throw new Error("Staged movements were not saved");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  function duplicateItem(item: ItineraryItem) {
-    setDraft({
-      title: item.title,
-      scheduledFor: "",
-      scheduledUntil: "",
-      timeKind: item.timeKind ?? "exact",
-      location: item.location ?? "",
-      recordId: item.recordId ?? "",
-      venueName: "",
-      venueAddress: "",
-      notes: item.notes ?? "",
-      operationalDay: item.operationalDay ?? "",
-      movementTypeId: item.movementTypeId ?? "",
-      sectionId: item.sectionId ?? "",
-      displayTime: item.displayTime ?? "standard",
-      serviceIntervalId: item.serviceIntervalId ?? "",
-      spectatorVisible: item.spectatorVisible === true,
-    });
-    setIsCreatorOpen(true);
-    setIsStagingOpen(false);
   }
 
   async function onArchive(item: ItineraryItem) {
@@ -524,20 +391,9 @@ export function ItineraryPlan({
                     size="sm"
                     onClick={() => {
                       setIsCreatorOpen(true);
-                      setIsStagingOpen(false);
                     }}
                   >
                     Add movement
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      setIsStagingOpen(true);
-                      setIsCreatorOpen(false);
-                    }}
-                  >
-                    Add many
                   </Button>
                 </>
               ) : null}
@@ -574,6 +430,11 @@ export function ItineraryPlan({
               {error}
             </Banner>
           )}
+          {message === null ? null : (
+            <Banner variant="success" label="Schedule updated" role="status">
+              {message}
+            </Banner>
+          )}
           {items === undefined ? (
             <div
               className="flex min-h-32 items-center text-sm text-muted"
@@ -606,6 +467,7 @@ export function ItineraryPlan({
                   </label>
                   <select
                     id="movement-day"
+                    name="movementDay"
                     value={activeDay ?? "all"}
                     onChange={(event) =>
                       selectDay(
@@ -630,7 +492,9 @@ export function ItineraryPlan({
                   role="group"
                 >
                   <select
-                    aria-label="Filter by movement type"
+                    id="movement-type-filter"
+                    name="movementTypeFilter"
+                    aria-label="Movement type filter"
                     value={selectedType}
                     onChange={(event) => setSelectedType(event.target.value)}
                     className="min-h-9 rounded-lg border border-line bg-card px-3 text-sm"
@@ -643,7 +507,9 @@ export function ItineraryPlan({
                     ))}
                   </select>
                   <select
-                    aria-label="Filter by venue"
+                    id="movement-venue-filter"
+                    name="movementVenueFilter"
+                    aria-label="Venue filter"
                     value={selectedVenue}
                     onChange={(event) => setSelectedVenue(event.target.value)}
                     className="min-h-9 rounded-lg border border-line bg-card px-3 text-sm"
@@ -664,6 +530,7 @@ export function ItineraryPlan({
                   />
                   <Input
                     id="movement-search"
+                    name="movementSearch"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     className="h-9 pl-9"
@@ -798,9 +665,6 @@ export function ItineraryPlan({
                                       .join(", ")}
                                   </p>
                                 )}
-                                <p className="mt-1 text-xs font-medium text-muted">
-                                  {operationalDayLabel(item, sections ?? [])}
-                                </p>
                                 {item.location === undefined ? null : (
                                   <p className="mt-1 text-sm text-muted">
                                     {item.location}
@@ -854,18 +718,6 @@ export function ItineraryPlan({
                                       )}
                                       Archive
                                     </Button>
-                                    <Button
-                                      type="button"
-                                      variant="soft"
-                                      size="sm"
-                                      onClick={() => duplicateItem(item)}
-                                    >
-                                      <Copy
-                                        className="h-4 w-4"
-                                        aria-hidden="true"
-                                      />
-                                      Duplicate
-                                    </Button>
                                   </div>
                                 </details>
                               ) : null}
@@ -910,26 +762,6 @@ export function ItineraryPlan({
         </CardContent>
       </Card>
 
-      {canEdit && isStagingOpen ? (
-        <Card className="xl:col-span-2">
-          <CardHeader>
-            <div>
-              <CardTitle>Add movements in a spreadsheet</CardTitle>
-              <p className="mt-1 text-sm text-muted">
-                Use the same staging table for typing, row-by-row work, and
-                multi-row spreadsheet paste.
-              </p>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ItineraryStagingGrid
-              onSave={saveStagedRows}
-              isSaving={isSubmitting}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
-
       {canEdit && isCreatorOpen ? (
         <Card>
           <CardHeader>
@@ -951,6 +783,7 @@ export function ItineraryPlan({
                 </label>
                 <select
                   id="movement-time-kind"
+                  name="movementTimeKind"
                   value={draft.timeKind}
                   onChange={(event) =>
                     updateDraft("timeKind", event.target.value)
@@ -968,20 +801,13 @@ export function ItineraryPlan({
                   className="text-sm font-medium text-ink"
                   htmlFor="movement-time"
                 >
-                  {draft.timeKind === "allDay"
-                    ? "Date"
-                    : draft.displayTime === "2400"
-                      ? "Operational day"
-                      : "Time"}
+                  {draft.timeKind === "allDay" ? "Date" : "Time"}
                 </label>
                 <Input
                   id="movement-time"
+                  name="movementTime"
                   ref={firstInputRef}
-                  type={
-                    draft.timeKind === "allDay" || draft.displayTime === "2400"
-                      ? "date"
-                      : "datetime-local"
-                  }
+                  type={draft.timeKind === "allDay" ? "date" : "datetime-local"}
                   value={draft.scheduledFor}
                   onChange={(event) =>
                     updateDraft("scheduledFor", event.target.value)
@@ -989,92 +815,6 @@ export function ItineraryPlan({
                   required
                 />
               </div>
-              {draft.timeKind === "range" ||
-              draft.timeKind === "allDay" ? null : (
-                <label className="flex items-center gap-2 text-sm text-ink">
-                  <input
-                    type="checkbox"
-                    checked={draft.displayTime === "2400"}
-                    onChange={(event) => {
-                      const next = event.target.checked ? "2400" : "standard";
-                      updateDraft("displayTime", next);
-                      if (next === "2400" && draft.scheduledFor.includes("T")) {
-                        const day = draft.scheduledFor.slice(0, 10);
-                        updateDraft("scheduledFor", day);
-                        if (!draft.operationalDay)
-                          updateDraft("operationalDay", day);
-                      }
-                    }}
-                  />
-                  Display midnight as 2400 on the preceding operational day
-                </label>
-              )}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-1.5 text-sm font-medium text-ink">
-                  Service window <span className="text-muted">(optional)</span>
-                  <select
-                    value={draft.serviceIntervalId}
-                    onChange={(event) =>
-                      updateDraft("serviceIntervalId", event.target.value)
-                    }
-                    className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
-                  >
-                    <option value="">No service window</option>
-                    {(logistics?.serviceIntervals ?? []).map((service) => (
-                      <option key={service._id} value={service._id}>
-                        {service.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <div className="grid gap-1.5">
-                <label
-                  className="text-sm font-medium text-ink"
-                  htmlFor="movement-time-kind"
-                >
-                  Operational section{" "}
-                  <span className="text-muted">(optional)</span>
-                </label>
-                <select
-                  id="movement-section"
-                  value={draft.sectionId}
-                  onChange={(event) =>
-                    updateDraft("sectionId", event.target.value)
-                  }
-                  className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm"
-                >
-                  <option value="">No named section</option>
-                  {(sections ?? []).map((section) => (
-                    <option key={section._id} value={section._id}>
-                      {section.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {draft.timeKind === "allDay" ? null : (
-                <div className="grid gap-1.5">
-                  <label
-                    className="text-sm font-medium text-ink"
-                    htmlFor="movement-operational-day"
-                  >
-                    Operational day{" "}
-                    <span className="text-muted">(optional)</span>
-                  </label>
-                  <Input
-                    id="movement-operational-day"
-                    type="date"
-                    value={draft.operationalDay}
-                    onChange={(event) =>
-                      updateDraft("operationalDay", event.target.value)
-                    }
-                  />
-                  <p className="text-xs text-muted">
-                    Use this to keep an early-morning calendar time in the prior
-                    operational schedule.
-                  </p>
-                </div>
-              )}
               {draft.timeKind === "range" ? (
                 <div className="grid gap-1.5">
                   <label
@@ -1085,6 +825,7 @@ export function ItineraryPlan({
                   </label>
                   <Input
                     id="movement-end-time"
+                    name="movementEndTime"
                     type="datetime-local"
                     value={draft.scheduledUntil}
                     min={draft.scheduledFor || undefined}
@@ -1104,6 +845,7 @@ export function ItineraryPlan({
                 </label>
                 <select
                   id="movement-type"
+                  name="movementType"
                   value={draft.movementTypeId}
                   onChange={(event) =>
                     updateDraft("movementTypeId", event.target.value)
@@ -1138,6 +880,7 @@ export function ItineraryPlan({
                     </p>
                     <Input
                       value={draft.venueName}
+                      name="newVenueName"
                       onChange={(event) =>
                         updateDraft("venueName", event.target.value)
                       }
@@ -1147,6 +890,7 @@ export function ItineraryPlan({
                     />
                     <Input
                       value={draft.venueAddress}
+                      name="newVenueAddress"
                       onChange={(event) =>
                         updateDraft("venueAddress", event.target.value)
                       }
@@ -1187,6 +931,7 @@ export function ItineraryPlan({
                 </label>
                 <Input
                   id="movement-title"
+                  name="movementDescription"
                   value={draft.title}
                   onChange={(event) => updateDraft("title", event.target.value)}
                   maxLength={160}
@@ -1197,6 +942,7 @@ export function ItineraryPlan({
               <label className="flex items-start gap-3 rounded-lg border border-line p-3 text-sm text-ink">
                 <input
                   type="checkbox"
+                  name="spectatorVisible"
                   checked={draft.spectatorVisible}
                   onChange={(event) =>
                     setDraft((current) => ({
@@ -1225,6 +971,7 @@ export function ItineraryPlan({
                 </label>
                 <Input
                   id="movement-location"
+                  name="movementLocation"
                   value={draft.location}
                   onChange={(event) =>
                     updateDraft("location", event.target.value)
@@ -1242,6 +989,7 @@ export function ItineraryPlan({
                 </label>
                 <textarea
                   id="movement-notes"
+                  name="movementNotes"
                   value={draft.notes}
                   onChange={(event) => updateDraft("notes", event.target.value)}
                   maxLength={1000}

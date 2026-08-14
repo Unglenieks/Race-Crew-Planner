@@ -2599,7 +2599,7 @@ describe("regressions found reviewing the outage integration", () => {
     ).rejects.toThrow("Temperature");
   });
 
-  it("enforces submission visibility and draft edit ownership in Convex", async () => {
+  it("shares submission records with event members while preserving draft edit ownership", async () => {
     const identity = {
       tokenIdentifier: "issuer|crew_123",
       subject: "crew_123",
@@ -2644,7 +2644,9 @@ describe("regressions found reviewing the outage integration", () => {
         eventId: "events:one" as never,
         submissionId: "formSubmissions:other" as never,
       }),
-    ).rejects.toThrow("Inspection submission not found");
+    ).resolves.toEqual(
+      expect.objectContaining({ canEdit: false, createdBy: "another_user" }),
+    );
   });
 
   it("does not allow submitted answers to be altered", async () => {
@@ -2815,6 +2817,61 @@ describe("regressions found reviewing the outage integration", () => {
     expect(patches).toContainEqual(
       expect.objectContaining({ reservePercent: 12 }),
     );
+  });
+
+  it("preserves legacy movement metadata when a simplified edit changes another field", async () => {
+    const patches: Array<Record<string, unknown>> = [];
+    const legacyMovement = {
+      _id: "itineraryItems:one",
+      eventId: "events:one",
+      title: "Friday close",
+      scheduledFor: "2026-10-17T00:00",
+      sectionId: "planSections:one",
+      operationalDay: "2026-10-16",
+      displayTime: "2400" as const,
+      serviceIntervalId: "serviceIntervals:one",
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const context = {
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: "issuer|owner_123",
+          subject: "owner_123",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: (table: string) => ({
+          withIndex: () => ({
+            unique: async () =>
+              table === "eventMemberships" ? { role: "owner" } : null,
+            collect: async () => [],
+          }),
+        }),
+        get: async (id: string) => {
+          if (id === "itineraryItems:one") return legacyMovement;
+          if (id === "events:one") return { timeZone: "UTC" };
+          return null;
+        },
+        patch: async (_id: string, value: Record<string, unknown>) => {
+          patches.push(value);
+        },
+        insert: async () => "eventActivity:one",
+      },
+    };
+
+    await updateItineraryItem._handler(context as never, {
+      eventId: "events:one" as never,
+      itemId: "itineraryItems:one" as never,
+      title: "Friday close updated",
+      scheduledFor: "2026-10-17T00:00",
+    });
+
+    expect(patches[0]).not.toHaveProperty("sectionId");
+    expect(patches[0]).not.toHaveProperty("operationalDay");
+    expect(patches[0]).not.toHaveProperty("displayTime");
+    expect(patches[0]).not.toHaveProperty("serviceIntervalId");
   });
 
   it("rejects a service window owned by another event", async () => {

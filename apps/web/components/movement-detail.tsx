@@ -12,9 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDestructiveAction } from "@/components/ui/confirm-destructive-action";
 import {
   itineraryApi,
-  logisticsApi,
   movementsApi,
-  planSectionsApi,
   recordsApi,
   type EventRole,
   type ItineraryItem,
@@ -30,12 +28,8 @@ type Draft = {
   location: string;
   recordId: string;
   notes: string;
-  serviceIntervalId: string;
   timeKind: NonNullable<ItineraryItem["timeKind"]>;
   movementTypeId: string;
-  sectionId: string;
-  operationalDay: string;
-  displayTime: "standard" | "2400";
   spectatorVisible: boolean;
 };
 
@@ -51,19 +45,15 @@ function toDraft(item: ItineraryItem): Draft {
   return {
     title: item.title,
     scheduledFor:
-      item.timeKind === "allDay" || item.displayTime === "2400"
-        ? (item.operationalDay ?? item.scheduledFor.slice(0, 10))
+      item.timeKind === "allDay"
+        ? item.scheduledFor.slice(0, 10)
         : item.scheduledFor,
     scheduledUntil: item.scheduledUntil ?? "",
     location: item.location ?? "",
     recordId: item.recordId ?? "",
     notes: item.notes ?? "",
-    serviceIntervalId: item.serviceIntervalId ?? "",
     timeKind: item.timeKind ?? "exact",
     movementTypeId: item.movementTypeId ?? "",
-    sectionId: item.sectionId ?? "",
-    operationalDay: item.operationalDay ?? "",
-    displayTime: item.displayTime ?? "standard",
     spectatorVisible: item.spectatorVisible === true,
   };
 }
@@ -86,8 +76,6 @@ export function MovementDetail({
   const records = useQuery(recordsApi.list, { eventId });
   const recordTypes = useQuery(recordsApi.listTypes, { eventId });
   const directory = useQuery(movementsApi.listDirectory, { eventId });
-  const sections = useQuery(planSectionsApi.list, { eventId });
-  const logistics = useQuery(logisticsApi.getOverview, { eventId });
   const update = useMutation(itineraryApi.update);
   const archive = useMutation(itineraryApi.archive);
   const ensureDefaults = useMutation(movementsApi.ensureDefaults);
@@ -114,9 +102,7 @@ export function MovementDetail({
     item === undefined ||
     records === undefined ||
     recordTypes === undefined ||
-    directory === undefined ||
-    sections === undefined ||
-    logistics === undefined
+    directory === undefined
   ) {
     return (
       <p className="flex items-center text-sm text-muted" role="status">
@@ -163,18 +149,10 @@ export function MovementDetail({
     setError(null);
     setIsSaving(true);
     try {
-      const operationalDay =
-        currentDraft.operationalDay ||
-        (sections ?? []).find(
-          (section) => section._id === currentDraft.sectionId,
-        )?.operationalDate ||
-        undefined;
       const scheduledFor =
         currentDraft.timeKind === "allDay"
           ? `${currentDraft.scheduledFor}T00:00`
-          : currentDraft.displayTime === "2400"
-            ? `${operationalDay ?? currentDraft.scheduledFor}T24:00`
-            : currentDraft.scheduledFor;
+          : currentDraft.scheduledFor;
       await update({
         eventId,
         itemId,
@@ -186,19 +164,9 @@ export function MovementDetail({
             : undefined,
         location: currentDraft.location || undefined,
         recordId: currentDraft.recordId || undefined,
-        serviceIntervalId: currentDraft.serviceIntervalId || undefined,
         notes: currentDraft.notes || undefined,
         movementTypeId: currentDraft.movementTypeId || null,
         timeKind: currentDraft.timeKind,
-        sectionId: currentDraft.sectionId || undefined,
-        operationalDay:
-          currentDraft.timeKind === "allDay"
-            ? (operationalDay ?? currentDraft.scheduledFor)
-            : operationalDay,
-        displayTime:
-          currentDraft.timeKind === "allDay"
-            ? "standard"
-            : currentDraft.displayTime,
         spectatorVisible: currentDraft.spectatorVisible,
       });
       setDraft(null);
@@ -273,6 +241,7 @@ export function MovementDetail({
               <label className="grid gap-1.5 text-sm font-medium text-ink">
                 Description
                 <input
+                  name="movementDescription"
                   value={currentDraft.title}
                   onChange={(event) => updateDraft("title", event.target.value)}
                   maxLength={160}
@@ -283,6 +252,7 @@ export function MovementDetail({
               <label className="flex items-start gap-3 rounded-lg border border-line p-3 text-sm text-ink">
                 <input
                   type="checkbox"
+                  name="spectatorVisible"
                   checked={currentDraft.spectatorVisible}
                   onChange={(event) =>
                     updateDraft("spectatorVisible", event.target.checked)
@@ -300,18 +270,14 @@ export function MovementDetail({
               </label>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-1.5 text-sm font-medium text-ink">
-                  {currentDraft.timeKind === "allDay"
-                    ? "Date"
-                    : currentDraft.displayTime === "2400"
-                      ? "Operational day"
-                      : "Time"}
+                  {currentDraft.timeKind === "allDay" ? "Date" : "Time"}
                   <input
                     type={
-                      currentDraft.timeKind === "allDay" ||
-                      currentDraft.displayTime === "2400"
+                      currentDraft.timeKind === "allDay"
                         ? "date"
                         : "datetime-local"
                     }
+                    name="movementTime"
                     value={currentDraft.scheduledFor}
                     onChange={(event) =>
                       updateDraft("scheduledFor", event.target.value)
@@ -324,6 +290,7 @@ export function MovementDetail({
                 <label className="grid gap-1.5 text-sm font-medium text-ink">
                   Time confidence
                   <select
+                    name="movementTimeKind"
                     value={currentDraft.timeKind}
                     onChange={(event) =>
                       updateDraft("timeKind", event.target.value)
@@ -338,31 +305,6 @@ export function MovementDetail({
                   </select>
                 </label>
               </div>
-              {currentDraft.timeKind === "range" ||
-              currentDraft.timeKind === "allDay" ? null : (
-                <label className="flex items-center gap-2 text-sm text-ink">
-                  <input
-                    type="checkbox"
-                    checked={currentDraft.displayTime === "2400"}
-                    onChange={(event) => {
-                      const displayTime = event.target.checked
-                        ? "2400"
-                        : "standard";
-                      updateDraft("displayTime", displayTime);
-                      if (
-                        displayTime === "2400" &&
-                        currentDraft.scheduledFor.includes("T")
-                      ) {
-                        const day = currentDraft.scheduledFor.slice(0, 10);
-                        updateDraft("scheduledFor", day);
-                        if (!currentDraft.operationalDay)
-                          updateDraft("operationalDay", day);
-                      }
-                    }}
-                  />
-                  Display midnight as 2400 on the preceding operational day
-                </label>
-              )}
               {currentDraft.timeKind === "range" ? (
                 <label className="grid gap-1.5 text-sm font-medium text-ink">
                   End time
@@ -381,6 +323,7 @@ export function MovementDetail({
               <label className="grid gap-1.5 text-sm font-medium text-ink">
                 Movement type
                 <select
+                  name="movementType"
                   value={currentDraft.movementTypeId}
                   onChange={(event) =>
                     updateDraft("movementTypeId", event.target.value)
@@ -397,39 +340,6 @@ export function MovementDetail({
                     ))}
                 </select>
               </label>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-1.5 text-sm font-medium text-ink">
-                  Operational section
-                  <select
-                    value={currentDraft.sectionId}
-                    onChange={(event) =>
-                      updateDraft("sectionId", event.target.value)
-                    }
-                    className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm font-normal text-ink shadow-sm"
-                  >
-                    <option value="">No named section</option>
-                    {sections.map((section) => (
-                      <option key={section._id} value={section._id}>
-                        {section.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {currentDraft.timeKind === "allDay" ? null : (
-                  <label className="grid gap-1.5 text-sm font-medium text-ink">
-                    Operational day{" "}
-                    <span className="font-normal text-muted">(optional)</span>
-                    <input
-                      type="date"
-                      value={currentDraft.operationalDay}
-                      onChange={(event) =>
-                        updateDraft("operationalDay", event.target.value)
-                      }
-                      className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm font-normal text-ink shadow-sm"
-                    />
-                  </label>
-                )}
-              </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-1.5 text-sm font-medium text-ink">
                   <span>Linked venue</span>
@@ -448,6 +358,7 @@ export function MovementDetail({
                     (saved snapshot or override)
                   </span>
                   <input
+                    name="movementLocation"
                     value={currentDraft.location}
                     onChange={(event) =>
                       updateDraft("location", event.target.value)
@@ -460,32 +371,13 @@ export function MovementDetail({
               <label className="grid gap-1.5 text-sm font-medium text-ink">
                 Notes <span className="font-normal text-muted">(optional)</span>
                 <textarea
+                  name="movementNotes"
                   value={currentDraft.notes}
                   onChange={(event) => updateDraft("notes", event.target.value)}
                   maxLength={1000}
                   className="min-h-28 rounded-lg border border-line bg-card px-3 py-2 text-sm font-normal text-ink shadow-sm"
                 />
               </label>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-1.5 text-sm font-medium text-ink">
-                  Service window{" "}
-                  <span className="font-normal text-muted">(optional)</span>
-                  <select
-                    value={currentDraft.serviceIntervalId}
-                    onChange={(event) =>
-                      updateDraft("serviceIntervalId", event.target.value)
-                    }
-                    className="min-h-11 rounded-lg border border-line bg-card px-3 py-2 text-sm font-normal text-ink shadow-sm"
-                  >
-                    <option value="">No service window</option>
-                    {logistics.serviceIntervals.map((service) => (
-                      <option key={service._id} value={service._id}>
-                        {service.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="submit"
@@ -543,9 +435,7 @@ export function MovementDetail({
                 </dd>
               </div>
               <div>
-                <dt className="font-semibold text-ink">
-                  Operational classification
-                </dt>
+                <dt className="font-semibold text-ink">Movement type</dt>
                 <dd className="mt-1 text-muted">
                   {item.movementTypeLabel ?? "Unclassified"}
                   {item.tags === undefined || item.tags.length === 0
@@ -568,14 +458,6 @@ export function MovementDetail({
                 <dt className="font-semibold text-ink">Notes</dt>
                 <dd className="mt-1 whitespace-pre-wrap text-muted">
                   {item.notes ?? "No notes"}
-                </dd>
-              </div>
-              <div>
-                <dt className="font-semibold text-ink">Logistics links</dt>
-                <dd className="mt-1 text-muted">
-                  {item.serviceIntervalId
-                    ? `Service: ${logistics.serviceIntervals.find((service) => service._id === item.serviceIntervalId)?.name ?? "linked service window"}`
-                    : "No service window"}
                 </dd>
               </div>
             </dl>

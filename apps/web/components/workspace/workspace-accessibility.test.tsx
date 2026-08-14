@@ -36,7 +36,7 @@ describe("workspace navigation accessibility", () => {
     ).toBeDefined();
     expect(
       screen.getByRole("link", {
-        name: "North Ridge Rally, America/New_York, owner, 1 event. Switch event.",
+        name: /^North Ridge Rally/,
       }),
     ).toBeDefined();
   });

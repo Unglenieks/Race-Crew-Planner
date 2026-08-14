@@ -97,6 +97,11 @@ export function Sidebar() {
   return (
     <aside className="sticky top-0 hidden h-screen w-[250px] flex-none flex-col overflow-auto border-r border-line bg-side md:flex">
       <div className="p-4 pb-2">
+        <p id="event-switcher-description" className="sr-only">
+          Switch event. {event.timeZone},{" "}
+          {role === "manager" ? "Crew Chief" : role}, {events.length}{" "}
+          {events.length === 1 ? "event" : "events"}.
+        </p>
         <Link
           href="/events"
           className="mx-2 mb-4 flex items-center gap-2 text-xl font-extrabold tracking-tight text-ink focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
@@ -110,7 +115,7 @@ export function Sidebar() {
         <Link
           href="/events"
           className="flex min-h-11 w-full items-center gap-2 rounded-lg border border-btnline bg-card px-3 py-2.5 text-left text-sm hover:border-ink2 focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
-          aria-label={`${event.name}, ${event.timeZone}, ${role}, ${events.length} ${events.length === 1 ? "event" : "events"}. Switch event.`}
+          aria-describedby="event-switcher-description"
         >
           <span className="min-w-0 flex-1">
             <b className="block truncate text-sm font-semibold text-ink">

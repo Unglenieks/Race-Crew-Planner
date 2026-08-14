@@ -12,6 +12,7 @@ export function FormsScreen() {
       <FormsInspections
         eventId={event.id}
         role={role === "spectator" ? "crew" : role}
+        timeZone={event.timeZone}
       />
     </WorkspaceScreen>
   );

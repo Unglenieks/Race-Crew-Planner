@@ -8,6 +8,7 @@ import {
 } from "./_generated/server";
 import { requireIdentity, requireRole } from "./auth";
 import { writeAudit } from "./audit";
+import { resolveUserProfile } from "./userProfiles";
 
 const field = v.object({
   id: v.string(),
@@ -447,34 +448,33 @@ export const listMySubmissions = query({
 
 const submissionStatus = v.union(v.literal("draft"), v.literal("submitted"));
 
-/** Lists visible submission records; managers see the event, crew see their own. */
+/** Lists submission records for every event member; only authors may edit drafts. */
 export const listSubmissions = query({
   args: { eventId: v.id("events"), status: v.optional(submissionStatus) },
   handler: async (ctx, { eventId, status }) => {
-    const { identity, membership } = await requireMembership(ctx, eventId);
-    const submissions =
-      membership.role === "owner" || membership.role === "manager"
-        ? await ctx.db
-            .query("formSubmissions")
-            .withIndex("by_eventId", (index) => index.eq("eventId", eventId))
-            .collect()
-        : await ctx.db
-            .query("formSubmissions")
-            .withIndex("by_eventId_createdBy", (index) =>
-              index.eq("eventId", eventId).eq("createdBy", identity.subject),
-            )
-            .collect();
-    return submissions
-      .filter(
-        (submission) => status === undefined || submission.status === status,
-      )
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .map((submission) => ({
-        ...submission,
-        canEdit:
-          submission.status === "draft" &&
-          submission.createdBy === identity.subject,
-      }));
+    const { identity } = await requireMembership(ctx, eventId);
+    const submissions = await ctx.db
+      .query("formSubmissions")
+      .withIndex("by_eventId", (index) => index.eq("eventId", eventId))
+      .collect();
+    return await Promise.all(
+      submissions
+        .filter(
+          (submission) => status === undefined || submission.status === status,
+        )
+        .sort(
+          (a, b) =>
+            (b.submittedAt ?? b.updatedAt) - (a.submittedAt ?? a.updatedAt),
+        )
+        .map(async (submission) => ({
+          ...submission,
+          submitterName: (await resolveUserProfile(ctx, submission.createdBy))
+            .name,
+          canEdit:
+            submission.status === "draft" &&
+            submission.createdBy === identity.subject,
+        })),
+    );
   },
 });
 
@@ -482,17 +482,14 @@ export const listSubmissions = query({
 export const getSubmission = query({
   args: { eventId: v.id("events"), submissionId: v.id("formSubmissions") },
   handler: async (ctx, { eventId, submissionId }) => {
-    const { identity, membership } = await requireMembership(ctx, eventId);
+    const { identity } = await requireMembership(ctx, eventId);
     const submission = await ctx.db.get(submissionId);
-    if (
-      submission === null ||
-      submission.eventId !== eventId ||
-      (membership.role === "crew" && submission.createdBy !== identity.subject)
-    ) {
+    if (submission === null || submission.eventId !== eventId) {
       throw new Error("Inspection submission not found");
     }
     return {
       ...submission,
+      submitterName: (await resolveUserProfile(ctx, submission.createdBy)).name,
       canEdit:
         submission.status === "draft" &&
         submission.createdBy === identity.subject,
