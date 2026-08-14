@@ -3,6 +3,7 @@
 import { UserButton } from "@clerk/nextjs";
 import { BellRing } from "lucide-react";
 import Link from "next/link";
+import { CrewViewControl } from "@/components/crew-view-control";
 import { DisplayModeControl } from "@/components/display-mode-control";
 import { useEventWorkspace } from "@/components/workspace/event-workspace";
 import { screenHref, type ScreenDefinition } from "@/lib/screens";
@@ -62,6 +63,7 @@ export function WorkspaceTopbar({ screen }: { screen: ScreenDefinition }) {
         </ol>
       </nav>
       {role === "spectator" ? null : <AttentionBadge eventId={event.id} />}
+      <CrewViewControl />
       <DisplayModeControl />
       <UserButton />
     </header>

@@ -55,4 +55,10 @@ describe("theme contract", () => {
 
     expect([...theme].filter((token) => !contrast.has(token))).toEqual([]);
   });
+
+  it("contains Leaflet panes below the mobile navigation overlay", () => {
+    expect(css).toMatch(
+      /\.leaflet-container\s*\{\s*isolation:\s*isolate;\s*z-index:\s*0;/,
+    );
+  });
 });
