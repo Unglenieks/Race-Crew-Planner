@@ -17,6 +17,7 @@ vi.mock("next/link", () => ({
 }));
 vi.mock("next/navigation", () => ({
   usePathname: () => "/events/events:one/today",
+  useRouter: () => ({ replace: vi.fn() }),
 }));
 vi.mock("@/components/connection-status", () => ({
   ConnectionStatus: () => <p>Connection available</p>,

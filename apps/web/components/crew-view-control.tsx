@@ -1,13 +1,17 @@
 "use client";
 
 import { Eye } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, startTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useEventWorkspace } from "@/components/workspace/event-workspace";
+import { canAccessScreen, findScreenByPath, screenHref } from "@/lib/screens";
 
 /** Lets operational users inspect the same client-side experience seen by each audience. */
 export function CrewViewControl() {
-  const { actualRole, viewAs, setViewAs } = useEventWorkspace();
+  const { actualRole, event, viewAs, setViewAs } = useEventWorkspace();
+  const pathname = usePathname();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const canViewAsCrew = actualRole === "owner" || actualRole === "manager";
@@ -69,7 +73,17 @@ export function CrewViewControl() {
               role="menuitemradio"
               aria-checked={viewAs === option.value}
               onClick={() => {
-                setViewAs(option.value);
+                const screen = findScreenByPath(event.id, pathname);
+                startTransition(() => {
+                  setViewAs(option.value);
+                  if (
+                    option.value === "spectator" &&
+                    screen !== null &&
+                    !canAccessScreen("spectator", screen)
+                  ) {
+                    router.replace(screenHref(event.id, "today"));
+                  }
+                });
                 setIsOpen(false);
               }}
               className="flex min-h-11 items-center rounded-md px-3 text-left text-sm font-semibold text-ink hover:bg-soft focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2"
