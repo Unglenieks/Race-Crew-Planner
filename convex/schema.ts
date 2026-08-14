@@ -319,6 +319,14 @@ export default defineSchema({
     order: v.number(),
     stageCount: v.number(),
     stageMiles: v.number(),
+    stages: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          miles: v.number(),
+        }),
+      ),
+    ),
     transitMiles: v.number(),
     startOrder: v.optional(v.number()),
     precedingCar: v.optional(v.string()),
@@ -644,6 +652,14 @@ export default defineSchema({
             name: v.string(),
             stageCount: v.number(),
             stageMiles: v.number(),
+            stages: v.optional(
+              v.array(
+                v.object({
+                  name: v.string(),
+                  miles: v.number(),
+                }),
+              ),
+            ),
             transitMiles: v.number(),
             startOrder: v.optional(v.number()),
             precedingCar: v.optional(v.string()),

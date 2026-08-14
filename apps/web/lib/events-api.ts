@@ -156,6 +156,7 @@ export type LogisticsOverview = {
     order: number;
     stageCount: number;
     stageMiles: number;
+    stages?: Array<{ name: string; miles: number }>;
     transitMiles: number;
     startOrder?: number;
     precedingCar?: string;
@@ -218,6 +219,7 @@ export type SpectatorEventInfo = {
     name: string;
     order: number;
     stageMiles: number;
+    stages?: Array<{ name: string; miles: number }>;
     transitMiles: number;
   }>;
   weatherForecasts: LogisticsOverview["weatherForecasts"];
@@ -711,6 +713,7 @@ export const logisticsApi = {
       order: number;
       stageCount: number;
       stageMiles: number;
+      stages?: Array<{ name: string; miles: number }>;
       transitMiles: number;
       startOrder?: number;
       precedingCar?: string;
@@ -752,6 +755,7 @@ export const logisticsApi = {
       order: number;
       stageCount: number;
       stageMiles: number;
+      stages?: Array<{ name: string; miles: number }>;
       transitMiles: number;
       startOrder?: number;
       precedingCar?: string;

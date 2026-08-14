@@ -72,6 +72,7 @@ type CrewBrief = {
       name: string;
       stageCount: number;
       stageMiles: number;
+      stages?: Array<{ name: string; miles: number }>;
       transitMiles: number;
       startOrder?: number;
       precedingCar?: string;
@@ -479,6 +480,7 @@ async function currentBrief(
             name: leg.name,
             stageCount: leg.stageCount,
             stageMiles: leg.stageMiles,
+            stages: leg.stages,
             transitMiles: leg.transitMiles,
             startOrder: leg.startOrder,
             precedingCar: leg.precedingCar,

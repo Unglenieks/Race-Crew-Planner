@@ -2753,6 +2753,41 @@ describe("regressions found reviewing the outage integration", () => {
     }
   });
 
+  it("derives a leg's aggregate mileage from its individual stages", async () => {
+    const inserts: Array<Record<string, unknown>> = [];
+    const context = managerContext(
+      {
+        insert: async (_table: string, value: Record<string, unknown>) => {
+          inserts.push(value);
+          return "rallyLegs:one";
+        },
+      },
+      "owner",
+    );
+
+    await createLeg._handler(context as never, {
+      eventId: "events:one" as never,
+      name: "Friday",
+      order: 0,
+      stageCount: 0,
+      stageMiles: 0,
+      stages: [
+        { name: "SS 1", miles: 12.4 },
+        { name: "SS 2", miles: 8.6 },
+      ],
+      transitMiles: 30,
+    });
+
+    expect(inserts[0]).toMatchObject({
+      stageCount: 2,
+      stageMiles: 21,
+      stages: [
+        { name: "SS 1", miles: 12.4 },
+        { name: "SS 2", miles: 8.6 },
+      ],
+    });
+  });
+
   it("requires an override reason and enforces logistics authorization and event ownership", async () => {
     const leg = {
       eventId: "events:one" as never,
