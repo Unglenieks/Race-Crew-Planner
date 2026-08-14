@@ -25,7 +25,7 @@ vi.mock("convex/react", () => ({
 
 import { FilesLibrary } from "./files-library";
 
-function renderLibrary(role: "owner" | "crew" = "owner") {
+function renderLibrary(role: "owner" | "crew" | "spectator" = "owner") {
   queryIndex = 0;
   mutationIndex = 0;
   Object.values(mutations).forEach((mutation) => mutation.mockReset());
@@ -41,11 +41,33 @@ describe("FilesLibrary", () => {
     expect(screen.getByText(/Record: Service park/)).toBeTruthy();
   });
 
-  it("hides deletion from crew members", () => {
+  it("renders Crew as a read-only library without mounted file controls", () => {
     renderLibrary("crew");
+    expect(screen.getByText("View only")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "service-park.jpg" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Choose file" })).toBeNull();
+    expect(screen.queryByLabelText("Choose file")).toBeNull();
+    expect(screen.queryByLabelText("Search attachment targets")).toBeNull();
     expect(
       screen.queryByRole("button", { name: /remove service-park/i }),
     ).toBeNull();
+  });
+
+  it("keeps the current spectator component behavior read-only", () => {
+    renderLibrary("spectator");
+    expect(screen.getByText("View only")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Choose file" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /remove service-park/i }),
+    ).toBeNull();
+  });
+
+  it("provides an accessible keyboard-focusable upload trigger to file managers", () => {
+    renderLibrary();
+    const trigger = screen.getByRole("button", { name: "Choose file" });
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
+    expect(screen.getByText("Can manage files")).toBeTruthy();
   });
 
   it("reports an oversize file before it requests an upload URL", () => {
@@ -53,7 +75,7 @@ describe("FilesLibrary", () => {
     const file = new File([new Uint8Array(10 * 1024 * 1024 + 1)], "large.pdf", {
       type: "application/pdf",
     });
-    fireEvent.change(screen.getByLabelText("File"), {
+    fireEvent.change(screen.getByLabelText("Choose file"), {
       target: { files: [file] },
     });
     fireEvent.submit(

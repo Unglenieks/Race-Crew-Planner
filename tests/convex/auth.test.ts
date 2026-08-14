@@ -80,7 +80,7 @@ import {
   validationIssues,
   validateFields,
 } from "../../convex/forms";
-import { safeUrl, text } from "../../convex/activity";
+import { addSource, safeUrl, text } from "../../convex/activity";
 import {
   resolveUserProfile,
   syncIdentityProfile,
@@ -88,6 +88,7 @@ import {
 import { recordHeartbeat } from "../../convex/scheduler";
 import {
   acceptedFile,
+  generateUploadUrl,
   remove as removeFile,
   save as saveFile,
 } from "../../convex/files";
@@ -226,14 +227,14 @@ describe("Convex authorization helpers", () => {
       {
         auth: {
           getUserIdentity: async () => ({
-            tokenIdentifier: "issuer|crew",
-            subject: "crew",
+            tokenIdentifier: "issuer|owner",
+            subject: "owner",
             issuer: "issuer",
           }),
         },
         db: {
           query: () => ({
-            withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+            withIndex: () => ({ unique: async () => ({ role: "owner" }) }),
           }),
           get: async () => ({ eventId: "events:one" }),
           system: {
@@ -259,7 +260,7 @@ describe("Convex authorization helpers", () => {
         recordId: "eventRecords:one",
         contentType: "image/jpeg",
         size: 1024,
-        uploadedBy: "crew",
+        uploadedBy: "owner",
       }),
     });
     expect(inserts).toContainEqual({
@@ -281,14 +282,14 @@ describe("Convex authorization helpers", () => {
         {
           auth: {
             getUserIdentity: async () => ({
-              tokenIdentifier: "issuer|crew",
-              subject: "crew",
+              tokenIdentifier: "issuer|owner",
+              subject: "owner",
               issuer: "issuer",
             }),
           },
           db: {
             query: () => ({
-              withIndex: () => ({ unique: async () => ({ role: "crew" }) }),
+              withIndex: () => ({ unique: async () => ({ role: "owner" }) }),
             }),
             get: async () => ({ eventId: "events:other" }),
           },
@@ -321,6 +322,105 @@ describe("Convex authorization helpers", () => {
         { eventId: "events:one" as never, fileId: "eventFiles:one" as never },
       ),
     ).rejects.toThrow("Forbidden");
+  });
+
+  it("allows only owners and Crew Chiefs to write files and sources", async () => {
+    const eventId = "events:one" as never;
+    const storageId = "_storage:one" as never;
+    const fileId = "eventFiles:one" as never;
+    const contextFor = (role: ApplicationRole | undefined) => ({
+      auth: {
+        getUserIdentity: async () => ({
+          tokenIdentifier: `issuer|${role ?? "outsider"}`,
+          subject: role ?? "outsider",
+          issuer: "issuer",
+        }),
+      },
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            unique: async () => (role === undefined ? null : { role }),
+          }),
+        }),
+        system: {
+          get: async () => ({ contentType: "application/pdf", size: 1 }),
+        },
+        get: async () => ({ eventId, storageId, name: "brief.pdf" }),
+        insert: async () => "eventFiles:one",
+        delete: async () => undefined,
+      },
+      storage: {
+        generateUploadUrl: async () => "https://example.test/upload",
+        delete: async () => undefined,
+      },
+    });
+    const unauthenticatedContext = {
+      auth: { getUserIdentity: async () => null },
+    };
+
+    for (const role of ["owner", "manager"] as const) {
+      await expect(
+        generateUploadUrl._handler(contextFor(role) as never, { eventId }),
+      ).resolves.toBe("https://example.test/upload");
+      await expect(
+        saveFile._handler(contextFor(role) as never, {
+          eventId,
+          storageId,
+          name: "brief.pdf",
+        }),
+      ).resolves.toBe("eventFiles:one");
+      await expect(
+        removeFile._handler(contextFor(role) as never, { eventId, fileId }),
+      ).resolves.toBeUndefined();
+      await expect(
+        addSource._handler(contextFor(role) as never, {
+          eventId,
+          title: "Official bulletin",
+        }),
+      ).resolves.toBe("eventFiles:one");
+    }
+
+    for (const role of ["crew", "spectator", undefined] as const) {
+      await expect(
+        generateUploadUrl._handler(contextFor(role) as never, { eventId }),
+      ).rejects.toThrow("Forbidden");
+      await expect(
+        saveFile._handler(contextFor(role) as never, {
+          eventId,
+          storageId,
+          name: "brief.pdf",
+        }),
+      ).rejects.toThrow("Forbidden");
+      await expect(
+        removeFile._handler(contextFor(role) as never, { eventId, fileId }),
+      ).rejects.toThrow("Forbidden");
+      await expect(
+        addSource._handler(contextFor(role) as never, {
+          eventId,
+          title: "Official bulletin",
+        }),
+      ).rejects.toThrow("Forbidden");
+    }
+
+    await expect(
+      generateUploadUrl._handler(unauthenticatedContext as never, { eventId }),
+    ).rejects.toThrow("Unauthenticated");
+    await expect(
+      saveFile._handler(unauthenticatedContext as never, {
+        eventId,
+        storageId,
+        name: "brief.pdf",
+      }),
+    ).rejects.toThrow("Unauthenticated");
+    await expect(
+      removeFile._handler(unauthenticatedContext as never, { eventId, fileId }),
+    ).rejects.toThrow("Unauthenticated");
+    await expect(
+      addSource._handler(unauthenticatedContext as never, {
+        eventId,
+        title: "Official bulletin",
+      }),
+    ).rejects.toThrow("Unauthenticated");
   });
 
   it("creates a representative, owner-owned sample event", async () => {

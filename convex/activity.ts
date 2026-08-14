@@ -6,7 +6,7 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
-import { requireIdentity } from "./auth";
+import { requireIdentity, requireRole } from "./auth";
 import { resolveUserProfile } from "./userProfiles";
 import { writeAudit } from "./audit";
 
@@ -22,7 +22,7 @@ async function requireMember(
     )
     .unique();
   if (membership === null) throw new Error("Forbidden");
-  return identity;
+  return { identity, membership };
 }
 function text(value: string, label: string, maximum: number) {
   const normalized = value.trim();
@@ -102,7 +102,7 @@ export const list = query({
 export const addComment = mutation({
   args: { eventId: v.id("events"), body: v.string() },
   handler: async (ctx, { eventId, body }) => {
-    const identity = await requireMember(ctx, eventId);
+    const { identity } = await requireMember(ctx, eventId);
     const now = Date.now();
     const message = text(body, "Comment", 2000);
     const id = await ctx.db.insert("eventComments", {
@@ -130,7 +130,8 @@ export const addSource = mutation({
     excerpt: v.optional(v.string()),
   },
   handler: async (ctx, { eventId, title, url, excerpt }) => {
-    const identity = await requireMember(ctx, eventId);
+    const { identity, membership } = await requireMember(ctx, eventId);
+    requireRole(membership.role, ["owner", "manager"]);
     const now = Date.now();
     const sourceTitle = text(title, "Source title", 160);
     const id = await ctx.db.insert("eventSources", {
