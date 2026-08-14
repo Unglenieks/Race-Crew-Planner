@@ -5,11 +5,11 @@ import { useEventWorkspace } from "@/components/workspace/event-workspace";
 import { WorkspaceScreen } from "@/components/workspace/workspace-screen";
 
 export function ActivityScreen() {
-  const { event } = useEventWorkspace();
+  const { event, role } = useEventWorkspace();
 
   return (
     <WorkspaceScreen id="activity">
-      <ActivitySources eventId={event.id} />
+      <ActivitySources eventId={event.id} role={role} />
     </WorkspaceScreen>
   );
 }

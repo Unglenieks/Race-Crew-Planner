@@ -1,7 +1,7 @@
 "use client";
 
 import { FileUp, LoaderCircle, Trash2 } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   filesApi,
@@ -12,6 +12,7 @@ import {
   type ItineraryItem,
 } from "@/lib/events-api";
 import { Banner } from "@/components/ui/banner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/data-display";
@@ -58,6 +59,7 @@ export function FilesLibrary({
   const generateUploadUrl = useMutation(filesApi.generateUploadUrl);
   const save = useMutation(filesApi.save);
   const remove = useMutation(filesApi.remove);
+  const fileInput = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [target, setTarget] = useState("");
   const [targetQuery, setTargetQuery] = useState("");
@@ -68,7 +70,7 @@ export function FilesLibrary({
     name: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const canRemove = role === "owner" || role === "manager";
+  const canManageFiles = role === "owner" || role === "manager";
   const selectedTargetLabel = useMemo(() => {
     if (target === "") return "Event library only";
     const [type, id] = target.split(":");
@@ -174,152 +176,174 @@ export function FilesLibrary({
           onConfirm={() => void deleteFile(removeTarget.id)}
         />
       )}
-      <Card>
-        <CardHeader>
-          <CardTitle>Add evidence</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form className="grid gap-3" onSubmit={upload}>
-            <p className="text-sm leading-relaxed text-muted">
-              PDF, image, or text file up to 10 MB. Uploads need a connection
-              and are not queued.
-            </p>
-            <label
-              className="grid gap-1 text-sm font-medium text-ink"
-              htmlFor="event-file"
-            >
-              File
-              <input
-                id="event-file"
-                type="file"
-                accept={acceptedTypes}
-                required
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-              />
-            </label>
-            <fieldset className="grid gap-2">
-              <legend className="text-sm font-medium text-ink">
-                Attach to
-              </legend>
-              <p className="text-xs text-muted" id="file-target-help">
-                Search records, work, or movements. Movement results include
-                their operational date and time.
+      {canManageFiles ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Add evidence</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form className="grid gap-3" onSubmit={upload}>
+              <p className="text-sm leading-relaxed text-muted">
+                PDF, image, or text file up to 10 MB. Uploads need a connection
+                and are not queued.
               </p>
-              <label className="sr-only" htmlFor="file-target-search">
-                Search attachment targets
-              </label>
-              <Input
-                id="file-target-search"
-                value={targetQuery}
-                onChange={(event) => setTargetQuery(event.target.value)}
-                placeholder="Search attachment targets"
-                aria-describedby="file-target-help"
-                autoComplete="off"
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant={target === "" ? "primary" : "secondary"}
-                className="w-fit"
-                aria-pressed={target === ""}
-                onClick={() => setTarget("")}
-              >
-                Event library only
-              </Button>
-              {normalizedTargetQuery.length === 0 ? (
-                <p className="text-xs text-muted">
-                  Start typing to find an attachment target.
-                </p>
-              ) : (
-                <div
-                  className="grid max-h-60 gap-3 overflow-auto rounded-lg border border-line p-2"
-                  aria-live="polite"
-                >
-                  {[
-                    [
-                      "Records",
-                      filteredRecords.map((record) => ({
-                        id: `record:${record._id}`,
-                        label: `Record · ${record.name}`,
-                      })),
-                    ],
-                    [
-                      "Work",
-                      filteredWork.map((item) => ({
-                        id: `work:${item._id}`,
-                        label: `Work · ${item.title}`,
-                      })),
-                    ],
-                    [
-                      "Movements",
-                      filteredMovements.map((item) => ({
-                        id: `movement:${item._id}`,
-                        label: movementTargetLabel(item),
-                      })),
-                    ],
-                  ].map(([group, options]) => {
-                    const targets = options as { id: string; label: string }[];
-                    return targets.length === 0 ? null : (
-                      <div key={group as string} className="grid gap-1">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                          {group as string}
-                        </p>
-                        {targets.map((option) => (
-                          <Button
-                            key={option.id}
-                            type="button"
-                            variant={target === option.id ? "primary" : "ghost"}
-                            className="h-auto min-h-11 justify-start whitespace-normal text-left"
-                            aria-pressed={target === option.id}
-                            onClick={() => setTarget(option.id)}
-                          >
-                            {option.label}
-                          </Button>
-                        ))}
-                      </div>
-                    );
-                  })}
-                  {filteredRecords.length +
-                    filteredWork.length +
-                    filteredMovements.length ===
-                  0 ? (
-                    <p className="text-sm text-muted">
-                      No attachment targets match this search.
-                    </p>
-                  ) : null}
-                </div>
-              )}
-              <p className="text-xs text-muted" aria-live="polite">
-                Selected:{" "}
-                {selectedTargetLabel ?? "Attachment target unavailable"}
-              </p>
-            </fieldset>
-            <Button
-              className="w-fit"
-              type="submit"
-              disabled={file === null || isUploading}
-            >
-              {isUploading ? (
-                <LoaderCircle
-                  className="h-4 w-4 animate-spin"
-                  aria-hidden="true"
+              <div className="grid gap-2">
+                <input
+                  id="event-file"
+                  ref={fileInput}
+                  type="file"
+                  accept={acceptedTypes}
+                  required
+                  className="sr-only"
+                  aria-label="Choose file"
+                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
                 />
-              ) : (
-                <FileUp className="h-4 w-4" aria-hidden="true" />
-              )}
-              {isUploading ? "Uploading…" : "Store file"}
-            </Button>
-          </form>
-          {error === null ? null : (
-            <Banner className="mt-4" variant="danger" role="alert">
-              {error}
-            </Banner>
-          )}
-        </CardContent>
-      </Card>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-fit"
+                  onClick={() => fileInput.current?.click()}
+                >
+                  Choose file
+                </Button>
+                <p className="text-sm text-muted" aria-live="polite">
+                  {file === null ? "No file chosen" : file.name}
+                </p>
+              </div>
+              <fieldset className="grid gap-2">
+                <legend className="text-sm font-medium text-ink">
+                  Attach to
+                </legend>
+                <p className="text-xs text-muted" id="file-target-help">
+                  Search records, work, or movements. Movement results include
+                  their operational date and time.
+                </p>
+                <label className="sr-only" htmlFor="file-target-search">
+                  Search attachment targets
+                </label>
+                <Input
+                  id="file-target-search"
+                  value={targetQuery}
+                  onChange={(event) => setTargetQuery(event.target.value)}
+                  placeholder="Search attachment targets"
+                  aria-describedby="file-target-help"
+                  autoComplete="off"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={target === "" ? "primary" : "secondary"}
+                  className="w-fit"
+                  aria-pressed={target === ""}
+                  onClick={() => setTarget("")}
+                >
+                  Event library only
+                </Button>
+                {normalizedTargetQuery.length === 0 ? (
+                  <p className="text-xs text-muted">
+                    Start typing to find an attachment target.
+                  </p>
+                ) : (
+                  <div
+                    className="grid max-h-60 gap-3 overflow-auto rounded-lg border border-line p-2"
+                    aria-live="polite"
+                  >
+                    {[
+                      [
+                        "Records",
+                        filteredRecords.map((record) => ({
+                          id: `record:${record._id}`,
+                          label: `Record · ${record.name}`,
+                        })),
+                      ],
+                      [
+                        "Work",
+                        filteredWork.map((item) => ({
+                          id: `work:${item._id}`,
+                          label: `Work · ${item.title}`,
+                        })),
+                      ],
+                      [
+                        "Movements",
+                        filteredMovements.map((item) => ({
+                          id: `movement:${item._id}`,
+                          label: movementTargetLabel(item),
+                        })),
+                      ],
+                    ].map(([group, options]) => {
+                      const targets = options as {
+                        id: string;
+                        label: string;
+                      }[];
+                      return targets.length === 0 ? null : (
+                        <div key={group as string} className="grid gap-1">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                            {group as string}
+                          </p>
+                          {targets.map((option) => (
+                            <Button
+                              key={option.id}
+                              type="button"
+                              variant={
+                                target === option.id ? "primary" : "ghost"
+                              }
+                              className="h-auto min-h-11 justify-start whitespace-normal text-left"
+                              aria-pressed={target === option.id}
+                              onClick={() => setTarget(option.id)}
+                            >
+                              {option.label}
+                            </Button>
+                          ))}
+                        </div>
+                      );
+                    })}
+                    {filteredRecords.length +
+                      filteredWork.length +
+                      filteredMovements.length ===
+                    0 ? (
+                      <p className="text-sm text-muted">
+                        No attachment targets match this search.
+                      </p>
+                    ) : null}
+                  </div>
+                )}
+                <p className="text-xs text-muted" aria-live="polite">
+                  Selected:{" "}
+                  {selectedTargetLabel ?? "Attachment target unavailable"}
+                </p>
+              </fieldset>
+              <Button
+                className="w-fit"
+                type="submit"
+                disabled={file === null || isUploading}
+              >
+                {isUploading ? (
+                  <LoaderCircle
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <FileUp className="h-4 w-4" aria-hidden="true" />
+                )}
+                {isUploading ? "Uploading…" : "Store file"}
+              </Button>
+            </form>
+            {error === null ? null : (
+              <Banner className="mt-4" variant="danger" role="alert">
+                {error}
+              </Banner>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
       <Card>
         <CardHeader>
-          <CardTitle>Files library</CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle>Files library</CardTitle>
+            <Badge variant={canManageFiles ? "success" : "neutral"}>
+              {canManageFiles ? "Can manage files" : "View only"}
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent>
           {files.length === 0 ? (
@@ -361,7 +385,7 @@ export function FilesLibrary({
                             : " · Event"}
                     </p>
                   </div>
-                  {canRemove ? (
+                  {canManageFiles ? (
                     <Button
                       type="button"
                       variant="secondary"

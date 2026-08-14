@@ -44,11 +44,12 @@ function acceptedFile(contentType: string, size: number) {
     throw new Error("Files must be between 1 byte and 10 MB");
 }
 
-/** A short-lived upload URL, issued only to a verified event member. */
+/** A short-lived upload URL, issued only to event file managers. */
 export const generateUploadUrl = mutation({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
-    await member(ctx, eventId);
+    const { membership } = await member(ctx, eventId);
+    requireRole(membership.role, ["owner", "manager"]);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -68,7 +69,8 @@ export const save = mutation({
     name: v.string(),
   },
   handler: async (ctx, args) => {
-    const { identity } = await member(ctx, args.eventId);
+    const { identity, membership } = await member(ctx, args.eventId);
+    requireRole(membership.role, ["owner", "manager"]);
     const targets = [
       args.recordId,
       args.workItemId,

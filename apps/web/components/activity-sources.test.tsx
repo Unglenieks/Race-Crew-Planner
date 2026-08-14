@@ -37,7 +37,7 @@ import { ActivitySources } from "./activity-sources";
 
 describe("ActivitySources history", () => {
   it("renders saved comment bodies and links audited objects", () => {
-    render(<ActivitySources eventId="events:one" />);
+    render(<ActivitySources eventId="events:one" role="crew" />);
     expect(
       screen.getByText("Confirm the access road before crew arrival."),
     ).toBeDefined();
@@ -46,5 +46,11 @@ describe("ActivitySources history", () => {
         .getByRole("link", { name: "Updated movement: Crew call" })
         .getAttribute("href"),
     ).toBe("/events/events:one/plan/itineraryItems:one");
+    expect(screen.queryByRole("button", { name: "Add source" })).toBeNull();
+  });
+
+  it("shows source management only to an elevated role", () => {
+    render(<ActivitySources eventId="events:one" role="manager" />);
+    expect(screen.getByRole("button", { name: "Add source" })).toBeTruthy();
   });
 });

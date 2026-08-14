@@ -4,7 +4,7 @@ import { FileText, Link2, LoaderCircle, MessageSquare } from "lucide-react";
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
-import { activityApi } from "@/lib/events-api";
+import { activityApi, type EventRole } from "@/lib/events-api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,13 @@ function date(value: number) {
   }).format(new Date(value));
 }
 
-export function ActivitySources({ eventId }: { eventId: string }) {
+export function ActivitySources({
+  eventId,
+  role,
+}: {
+  eventId: string;
+  role: EventRole;
+}) {
   const data = useQuery(activityApi.list, { eventId });
   const addComment = useMutation(activityApi.addComment);
   const addSource = useMutation(activityApi.addSource);
@@ -28,6 +34,7 @@ export function ActivitySources({ eventId }: { eventId: string }) {
   const [isSourceComposerOpen, setIsSourceComposerOpen] = useState(false);
   const [isSavingComment, setIsSavingComment] = useState(false);
   const [isSavingSource, setIsSavingSource] = useState(false);
+  const canManageSources = role === "owner" || role === "manager";
   if (data === undefined)
     return (
       <p className="flex items-center text-sm text-muted" role="status">
@@ -189,19 +196,21 @@ export function ActivitySources({ eventId }: { eventId: string }) {
                   References supporting the event&apos;s shared decisions.
                 </p>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                onClick={() => setIsSourceComposerOpen((open) => !open)}
-              >
-                <Link2 className="h-4 w-4" aria-hidden="true" />
-                {isSourceComposerOpen ? "Close" : "Add source"}
-              </Button>
+              {canManageSources ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setIsSourceComposerOpen((open) => !open)}
+                >
+                  <Link2 className="h-4 w-4" aria-hidden="true" />
+                  {isSourceComposerOpen ? "Close" : "Add source"}
+                </Button>
+              ) : null}
             </div>
           </CardHeader>
           <CardContent className="grid gap-4">
-            {isSourceComposerOpen ? (
+            {canManageSources && isSourceComposerOpen ? (
               <form
                 className="grid gap-2 rounded-lg border border-line p-3"
                 onSubmit={sourceSubmit}
