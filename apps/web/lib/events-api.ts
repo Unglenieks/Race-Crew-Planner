@@ -361,6 +361,7 @@ export type FormSubmission = {
   createdBy: string;
   createdAt: number;
   updatedAt: number;
+  submitterName?: string;
   canEdit?: boolean;
 };
 export type EventActivity = {

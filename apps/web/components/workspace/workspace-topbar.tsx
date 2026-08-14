@@ -12,23 +12,26 @@ function AttentionBadge({ eventId }: { eventId: string }) {
   const { count, isLoading } = useAttention(eventId);
 
   return (
-    <Link
-      href={screenHref(eventId, "attention")}
-      className={`flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm font-semibold focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2 ${
-        count > 0
-          ? "border-warning-ln bg-warning-bg text-warning-tx"
-          : "border-line bg-card text-muted"
-      }`}
-      aria-label={
-        isLoading
-          ? "Attention, checking items requiring attention"
-          : `Attention, ${count} items requiring attention`
-      }
-    >
-      <BellRing className="h-4 w-4 flex-none" aria-hidden="true" />
-      <span className="hidden sm:inline">Attention</span>
-      <span className="font-bold">{isLoading ? "…" : count}</span>
-    </Link>
+    <>
+      <span id="attention-description" className="sr-only">
+        {isLoading
+          ? "Checking items requiring attention."
+          : `${count} items requiring attention.`}
+      </span>
+      <Link
+        href={screenHref(eventId, "attention")}
+        className={`flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm font-semibold focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-offset-2 ${
+          count > 0
+            ? "border-warning-ln bg-warning-bg text-warning-tx"
+            : "border-line bg-card text-muted"
+        }`}
+        aria-describedby="attention-description"
+      >
+        <BellRing className="h-4 w-4 flex-none" aria-hidden="true" />
+        <span className="hidden sm:inline">Attention</span>
+        <span className="font-bold">{isLoading ? "…" : count}</span>
+      </Link>
+    </>
   );
 }
 

@@ -21,6 +21,7 @@ const submitted = {
   createdAt: 1,
   updatedAt: 2,
   submittedAt: 2,
+  submitterName: "Alex Driver",
 };
 
 vi.mock("@/lib/events-api", () => ({
@@ -77,7 +78,13 @@ describe("FormsInspections", () => {
   });
 
   it("generates identifiers from labels and keeps manual IDs under Advanced", () => {
-    render(<FormsInspections eventId="events:one" role="manager" />);
+    render(
+      <FormsInspections
+        eventId="events:one"
+        role="manager"
+        timeZone="America/New_York"
+      />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Build a template" }));
     const labels = screen.getAllByLabelText("Label");
     fireEvent.change(labels[0]!, { target: { value: "Brake condition" } });
@@ -90,18 +97,48 @@ describe("FormsInspections", () => {
 
   it("shows submitted answers as a read-only snapshot", () => {
     mode = "records";
-    render(<FormsInspections eventId="events:one" role="manager" />);
+    render(
+      <FormsInspections
+        eventId="events:one"
+        role="manager"
+        timeZone="America/New_York"
+      />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Review submission" }));
     expect(screen.getByText("Brake line replaced.")).toBeDefined();
     expect(screen.getByText(/submitted snapshot — read only/i)).toBeDefined();
+    expect(screen.getAllByText(/Alex Driver/)).toHaveLength(2);
+    expect(screen.getAllByText(/Record one/)).toHaveLength(2);
     expect(screen.queryByText("Continue this draft")).toBeNull();
   });
 
   it("renders short text with a single-line input", () => {
     mode = "short";
-    render(<FormsInspections eventId="events:one" role="crew" />);
+    render(
+      <FormsInspections
+        eventId="events:one"
+        role="crew"
+        timeZone="America/New_York"
+      />,
+    );
     const field = screen.getByLabelText("Driver name (required)");
     expect(field.tagName).toBe("INPUT");
     expect(field.getAttribute("type")).not.toBe("textarea");
+  });
+
+  it("discards an unchanged template builder without creating a template", () => {
+    render(
+      <FormsInspections
+        eventId="events:one"
+        role="manager"
+        timeZone="America/New_York"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Build a template" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Cancel" })[0]!);
+    expect(screen.queryByText("Build a form template")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Build a template" }),
+    ).toBeDefined();
   });
 });

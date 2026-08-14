@@ -96,7 +96,7 @@ function TemplateBuilder({
 }: {
   eventId: string;
   template?: FormTemplate;
-  onDone: () => void;
+  onDone: (message?: string) => void;
 }) {
   const createTemplate = useMutation(formsApi.createTemplate);
   const createVersion = useMutation(formsApi.createTemplateVersion);
@@ -110,6 +110,22 @@ function TemplateBuilder({
   );
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  const initialDraft = JSON.stringify({
+    name: template?.name ?? "Vehicle inspection",
+    fields: template?.fields ?? starterFields,
+  });
+  const isDirty =
+    JSON.stringify({
+      name,
+      fields: fields.map((field) => ({
+        id: field.id,
+        label: field.label,
+        type: field.type,
+        required: field.required,
+        instructions: field.instructions,
+        options: field.options,
+      })),
+    }) !== initialDraft;
   const updateField = (index: number, update: Partial<FormField>) =>
     setFields((current) =>
       current.map((field, currentIndex) =>
@@ -163,7 +179,7 @@ function TemplateBuilder({
           fields: submittedFields,
         });
       else await createTemplate({ eventId, name, fields: submittedFields });
-      onDone();
+      onDone(template ? "Template version created." : "Template created.");
     } catch {
       setError(
         "The template version was not saved. Check its field names, identifiers, and choice options.",
@@ -175,11 +191,24 @@ function TemplateBuilder({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>
-          {template
-            ? `Edit ${template.name} · creates v${template.version + 1}`
-            : "Build a form template"}
-        </CardTitle>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle>
+            {template
+              ? `Edit ${template.name} · creates v${template.version + 1}`
+              : "Build a form template"}
+          </CardTitle>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              if (!isDirty || window.confirm("Discard this template draft?"))
+                onDone();
+            }}
+            disabled={working}
+          >
+            Cancel
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <form className="grid gap-5" onSubmit={onSubmit}>
@@ -190,6 +219,7 @@ function TemplateBuilder({
             Template name
             <Input
               id="template-name"
+              name="templateName"
               value={name}
               onChange={(event) => setName(event.target.value)}
               maxLength={120}
@@ -209,6 +239,7 @@ function TemplateBuilder({
                   <label className="grid gap-1 text-sm text-muted">
                     Label
                     <Input
+                      name={`field-${field.builderKey}-label`}
                       value={field.label}
                       onChange={(event) => {
                         const label = event.target.value;
@@ -225,6 +256,7 @@ function TemplateBuilder({
                   <label className="grid gap-1 text-sm text-muted">
                     Field type
                     <select
+                      name={`field-${field.builderKey}-type`}
                       value={field.type}
                       onChange={(event) =>
                         updateField(index, {
@@ -244,6 +276,7 @@ function TemplateBuilder({
                   <label className="grid gap-1 text-sm text-muted">
                     Instructions (optional)
                     <Input
+                      name={`field-${field.builderKey}-instructions`}
                       value={field.instructions ?? ""}
                       maxLength={500}
                       onChange={(event) =>
@@ -261,6 +294,7 @@ function TemplateBuilder({
                   <label className="mt-2 grid gap-1 text-sm text-muted">
                     Field identifier
                     <Input
+                      name={`field-${field.builderKey}-identifier`}
                       value={field.id}
                       onChange={(event) =>
                         setFields((current) =>
@@ -284,6 +318,7 @@ function TemplateBuilder({
                   <label className="grid gap-1 text-sm text-muted">
                     Choices, separated by commas
                     <Input
+                      name={`field-${field.builderKey}-options`}
                       value={field.options?.join(", ") ?? ""}
                       onChange={(event) =>
                         updateField(index, {
@@ -375,7 +410,10 @@ function TemplateBuilder({
             <Button
               type="button"
               variant="secondary"
-              onClick={onDone}
+              onClick={() => {
+                if (!isDirty || window.confirm("Discard this template draft?"))
+                  onDone();
+              }}
               disabled={working}
             >
               Cancel
@@ -848,7 +886,30 @@ function answerText(value: unknown) {
   return String(value);
 }
 
-function SubmissionRecords({ eventId }: { eventId: string }) {
+function displayRecordTime(value: number, timeZone: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone,
+    timeZoneName: "short",
+  }).format(value);
+}
+
+function submissionReference(id: string) {
+  return `Record ${id.split(":").at(-1)}`;
+}
+
+function SubmissionRecords({
+  eventId,
+  timeZone,
+}: {
+  eventId: string;
+  timeZone: string;
+}) {
   const [status, setStatus] = useState<"all" | "draft" | "submitted">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const submissions = useQuery(formsApi.listSubmissions, {
@@ -866,9 +927,14 @@ function SubmissionRecords({ eventId }: { eventId: string }) {
         <CardTitle>Inspection records</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <label className="grid max-w-xs gap-1 text-sm font-medium text-ink">
+        <label
+          className="grid max-w-xs gap-1 text-sm font-medium text-ink"
+          htmlFor="inspection-record-status"
+        >
           Show
           <select
+            id="inspection-record-status"
+            name="inspectionRecordStatus"
             value={status}
             onChange={(event) => {
               setStatus(event.target.value as typeof status);
@@ -899,11 +965,20 @@ function SubmissionRecords({ eventId }: { eventId: string }) {
                     {submission.templateName}
                   </p>
                   <p className="text-xs text-muted">
-                    {submission.status === "draft" ? "Draft" : "Submitted"} · v
-                    {submission.templateVersion} · updated{" "}
-                    {new Intl.DateTimeFormat(undefined, {
-                      dateStyle: "medium",
-                    }).format(submission.updatedAt)}
+                    {submission.status === "draft" ? "Draft" : "Submitted"} ·{" "}
+                    {submissionReference(submission._id)} · v
+                    {submission.templateVersion}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {submission.submitterName ?? "Event member"} ·{" "}
+                    {submission.status === "submitted" &&
+                    submission.submittedAt !== undefined
+                      ? "submitted"
+                      : "updated"}{" "}
+                    {displayRecordTime(
+                      submission.submittedAt ?? submission.updatedAt,
+                      timeZone,
+                    )}
                   </p>
                 </div>
                 <Button
@@ -938,6 +1013,14 @@ function SubmissionRecords({ eventId }: { eventId: string }) {
                   ? "Draft — editable only by its author"
                   : "Submitted snapshot — read only"}
               </p>
+              <p className="text-sm text-muted">
+                {submissionReference(selected._id)} ·{" "}
+                {selected.submitterName ?? "Event member"} ·{" "}
+                {displayRecordTime(
+                  selected.submittedAt ?? selected.updatedAt,
+                  timeZone,
+                )}
+              </p>
             </div>
             <dl className="grid gap-3">
               {selected.fields.map((field) => (
@@ -969,13 +1052,16 @@ function SubmissionRecords({ eventId }: { eventId: string }) {
 export function FormsInspections({
   eventId,
   role,
+  timeZone,
 }: {
   eventId: string;
   role: "owner" | "manager" | "crew";
+  timeZone: string;
 }) {
   const templates = useQuery(formsApi.listTemplates, { eventId });
   const submissions = useQuery(formsApi.listMySubmissions, { eventId });
   const [builder, setBuilder] = useState<FormTemplate | "new" | null>(null);
+  const [builderMessage, setBuilderMessage] = useState<string | null>(null);
   if (templates === undefined || submissions === undefined)
     return (
       <p className="flex items-center text-sm text-muted" role="status">
@@ -986,7 +1072,7 @@ export function FormsInspections({
   const canBuild = role === "owner" || role === "manager";
   return (
     <div className="grid gap-4">
-      <SubmissionRecords eventId={eventId} />
+      <SubmissionRecords eventId={eventId} timeZone={timeZone} />
       {builder ? (
         <TemplateBuilder
           // Keying by template forces a remount when the operator switches which
@@ -996,7 +1082,10 @@ export function FormsInspections({
           key={builder === "new" ? "new" : builder._id}
           eventId={eventId}
           template={builder === "new" ? undefined : builder}
-          onDone={() => setBuilder(null)}
+          onDone={(message) => {
+            setBuilder(null);
+            setBuilderMessage(message ?? null);
+          }}
         />
       ) : null}
       <Card>
@@ -1004,6 +1093,14 @@ export function FormsInspections({
           <CardTitle>Templates</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
+          {builderMessage === null ? null : (
+            <p
+              className="rounded-md border border-green bg-soft px-3 py-2 text-sm text-green-ink"
+              role="status"
+            >
+              {builderMessage}
+            </p>
+          )}
           {canBuild && !builder ? (
             <Button
               type="button"

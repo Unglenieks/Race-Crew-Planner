@@ -633,11 +633,8 @@ export const update = mutation({
       args.recordId,
     );
     await requireMovementType(ctx, args.eventId, args.movementTypeId);
-    await requireServiceInterval(ctx, args.eventId, args.serviceIntervalId);
-
     const timeZone = await requireEventTimeZone(ctx, args.eventId);
     const item = validatedItineraryInput(args, timeZone);
-    await requireSection(ctx, args.eventId, args.sectionId);
     const previousStructured = await movementStructuredFields(ctx, existing);
     await ctx.db.patch(args.itemId, {
       ...item,
@@ -648,7 +645,6 @@ export const update = mutation({
       movementTypeId: item.movementTypeId ?? undefined,
       location: item.location ?? record?.name,
       ...movementChangeSnapshot(existing),
-      serviceIntervalId: args.serviceIntervalId,
       lastChangedNotes: existing.notes,
       lastChangedMovementTypeLabel: previousStructured.movementTypeLabel,
       lastChangedTagLabels: previousStructured.tags.map((tag) => tag.name),

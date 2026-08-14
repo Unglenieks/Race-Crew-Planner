@@ -63,12 +63,14 @@ export function VenueLinkCombobox({
           aria-hidden="true"
         />
         <Input
+          id="venue-link-search"
+          name="venueLinkSearch"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           disabled={disabled}
           placeholder="Search venues by name, address, or type"
           className="pl-9"
-          aria-label="Search venues"
+          aria-label="Linked venue search"
           role="combobox"
           aria-autocomplete="list"
           aria-controls={resultsId}
