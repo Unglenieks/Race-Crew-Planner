@@ -83,6 +83,7 @@ import {
 } from "../../convex/forms";
 import { addSource, safeUrl, text } from "../../convex/activity";
 import {
+  profileFromIdentity,
   resolveUserProfile,
   syncIdentityProfile,
 } from "../../convex/userProfiles";
@@ -2263,6 +2264,54 @@ describe("Convex authorization helpers", () => {
       email: "person@example.com",
       phoneNumber: "+15551234567",
     });
+  });
+
+  it("clears a phone when Clerk explicitly reports it as unverified", async () => {
+    const patches: Array<Record<string, unknown>> = [];
+    await syncIdentityProfile(
+      {
+        db: {
+          query: () => ({
+            withIndex: () => ({
+              unique: async () => ({
+                _id: "userProfiles:one",
+                phoneNumber: "+15551234567",
+              }),
+            }),
+          }),
+          patch: async (_id: string, value: Record<string, unknown>) => {
+            patches.push(value);
+          },
+        },
+      } as never,
+      {
+        tokenIdentifier: "issuer|user_123",
+        subject: "user_123",
+        issuer: "issuer",
+        phoneNumberVerified: false,
+      },
+    );
+    expect(patches[0]).toMatchObject({ phoneNumber: undefined });
+  });
+
+  it("accepts a phone only when Clerk marks it verified", () => {
+    const verified = profileFromIdentity({
+      tokenIdentifier: "issuer|user_123",
+      subject: "user_123",
+      issuer: "issuer",
+      phoneNumber: "+15551234567",
+      phoneNumberVerified: true,
+    });
+    const unverified = profileFromIdentity({
+      tokenIdentifier: "issuer|user_123",
+      subject: "user_123",
+      issuer: "issuer",
+      phoneNumber: "+15551234567",
+      phoneNumberVerified: false,
+    });
+
+    expect(verified.phoneNumber).toBe("+15551234567");
+    expect(unverified.phoneNumber).toBeUndefined();
   });
 });
 
