@@ -1,10 +1,20 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CrewViewControl } from "./crew-view-control";
 import {
   EventWorkspaceProvider,
   useEventWorkspace,
 } from "./workspace/event-workspace";
+
+const navigation = vi.hoisted(() => ({
+  pathname: "/events/events:one/schedule",
+  replace: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => navigation.pathname,
+  useRouter: () => ({ replace: navigation.replace }),
+}));
 
 const managerEvent = {
   id: "events:one",
@@ -19,6 +29,10 @@ function CurrentRole() {
 }
 
 describe("CrewViewControl", () => {
+  beforeEach(() => {
+    navigation.pathname = "/events/events:one/schedule";
+    navigation.replace.mockReset();
+  });
   it("lets crew chiefs inspect the workspace as crew or spectator", () => {
     render(
       <EventWorkspaceProvider event={managerEvent} events={[managerEvent]}>
@@ -41,6 +55,7 @@ describe("CrewViewControl", () => {
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Spectator" }));
 
     expect(screen.getByText("Rendered role: spectator")).toBeTruthy();
+    expect(navigation.replace).toHaveBeenCalledWith("/events/events:one/today");
   });
 
   it("lets crew members inspect the spectator view without offering chief controls", () => {
