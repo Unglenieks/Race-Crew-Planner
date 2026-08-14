@@ -33,8 +33,11 @@ For event sharing, enable Clerk application invitations in each matching Clerk
 instance. The web server creates the email invitation only after Convex confirms
 the caller owns the event. On sign-in, Convex activates a matching pending
 event invitation only when the Clerk JWT asserts the invitee's verified email.
-Phone numbers are retained only as verified owner-visible contact data; this
-application does not send SMS invitations.
+Phone numbers are optional, retained only when Clerk asserts a verified phone
+claim, and visible only to an event owner. The Clerk account profile is the
+supported place to add, verify, change, or remove a number; the app does not
+send SMS invitations. A social login phone may be used only when Clerk imports
+it as a verified user phone, so it is never a required acquisition path.
 
 **PostHog** is analytics only. Initialize it after consent/session readiness, identify with non-sensitive stable IDs, and never send credentials or protected content. Maintain event names and properties in `docs/analytics-events.md`.
 

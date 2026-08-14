@@ -19,10 +19,16 @@ resource-level checks remain in Convex.
    `Unauthenticated` on every protected function.
 4. Configure the Clerk `convex` JWT template to include the verified standard
    claims `email`, `email_verified`, `name`, `phone_number`, and
-   `phone_number_verified`. Event invitations match only a verified email;
-   profile names and verified phone numbers are shown only to an event owner.
-   Do not add private Clerk metadata to this token.
-5. Run `pnpm convex:dev`. The CLI checks the functions, regenerates
+   `phone_number_verified`. Enable phone-number management and verification in
+   Clerk's account profile for every Clerk environment. Event invitations match
+   only a verified email; verified phone numbers are optional owner-visible
+   contact data. Do not add private Clerk metadata to this token.
+5. For each environment, manually add and verify a phone through the Clerk
+   account menu, refresh the session, and confirm the intended owner can see
+   it in the event roster. Then remove it and confirm it no longer appears.
+   Do not log phone values while performing this check. Social-login providers
+   may omit phone data; accept it only when Clerk exposes it as verified.
+6. Run `pnpm convex:dev`. The CLI checks the functions, regenerates
    `convex/_generated/`, and syncs them to the selected development deployment.
 
 Use `pnpm convex:codegen` after changing a schema or function when a long-lived

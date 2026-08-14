@@ -230,7 +230,8 @@ export const listContacts = query({
           userId: membership.userId,
           name: profile.name,
           email: profile.email,
-          phoneNumber: profile.phoneNumber,
+          phoneNumber:
+            caller.role === "owner" ? profile.phoneNumber : undefined,
           avatarUrl: profile.avatarUrl,
         };
       }),

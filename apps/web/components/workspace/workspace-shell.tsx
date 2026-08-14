@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -17,7 +17,7 @@ import {
 import { OfflineBanner } from "@/components/offline-banner";
 import { MobileWorkspaceNavigation } from "@/components/workspace/mobile-workspace-navigation";
 import { WorkspaceTopbar } from "@/components/workspace/workspace-topbar";
-import { eventsApi, invitationsApi } from "@/lib/events-api";
+import { eventsApi } from "@/lib/events-api";
 import { canAccessScreen, findScreenByPath } from "@/lib/screens";
 import { claimAuthenticatedInvitations } from "@/lib/invitations-client";
 
@@ -66,21 +66,19 @@ function ConnectedShell({
 }) {
   const { isLoaded, isSignedIn } = useAuth();
   const events = useQuery(eventsApi.list, isSignedIn ? {} : "skip");
-  const syncProfile = useMutation(invitationsApi.syncProfile);
   const pathname = usePathname();
   const [needsVerifiedEmail, setNeedsVerifiedEmail] = useState(false);
   const [claimedInvitationCount, setClaimedInvitationCount] = useState(0);
 
   useEffect(() => {
     if (!isSignedIn) return;
-    void syncProfile()
-      .then(() => claimAuthenticatedInvitations())
+    void claimAuthenticatedInvitations()
       .then((result) => {
         setNeedsVerifiedEmail(result.requiresVerifiedEmail);
         setClaimedInvitationCount(result.claimedCount);
       })
       .catch(() => undefined);
-  }, [isSignedIn, syncProfile]);
+  }, [isSignedIn]);
 
   if (!isLoaded || (isSignedIn && events === undefined)) {
     return <ShellLoading />;

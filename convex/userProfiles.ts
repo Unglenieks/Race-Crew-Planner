@@ -38,7 +38,12 @@ export async function syncIdentityProfile(
     // Optional token claims must not erase previously verified profile data.
     displayName: asserted.displayName ?? existing?.displayName,
     email: asserted.email ?? existing?.email,
-    phoneNumber: asserted.phoneNumber ?? existing?.phoneNumber,
+    // An explicit false comes from Clerk after a phone is removed or becomes
+    // unverified. An omitted claim remains backward compatible with older JWTs.
+    phoneNumber:
+      identity.phoneNumberVerified === false
+        ? undefined
+        : (asserted.phoneNumber ?? existing?.phoneNumber),
     avatarUrl: asserted.avatarUrl ?? existing?.avatarUrl,
     updatedAt: Date.now(),
   };
