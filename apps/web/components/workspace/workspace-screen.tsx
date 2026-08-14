@@ -20,9 +20,9 @@ export function WorkspaceScreen({
   const screen = getScreen(id);
 
   return (
-    <section aria-labelledby={`screen-${id}-heading`}>
+    <section aria-labelledby={`screen-${id}-heading`} className="min-w-0">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h1
             id={`screen-${id}-heading`}
             className="font-serif text-[clamp(24px,3vw,32px)] font-semibold leading-tight tracking-tight text-ink"
@@ -33,7 +33,9 @@ export function WorkspaceScreen({
             {screen.description}
           </p>
         </div>
-        {actions === undefined ? null : <div>{actions}</div>}
+        {actions === undefined ? null : (
+          <div className="min-w-0">{actions}</div>
+        )}
       </div>
       {children}
     </section>

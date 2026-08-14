@@ -9,9 +9,13 @@ const mutations = {
   }),
   createSample: vi.fn().mockResolvedValue("events:sample"),
   removeSample: vi.fn().mockResolvedValue(null),
+  archive: vi.fn().mockResolvedValue(null),
+  restore: vi.fn().mockResolvedValue(null),
+  permanentlyDelete: vi.fn().mockResolvedValue(null),
 };
 const push = vi.fn();
 let events: unknown[] = [];
+let archivedEvents: unknown[] = [];
 const claimAuthenticatedInvitations = vi.hoisted(() =>
   vi.fn().mockResolvedValue({
     claimedCount: 0,
@@ -32,6 +36,10 @@ vi.mock("@/lib/events-api", () => ({
     list: "events:list",
     createSample: "events:createSample",
     removeSample: "events:removeSample",
+    archive: "events:archive",
+    restore: "events:restore",
+    permanentlyDelete: "events:permanentlyDelete",
+    listArchived: "events:listArchived",
   },
   invitationsApi: {
     syncProfile: "invitations:syncProfile",
@@ -39,10 +47,15 @@ vi.mock("@/lib/events-api", () => ({
   },
 }));
 vi.mock("convex/react", () => ({
-  useQuery: () => events,
+  useQuery: (reference: string) =>
+    reference === "events:listArchived" ? archivedEvents : events,
   useMutation: (reference: string) => {
     if (reference === "events:createSample") return mutations.createSample;
     if (reference === "events:removeSample") return mutations.removeSample;
+    if (reference === "events:archive") return mutations.archive;
+    if (reference === "events:restore") return mutations.restore;
+    if (reference === "events:permanentlyDelete")
+      return mutations.permanentlyDelete;
     if (reference === "invitations:syncProfile") return mutations.syncProfile;
     if (reference === "invitations:claim") return mutations.claim;
     return vi.fn();
@@ -65,6 +78,7 @@ import { EventSwitcher } from "./event-switcher";
 describe("EventSwitcher first run", () => {
   afterEach(() => {
     events = [];
+    archivedEvents = [];
     push.mockReset();
     Object.values(mutations).forEach((mutation) => mutation.mockClear());
     mutations.claim.mockResolvedValue({
@@ -125,5 +139,37 @@ describe("EventSwitcher first run", () => {
       await screen.findByText(/add and verify a primary email/i),
     ).toBeDefined();
     expect(screen.getAllByRole("status")).toHaveLength(1);
+  });
+
+  it("keeps archive, sample-removal, and archived-event actions available", () => {
+    events = [
+      {
+        id: "events:sample",
+        name: "Sample",
+        timeZone: "UTC",
+        role: "owner",
+        isSample: true,
+      },
+      {
+        id: "events:active",
+        name: "Active",
+        timeZone: "UTC",
+        role: "owner",
+        isSample: false,
+      },
+    ];
+    archivedEvents = [
+      {
+        id: "events:archived",
+        name: "Archived Rally",
+        purgeAt: new Date("2026-12-01").toISOString(),
+      },
+    ];
+    render(<EventSwitcher />);
+
+    expect(screen.getByRole("button", { name: "Remove sample" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Archive" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Restore" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeTruthy();
   });
 });

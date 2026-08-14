@@ -37,10 +37,13 @@ export function VenueLinkCombobox({
   const createName = query.trim();
 
   return (
-    <div className="grid gap-2">
+    <div className="grid min-w-0 gap-2">
       {selected === undefined ? null : (
-        <div className="flex min-h-11 items-center gap-2 rounded-lg border border-success-ln bg-success-bg px-3 text-sm text-ink">
-          <MapPin className="h-4 w-4 text-success-tx" aria-hidden="true" />
+        <div className="flex min-w-0 items-center gap-2 rounded-lg border border-success-ln bg-success-bg px-3 py-1.5 text-sm text-ink">
+          <MapPin
+            className="h-4 w-4 shrink-0 text-success-tx"
+            aria-hidden="true"
+          />
           <span className="min-w-0 flex-1 truncate">
             {selected.name}
             {selected.address === undefined ? "" : ` · ${selected.address}`}
@@ -49,6 +52,7 @@ export function VenueLinkCombobox({
             type="button"
             size="sm"
             variant="secondary"
+            className="shrink-0"
             disabled={disabled}
             onClick={() => onSelect(null)}
           >
@@ -57,7 +61,7 @@ export function VenueLinkCombobox({
           </Button>
         </div>
       )}
-      <div className="relative">
+      <div className="relative min-w-0">
         <Search
           className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
           aria-hidden="true"

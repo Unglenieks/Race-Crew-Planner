@@ -57,6 +57,9 @@ function EventContactTable() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const entryTitleRef = useRef<HTMLInputElement>(null);
+  const setVisibleEntryTitleRef = (element: HTMLInputElement | null) => {
+    if (element?.offsetParent !== null) entryTitleRef.current = element;
+  };
 
   function resetEntry() {
     setDraft(emptyContact());
@@ -145,7 +148,7 @@ function EventContactTable() {
     >
       <td className="p-2">
         <Input
-          ref={entryTitleRef}
+          ref={setVisibleEntryTitleRef}
           value={row.title}
           onChange={(event) =>
             rowIndex === undefined
@@ -252,6 +255,118 @@ function EventContactTable() {
     </tr>
   );
 
+  const renderEntryCard = (key: string, row = draft, rowIndex?: number) => (
+    <article
+      key={key}
+      className="grid gap-3 rounded-lg border border-line bg-soft/50 p-3"
+    >
+      <label className="grid gap-1.5 text-sm font-medium text-ink">
+        Title
+        <Input
+          ref={setVisibleEntryTitleRef}
+          value={row.title}
+          onChange={(event) =>
+            rowIndex === undefined
+              ? setDraft({ ...draft, title: event.target.value })
+              : updateNewRow(row.id, "title", event.target.value)
+          }
+          aria-label="Contact title"
+          placeholder="Role or title"
+          required
+          disabled={saving}
+        />
+      </label>
+      <label className="grid gap-1.5 text-sm font-medium text-ink">
+        Name
+        <Input
+          value={row.name}
+          onChange={(event) =>
+            rowIndex === undefined
+              ? setDraft({ ...draft, name: event.target.value })
+              : updateNewRow(row.id, "name", event.target.value)
+          }
+          aria-label="Contact name"
+          placeholder="Full name"
+          required
+          disabled={saving}
+        />
+      </label>
+      <label className="grid gap-1.5 text-sm font-medium text-ink">
+        Organization
+        <Input
+          value={row.organization}
+          onChange={(event) =>
+            rowIndex === undefined
+              ? setDraft({ ...draft, organization: event.target.value })
+              : updateNewRow(row.id, "organization", event.target.value)
+          }
+          aria-label="Organization"
+          placeholder="Organization (optional)"
+          disabled={saving}
+        />
+      </label>
+      <label className="grid gap-1.5 text-sm font-medium text-ink">
+        Email
+        <Input
+          type="email"
+          value={row.email}
+          onChange={(event) =>
+            rowIndex === undefined
+              ? setDraft({ ...draft, email: event.target.value })
+              : updateNewRow(row.id, "email", event.target.value)
+          }
+          aria-label="Contact email"
+          placeholder="Email (optional)"
+          disabled={saving}
+        />
+      </label>
+      <label className="grid gap-1.5 text-sm font-medium text-ink">
+        Phone
+        <Input
+          type="tel"
+          value={row.phone}
+          onChange={(event) =>
+            rowIndex === undefined
+              ? setDraft({ ...draft, phone: event.target.value })
+              : updateNewRow(row.id, "phone", event.target.value)
+          }
+          aria-label="Contact phone"
+          placeholder="Phone (optional)"
+          disabled={saving}
+        />
+      </label>
+      <div className="flex flex-wrap gap-2">
+        {rowIndex === undefined ? (
+          <>
+            <Button type="submit" size="sm" variant="primary" disabled={saving}>
+              {saving ? "Saving…" : "Save"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={resetEntry}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+          </>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => removeNewRow(row.id)}
+            disabled={saving}
+          >
+            <Trash2 className="h-4 w-4" aria-hidden="true" /> Remove row{" "}
+            {rowIndex + 1}
+          </Button>
+        )}
+      </div>
+    </article>
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -284,7 +399,87 @@ function EventContactTable() {
           <p className="text-sm text-muted">Loading contacts…</p>
         ) : (
           <form onSubmit={save} aria-label={entryLabel}>
-            <div className="overflow-x-auto">
+            <div className="grid gap-3 xl:hidden">
+              {overview.contacts.length === 0 &&
+              newRows.length === 0 &&
+              !editing ? (
+                <p className="py-4 text-sm text-muted">
+                  No event contacts have been recorded.
+                </p>
+              ) : null}
+              {overview.contacts.map((contact) =>
+                editing?._id === contact._id ? (
+                  renderEntryCard(contact._id)
+                ) : (
+                  <article
+                    key={contact._id}
+                    className="grid gap-2 rounded-lg border border-line p-3 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-semibold text-ink">{contact.title}</p>
+                      <p className="mt-1 font-medium text-ink">
+                        {contact.name}
+                      </p>
+                      {contact.organization ? (
+                        <p className="text-muted">{contact.organization}</p>
+                      ) : null}
+                    </div>
+                    <div className="grid gap-1 text-muted">
+                      {contact.email ? (
+                        <a
+                          className="inline-flex min-w-0 items-center gap-1 break-all text-green-ink underline"
+                          href={`mailto:${contact.email}`}
+                        >
+                          <Mail className="h-4 w-4 shrink-0" />
+                          {contact.email}
+                        </a>
+                      ) : (
+                        <span>Email: —</span>
+                      )}
+                      {contact.phone ? (
+                        <a
+                          className="inline-flex min-w-0 items-center gap-1 break-all text-green-ink underline"
+                          href={`tel:${contact.phone}`}
+                        >
+                          <Phone className="h-4 w-4 shrink-0" />
+                          {contact.phone}
+                        </a>
+                      ) : (
+                        <span>Phone: —</span>
+                      )}
+                    </div>
+                    {canManage ? (
+                      <div className="flex flex-wrap gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => startEdit(contact)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Edit
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setRemoving(contact)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Remove
+                        </Button>
+                      </div>
+                    ) : null}
+                  </article>
+                ),
+              )}
+              {canManage
+                ? newRows.map((row, index) =>
+                    renderEntryCard(row.id, row, index),
+                  )
+                : null}
+            </div>
+            <div className="hidden min-w-0 max-w-full overflow-x-auto xl:block">
               <table className="w-full min-w-[60rem] text-left text-sm">
                 <thead className="border-b border-line text-xs uppercase tracking-wide text-muted">
                   <tr>

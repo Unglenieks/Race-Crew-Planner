@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   createContacts: vi.fn(),
-  overview: { contacts: [] },
+  overview: { contacts: [] as unknown[] },
   role: "manager" as "manager" | "crew",
 }));
 
@@ -35,24 +35,24 @@ describe("ContactsCenter", () => {
     state.overview = { contacts: [] };
   });
 
-  it("lets Crew Chiefs add an event contact in a table row", async () => {
+  it("lets Crew Chiefs add event contacts from the responsive card form", async () => {
     state.createContacts.mockResolvedValue(["contacts:one"]);
     render(<ContactsCenter />);
 
     fireEvent.click(screen.getByRole("button", { name: "Add contact" }));
-    fireEvent.change(screen.getByLabelText("Contact title"), {
+    fireEvent.change(screen.getAllByLabelText("Contact title")[0], {
       target: { value: "Service manager" },
     });
-    fireEvent.change(screen.getByLabelText("Contact name"), {
+    fireEvent.change(screen.getAllByLabelText("Contact name")[0], {
       target: { value: "Sam Rivera" },
     });
-    fireEvent.change(screen.getByLabelText("Organization"), {
+    fireEvent.change(screen.getAllByLabelText("Organization")[0], {
       target: { value: "Rally operations" },
     });
-    fireEvent.change(screen.getByLabelText("Contact email"), {
+    fireEvent.change(screen.getAllByLabelText("Contact email")[0], {
       target: { value: "sam@example.com" },
     });
-    fireEvent.change(screen.getByLabelText("Contact phone"), {
+    fireEvent.change(screen.getAllByLabelText("Contact phone")[0], {
       target: { value: "+1 555 0100" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Add row" }));
@@ -93,5 +93,31 @@ describe("ContactsCenter", () => {
     render(<ContactsCenter />);
 
     expect(screen.queryByRole("button", { name: "Add contact" })).toBeNull();
+  });
+
+  it("keeps card actions accessible for a managed contact", () => {
+    state.overview = {
+      contacts: [
+        {
+          _id: "contacts:one",
+          title: "Service manager",
+          name: "Sam Rivera",
+          organization: "Rally operations",
+          email: "sam@example.com",
+          phone: "+1 555 0100",
+        },
+      ],
+    };
+    render(<ContactsCenter />);
+
+    expect(screen.getAllByRole("button", { name: "Edit" })).not.toHaveLength(0);
+    expect(screen.getAllByRole("button", { name: "Remove" })).not.toHaveLength(
+      0,
+    );
+    expect(
+      screen
+        .getAllByRole("link", { name: /sam@example.com/i })[0]
+        .getAttribute("href"),
+    ).toBe("mailto:sam@example.com");
   });
 });
