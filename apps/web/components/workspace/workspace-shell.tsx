@@ -11,7 +11,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { EventWorkspaceProvider } from "@/components/workspace/event-workspace";
-import { OfflineSync } from "@/components/offline-sync";
+import { OfflineBanner } from "@/components/offline-banner";
 import { MobileWorkspaceNavigation } from "@/components/workspace/mobile-workspace-navigation";
 import { WorkspaceTopbar } from "@/components/workspace/workspace-topbar";
 import { eventsApi, invitationsApi } from "@/lib/events-api";
@@ -66,12 +66,16 @@ function ConnectedShell({
   const syncProfile = useMutation(invitationsApi.syncProfile);
   const pathname = usePathname();
   const [needsVerifiedEmail, setNeedsVerifiedEmail] = useState(false);
+  const [claimedInvitationCount, setClaimedInvitationCount] = useState(0);
 
   useEffect(() => {
     if (!isSignedIn) return;
     void syncProfile()
       .then(() => claimAuthenticatedInvitations())
-      .then((result) => setNeedsVerifiedEmail(result.requiresVerifiedEmail))
+      .then((result) => {
+        setNeedsVerifiedEmail(result.requiresVerifiedEmail);
+        setClaimedInvitationCount(result.claimedCount);
+      })
       .catch(() => undefined);
   }, [isSignedIn, syncProfile]);
 
@@ -127,7 +131,17 @@ function ConnectedShell({
           invitations.
         </p>
       ) : null}
-      <OfflineSync eventId={eventId} />
+      {claimedInvitationCount > 0 ? (
+        <p
+          className="border-b border-success-ln bg-success-bg px-4 py-2 text-center text-sm text-success-tx"
+          role="status"
+        >
+          {claimedInvitationCount} event invitation
+          {claimedInvitationCount === 1 ? " has" : "s have"} been claimed for
+          this account.
+        </p>
+      ) : null}
+      <OfflineBanner />
       <div className="flex min-h-screen">
         <a
           href="#workspace-content"

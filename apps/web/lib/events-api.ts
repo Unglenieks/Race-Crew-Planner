@@ -272,12 +272,15 @@ export type WorkTemplate = {
 export type EventContact = {
   id: string;
   type: "member" | "invitation";
-  role: "owner" | "manager" | "crew";
+  role: "owner" | "manager" | "crew" | "spectator";
   userId?: string;
   name?: string;
   email?: string;
   phoneNumber?: string;
   avatarUrl?: string;
+  status?: "pending" | "claimed" | "expired" | "canceled";
+  createdAt?: number;
+  expiresAt?: number;
 };
 
 export type PlanChangeRecipient = {
@@ -1099,7 +1102,17 @@ export const workApi = {
 };
 
 export type SetupStepStatus = {
-  id: "profile" | "movement" | "crew";
+  id:
+    | "profile"
+    | "movement"
+    | "crew"
+    | "locations"
+    | "contacts"
+    | "legs"
+    | "vehicle"
+    | "noticeboard"
+    | "spectatorVenues"
+    | "priorityWork";
   completed: boolean;
   dismissed: boolean;
 };

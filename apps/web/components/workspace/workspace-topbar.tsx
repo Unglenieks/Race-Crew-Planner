@@ -8,7 +8,7 @@ import { useEventWorkspace } from "@/components/workspace/event-workspace";
 import { screenHref, type ScreenDefinition } from "@/lib/screens";
 import { useAttention } from "@/lib/use-attention";
 
-function AttentionBadge({ eventId }: { eventId: string }) {
+export function AttentionBadge({ eventId }: { eventId: string }) {
   const { count, isLoading } = useAttention(eventId);
 
   return (

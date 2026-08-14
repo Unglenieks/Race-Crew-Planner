@@ -23,6 +23,10 @@ vi.mock("@/components/connection-status", () => ({
 }));
 vi.mock("@clerk/nextjs", () => ({
   UserButton: () => <button>Account profile</button>,
+  useAuth: () => ({ userId: "user:one" }),
+}));
+vi.mock("convex/react", () => ({
+  useQuery: () => [],
 }));
 
 import { MobileWorkspaceNavigation } from "./mobile-workspace-navigation";
@@ -64,6 +68,11 @@ describe("MobileWorkspaceNavigation", () => {
       }),
     ).toBeTruthy();
     expect(screen.getByRole("link", { name: /event info/i })).toBeTruthy();
+    expect(
+      within(dialog)
+        .getByRole("link", { name: /attention/i })
+        .getAttribute("href"),
+    ).toBe("/events/events:one/attention");
     expect(screen.queryByRole("link", { name: /people/i })).toBeNull();
     fireEvent.keyDown(document, { key: "Escape" });
 

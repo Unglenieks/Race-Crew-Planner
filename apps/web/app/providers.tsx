@@ -5,6 +5,7 @@ import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexReactClient } from "convex/react";
 import type { ReactNode } from "react";
 import { AnalyticsProvider } from "@/components/analytics-provider";
+import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const convex =
@@ -14,6 +15,7 @@ const convex =
 export function Providers({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <AnalyticsProvider>
+      <ServiceWorkerRegistration />
       {convex === null ? (
         children
       ) : (
