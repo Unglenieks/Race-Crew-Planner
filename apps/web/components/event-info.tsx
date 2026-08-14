@@ -24,7 +24,7 @@ type Forecast = {
   source: string;
   asOf: number;
 };
-function Weather({
+export function Weather({
   forecasts,
   coordinates,
   timeZone,
@@ -69,29 +69,37 @@ function Weather({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <CardTitle>
             <span className="flex items-center gap-2">
               <CloudSun className="h-5 w-5 text-green-ink" />
               Weather
             </span>
           </CardTitle>
-          <div
-            className="flex rounded-md border border-btnline p-0.5"
-            aria-label="Temperature unit"
-          >
-            {(["C", "F"] as const).map((temperatureUnit) => (
-              <Button
-                key={temperatureUnit}
-                type="button"
-                size="sm"
-                variant={unit === temperatureUnit ? "primary" : "ghost"}
-                aria-pressed={unit === temperatureUnit}
-                onClick={() => setUnit(temperatureUnit)}
-              >
-                °{temperatureUnit}
-              </Button>
-            ))}
+          <div className="flex items-center gap-3">
+            {display[0] ? (
+              <p className="text-xs text-muted">
+                {display[0].source} · refreshed{" "}
+                {new Date(display[0].asOf).toLocaleString()}
+              </p>
+            ) : null}
+            <div
+              className="flex rounded-md border border-btnline p-0.5"
+              aria-label="Temperature unit"
+            >
+              {(["C", "F"] as const).map((temperatureUnit) => (
+                <Button
+                  key={temperatureUnit}
+                  type="button"
+                  size="sm"
+                  variant={unit === temperatureUnit ? "primary" : "ghost"}
+                  aria-pressed={unit === temperatureUnit}
+                  onClick={() => setUnit(temperatureUnit)}
+                >
+                  °{temperatureUnit}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -116,10 +124,6 @@ function Weather({
                   {formatTemperature(forecast.temperatureLow, unit)}–
                   {formatTemperature(forecast.temperatureHigh, unit)}°{unit} ·{" "}
                   {forecast.precipitationPercent ?? "—"}% precip.
-                </p>
-                <p className="mt-2 text-xs text-muted">
-                  {forecast.source} · refreshed{" "}
-                  {new Date(forecast.asOf).toLocaleString()}
                 </p>
               </article>
             ))}

@@ -52,7 +52,7 @@ vi.mock("@/components/event-info-switcher", () => ({
   EventInfoSwitcher: () => null,
 }));
 
-import { EventInfo } from "./event-info";
+import { EventInfo, Weather } from "./event-info";
 
 describe("EventInfo compact legs", () => {
   beforeEach(() => {
@@ -80,5 +80,40 @@ describe("EventInfo compact legs", () => {
     expect(cards.queryByText("Start order")).toBeNull();
     expect(cards.queryByText("Car ahead")).toBeNull();
     expect(screen.getByLabelText("Overall mileage")).toBeTruthy();
+  });
+});
+
+describe("Weather", () => {
+  it("shows source and refresh metadata once in the weather header", () => {
+    render(
+      <Weather
+        timeZone="America/New_York"
+        forecasts={[
+          {
+            _id: "weather:one",
+            forecastDate: "2026-08-15",
+            conditions: "Clear",
+            temperatureLow: 12,
+            temperatureHigh: 22,
+            precipitationPercent: 10,
+            source: "Open-Meteo",
+            asOf: 1_786_752_000_000,
+          },
+          {
+            _id: "weather:two",
+            forecastDate: "2026-08-16",
+            conditions: "Rain",
+            temperatureLow: 10,
+            temperatureHigh: 16,
+            precipitationPercent: 80,
+            source: "Open-Meteo",
+            asOf: 1_786_752_000_000,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByText(/Open-Meteo · refreshed/)).toHaveLength(1);
+    expect(screen.getByLabelText("Temperature unit")).toBeTruthy();
   });
 });

@@ -4,6 +4,7 @@ import { ChevronsUpDown, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ConnectionStatus } from "@/components/connection-status";
+import { CrewViewControl } from "@/components/crew-view-control";
 import { DisplayModeControl } from "@/components/display-mode-control";
 import { UserButton } from "@clerk/nextjs";
 import { WorkspaceNavigationLinks } from "@/components/sidebar";
@@ -178,6 +179,7 @@ export function MobileWorkspaceNavigation() {
               <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                 Display and account
               </p>
+              <CrewViewControl />
               <DisplayModeControl />
               <div className="flex min-h-11 items-center gap-3 rounded-lg border border-line bg-card px-3">
                 <UserButton />

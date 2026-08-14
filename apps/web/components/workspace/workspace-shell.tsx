@@ -10,7 +10,10 @@ import { Sidebar } from "@/components/sidebar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { EventWorkspaceProvider } from "@/components/workspace/event-workspace";
+import {
+  EventWorkspaceProvider,
+  useEventWorkspace,
+} from "@/components/workspace/event-workspace";
 import { OfflineBanner } from "@/components/offline-banner";
 import { MobileWorkspaceNavigation } from "@/components/workspace/mobile-workspace-navigation";
 import { WorkspaceTopbar } from "@/components/workspace/workspace-topbar";
@@ -122,6 +125,32 @@ function ConnectedShell({
 
   return (
     <EventWorkspaceProvider event={event} events={events ?? []}>
+      <WorkspaceContent
+        screen={screen}
+        needsVerifiedEmail={needsVerifiedEmail}
+        claimedInvitationCount={claimedInvitationCount}
+      >
+        {children}
+      </WorkspaceContent>
+    </EventWorkspaceProvider>
+  );
+}
+
+function WorkspaceContent({
+  screen,
+  needsVerifiedEmail,
+  claimedInvitationCount,
+  children,
+}: {
+  screen: ReturnType<typeof findScreenByPath>;
+  needsVerifiedEmail: boolean;
+  claimedInvitationCount: number;
+  children: ReactNode;
+}) {
+  const { role } = useEventWorkspace();
+
+  return (
+    <>
       {needsVerifiedEmail ? (
         <p
           className="border-b border-warning-ln bg-warning-bg px-4 py-2 text-center text-sm text-warning-tx"
@@ -157,7 +186,7 @@ function ConnectedShell({
             id="workspace-content"
             className="mx-auto w-full max-w-[1220px] flex-1 px-4 py-5 pb-24 sm:px-7 sm:py-7"
           >
-            {screen !== null && !canAccessScreen(event.role, screen) ? (
+            {screen !== null && !canAccessScreen(role, screen) ? (
               <Card>
                 <CardHeader>
                   <CardTitle>You do not have access to this screen</CardTitle>
@@ -165,7 +194,7 @@ function ConnectedShell({
                 <CardContent>
                   <p className="text-sm leading-relaxed text-muted">
                     {screen.label} is limited to the {screen.minRole} role. Your
-                    role on this event is {event.role}.
+                    current view is {role}.
                   </p>
                 </CardContent>
               </Card>
@@ -175,7 +204,7 @@ function ConnectedShell({
           </main>
         </div>
       </div>
-    </EventWorkspaceProvider>
+    </>
   );
 }
 

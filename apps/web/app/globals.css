@@ -169,6 +169,12 @@ body {
     0 1px 5px rgb(0 0 0 / 35%);
 }
 
+/* Leaflet control panes use high z-index values; contain them below the modal drawer. */
+.leaflet-container {
+  isolation: isolate;
+  z-index: 0;
+}
+
 html {
   scroll-behavior: smooth;
 }
