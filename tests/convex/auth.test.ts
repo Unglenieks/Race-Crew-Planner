@@ -20,6 +20,7 @@ import {
   get as getItineraryItem,
   list as listItineraryItems,
   listArchived as listArchivedItineraryItems,
+  listSpectator as listSpectatorItineraryItems,
   restore as restoreItineraryItem,
   update as updateItineraryItem,
   validatedItineraryInput,
@@ -106,6 +107,40 @@ import { calculateFuel, createLeg, updateLeg } from "../../convex/logistics";
 const owner: ApplicationRole = "owner";
 
 describe("Convex authorization helpers", () => {
+  it("lets every event member read only the published spectator itinerary", async () => {
+    const items = await listSpectatorItineraryItems._handler(
+      {
+        auth: {
+          getUserIdentity: async () => ({
+            tokenIdentifier: "issuer|owner",
+            subject: "owner",
+            issuer: "issuer",
+          }),
+        },
+        db: {
+          query: () => ({
+            withIndex: () => ({
+              unique: async () => ({ role: "owner" }),
+              collect: async () => [
+                {
+                  _id: "itineraryItems:one",
+                  title: "Spectator stage",
+                  scheduledFor: "2026-08-15T08:00",
+                  notes: "Park at the marked entrance.",
+                },
+              ],
+            }),
+          }),
+        },
+      } as never,
+      { eventId: "events:one" as never },
+    );
+
+    expect(items).toEqual([
+      expect.objectContaining({ title: "Spectator stage" }),
+    ]);
+  });
+
   it("captures only the caller's active, filtered plan snapshot for export", async () => {
     const inserts: Array<{ table: string; value: Record<string, unknown> }> =
       [];

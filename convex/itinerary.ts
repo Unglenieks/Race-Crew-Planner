@@ -270,8 +270,7 @@ export const list = query({
 export const listSpectator = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
-    const { membership } = await requireEventMembership(ctx, eventId);
-    if (membership.role !== "spectator") throw new Error("Forbidden");
+    await requireEventMembership(ctx, eventId);
     const items = await ctx.db
       .query("itineraryItems")
       .withIndex("by_eventId_spectatorVisible_archivedAt_scheduledFor", (q) =>

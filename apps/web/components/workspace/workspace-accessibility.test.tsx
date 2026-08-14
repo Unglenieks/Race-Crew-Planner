@@ -29,7 +29,7 @@ describe("workspace navigation accessibility", () => {
         </WorkspaceScreen>
       </EventWorkspaceProvider>,
     );
-    expect(container.querySelector("aside")?.className).toContain("md:flex");
+    expect(container.querySelector("aside")?.className).toContain("lg:flex");
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(
       screen.getByRole("heading", { level: 1, name: "Work & checklists" }),

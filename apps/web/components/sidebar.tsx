@@ -95,7 +95,7 @@ export function Sidebar() {
   const { event, events, role } = useEventWorkspace();
 
   return (
-    <aside className="sticky top-0 hidden h-screen w-[250px] flex-none flex-col overflow-auto border-r border-line bg-side md:flex">
+    <aside className="sticky top-0 hidden h-screen w-[250px] flex-none flex-col overflow-auto border-r border-line bg-side lg:flex">
       <div className="p-4 pb-2">
         <p id="event-switcher-description" className="sr-only">
           Switch event. {event.timeZone},{" "}

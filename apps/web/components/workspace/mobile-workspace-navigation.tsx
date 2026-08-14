@@ -74,7 +74,7 @@ export function MobileWorkspaceNavigation() {
   }, [isOpen]);
 
   return (
-    <div className="sticky top-0 z-30 h-14 border-b border-line bg-side md:hidden">
+    <div className="sticky top-0 z-30 h-14 border-b border-line bg-side lg:hidden">
       <div className="flex h-full items-center justify-between gap-3 px-4">
         <Link
           href="/events"
@@ -120,7 +120,7 @@ export function MobileWorkspaceNavigation() {
         </div>
       </div>
       {isOpen ? (
-        <div className="fixed inset-0 z-40 md:hidden">
+        <div className="fixed inset-0 z-40 lg:hidden">
           <button
             type="button"
             className="absolute inset-0 bg-ink/45"
