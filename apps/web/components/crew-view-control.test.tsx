@@ -27,14 +27,18 @@ describe("CrewViewControl", () => {
       </EventWorkspaceProvider>,
     );
 
-    const control = screen.getByLabelText("View as");
+    const control = screen.getByRole("button", {
+      name: "Choose workspace view",
+    });
     expect(screen.getByText("Rendered role: manager")).toBeTruthy();
 
-    fireEvent.change(control, { target: { value: "crew" } });
+    fireEvent.click(control);
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Crew" }));
 
     expect(screen.getByText("Rendered role: crew")).toBeTruthy();
 
-    fireEvent.change(control, { target: { value: "spectator" } });
+    fireEvent.click(control);
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Spectator" }));
 
     expect(screen.getByText("Rendered role: spectator")).toBeTruthy();
   });
@@ -48,13 +52,30 @@ describe("CrewViewControl", () => {
       </EventWorkspaceProvider>,
     );
 
-    const control = screen.getByLabelText("View as");
-    expect(screen.queryByRole("option", { name: "Crew Chief" })).toBeNull();
-    expect(screen.queryByRole("option", { name: "Crew" })).toBeTruthy();
+    const control = screen.getByRole("button", {
+      name: "Choose workspace view",
+    });
+    fireEvent.click(control);
+    expect(
+      screen.queryByRole("menuitemradio", { name: "Crew Chief" }),
+    ).toBeNull();
+    expect(screen.getByRole("menuitemradio", { name: /^Crew/ })).toBeTruthy();
 
-    fireEvent.change(control, { target: { value: "spectator" } });
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Spectator" }));
 
-    expect(screen.getByDisplayValue("Spectator")).toBeTruthy();
     expect(screen.getByText("Rendered role: spectator")).toBeTruthy();
+  });
+
+  it("does not render a view control for spectators", () => {
+    const spectatorEvent = { ...managerEvent, role: "spectator" as const };
+    render(
+      <EventWorkspaceProvider event={spectatorEvent} events={[spectatorEvent]}>
+        <CrewViewControl />
+      </EventWorkspaceProvider>,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Choose workspace view" }),
+    ).toBeNull();
   });
 });
