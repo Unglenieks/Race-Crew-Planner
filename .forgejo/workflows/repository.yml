@@ -1,9 +1,12 @@
 name: Validate
 
+# Runs on Forgejo Actions (fleet runner `oceanus-ci-runner`). Check results
+# with `fleet-ci runs Race-Crew-Planner`; see docs/delivery.md.
 on:
   pull_request:
   push:
     branches: [dev, preview, main]
+  workflow_dispatch:
 
 permissions:
   contents: read
