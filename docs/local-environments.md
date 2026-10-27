@@ -36,7 +36,7 @@ checkout after `pnpm install --frozen-lockfile`:
 scripts/local-env.sh up        # start Convex, publish convex/, build and start web
 scripts/local-env.sh status    # containers, /health, Convex /version
 scripts/local-env.sh deploy    # republish convex/ after changing functions
-scripts/local-env.sh down      # delete containers and data
+scripts/local-env.sh down      # delete containers, data and the built web image
 ```
 
 `up` generates the local admin key inside the backend and uses it only for

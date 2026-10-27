@@ -6,7 +6,7 @@
 #   scripts/local-env.sh up       start Convex, publish convex/, build and start web
 #   scripts/local-env.sh deploy   republish convex/ to the running local backend
 #   scripts/local-env.sh status   show containers and health
-#   scripts/local-env.sh down     stop and delete containers and data
+#   scripts/local-env.sh down     stop and delete containers, data and the built web image
 #
 # Settings (environment; defaults suit one stack on a workstation):
 #   RCP_LOCAL_PROJECT   compose project name, one per stack (default rcp-local)
@@ -75,6 +75,6 @@ case "${1:-}" in
     curl -fsS "$local_convex/version" && echo
     ;;
   logs) shift; dc logs --no-color "$@" ;;
-  down) dc down -v --remove-orphans ;;
+  down) dc down -v --rmi local --remove-orphans ;;
   *) sed -n '2,20p' "$0"; exit 2 ;;
 esac
