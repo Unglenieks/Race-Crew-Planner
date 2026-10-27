@@ -1,22 +1,58 @@
 # Delivery, review, and release policy
 
+## Code hosting
+
+The canonical repository is on Forgejo:
+`https://git.home.unglenieks.com/Unglenieks/Race-Crew-Planner` (clone
+`ssh://git@git.home.unglenieks.com:2222/Unglenieks/Race-Crew-Planner.git`).
+Push branches to `origin` (Forgejo) and open, review, and merge pull requests
+there. GitHub (`Unglenieks/Race-Crew-Planner`) is a read-only mirror that a
+fast-forward-only sync updates about every two minutes; never push to it or open
+PRs on it.
+
+## Continuous integration
+
+CI runs on Forgejo Actions on the fleet runner, not on GitHub Actions. The
+workflows live in `.forgejo/workflows/`:
+
+| Workflow | Job | Runs on | Checks |
+| --- | --- | --- | --- |
+| `repository.yml` (`Validate`) | `Bootstrap integrity` | every PR; pushes to `dev`, `preview`, `main`; manual dispatch | repository integrity, formatting, linting, web and Convex typechecks, tests, production build |
+| `local-environment.yml` | `Compose stack smoke test` | PRs touching `convex/`, `deploy/local/`, the lockfile or the script; manual dispatch | the [local agent-build stack](local-environments.md) starts and is healthy |
+
+Neither workflow needs secrets or deploys anything.
+
+Agents check CI with `fleet-ci` on Shipyard:
+
+```bash
+fleet-ci runs Race-Crew-Planner              # recent runs: number, status, event, workflow, branch
+fleet-ci wait Race-Crew-Planner <run>        # block until done; exit 0 only on success
+fleet-ci logs Race-Crew-Planner <run> [job]  # job log
+fleet-ci dispatch Race-Crew-Planner repository.yml <branch>
+fleet-ci url Race-Crew-Planner <run>
+```
+
+Run pages are at
+`https://git.home.unglenieks.com/Unglenieks/Race-Crew-Planner/actions`, and the
+PR page shows each job's status. Report the run number and result in the PR.
+
 ## Pull request gates
 
-GitHub branch protection for `dev`, `preview`, and `main` must require:
+Forgejo branch protection for `dev`, `preview`, and `main` must require:
 
-- the `Bootstrap integrity` GitHub check, which runs repository integrity,
-  formatting, linting, web and Convex typechecks, tests, and a production build;
-- a pull request (human authorization to merge is an operating rule recorded in the PR, not a GitHub approval requirement);
-- resolved review conversations;
+- the `Bootstrap integrity` status check from `Validate`;
+- a pull request (human authorization to merge is an operating rule recorded in
+  the PR, not a Forgejo approval requirement);
 - an up-to-date branch; and
 - no direct pushes or force pushes.
 
-Use a merge queue or rebase merge policy so the tested commit is the merged commit. Restrict production merges to designated release reviewers.
+Use a rebase or fast-forward merge style so the tested commit is the merged
+commit. Restrict production merges to designated release reviewers.
 
-Apply those settings in GitHub after this PR has merged. Confirm the required
-check name against a completed workflow run before saving the ruleset; a stale
-or misspelled required check can permanently block a branch. GitHub branch
-protection is live repository configuration and is not changed by this PR.
+Branch protection is live repository configuration that only a repository admin
+can change. Copy the required status-check name from a completed run on the PR
+page before saving the rule; a stale or misspelled check name can permanently
+block a branch.
 
 ## CI and Convex validation
 
@@ -69,6 +105,8 @@ A promotion PR contains the exact commits from the previous lane. Do not add fea
 4. After the merge, verify Railway deployed the matching commit to the mapped
    environment (`development`, `preview`, or `production`), reached terminal
    `SUCCESS`, and that the public web service returns `200` from `/health`.
+   Railway builds from the GitHub mirror, so its deployment starts a few
+   minutes after the Forgejo merge; see [Railway](railway.md#deployment-trigger).
 5. Record the environment, commit SHA, deployment URL/status, health result,
    and any backup/restore evidence in the release handoff.
 
@@ -103,6 +141,6 @@ Every PR states:
 
 ## Human authorization and merge checklist
 
-Before authorizing an agent to merge, the human should confirm the change is focused, the reported checks are credible, and the stated risk is acceptable. The human can ask another agent to review, but a separate GitHub account is not required.
+Before authorizing an agent to merge, the human should confirm the change is focused, the reported checks are credible, and the stated risk is acceptable. The human can ask another agent to review, but a separate Forgejo account is not required.
 
-After an explicit human message such as “merge PR #123,” the authoring agent must add a PR comment citing that authorization, verify all GitHub gates are green, then merge. Without that direct authorization, the PR remains open.
+After an explicit human message such as “merge PR #123,” the authoring agent must add a PR comment citing that authorization, verify all Forgejo gates are green, then merge. Without that direct authorization, the PR remains open.

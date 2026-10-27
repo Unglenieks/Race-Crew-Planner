@@ -15,7 +15,7 @@ Parallel agents may work at the same time only through isolated worktrees and fo
 
 ## Setup
 
-The primary checkout is a control plane. Once a remote and `dev` exist, create worktrees beside it, never inside it:
+The primary checkout is a control plane; its `origin` is the Forgejo repository (see [delivery](delivery.md#code-hosting)). Create worktrees beside it, never inside it:
 
 ```bash
 git fetch origin
@@ -33,13 +33,13 @@ An agent must report its assigned task, base branch, worktree path, and intended
 3. Keep commits small and describe intent.
 4. Run relevant checks; record exact commands and outcomes.
 5. Rebase onto the current base branch before opening the PR if required by policy.
-6. Open a PR into `dev` (or the explicitly assigned promotion target) using the template.
+6. Push the branch to Forgejo and open a PR into `dev` (or the explicitly assigned promotion target) using the template. Wait for `Bootstrap integrity` with `fleet-ci wait Race-Crew-Planner <run>`.
 7. Hand off the PR URL, verification evidence, known risks, and rollback notes to the human and request explicit merge authorization.
 8. After that authorization, add a PR comment recording it, verify all gates, and merge. Remove the worktree only after merge and confirmation.
 
 ## Reviewer loop
 
-1. Review the diff and required checks in GitHub, then inspect affected local code if useful.
+1. Review the diff and required checks on the Forgejo PR (`fleet-ci runs Race-Crew-Planner`), then inspect affected local code if useful.
 2. Request changes or provide an evidence-based recommendation to the human.
 3. Do not treat another agent's recommendation as merge authorization.
 4. After human authorization, verify the PR target and all gates, then the authoring agent may merge.

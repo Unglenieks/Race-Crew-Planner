@@ -19,7 +19,7 @@ organization, ensure you have its authorization first.
 
 ## Pull requests
 
-Open PRs against `dev` using the repository template. Describe the purpose and
+Open PRs against `dev` on the project's Forgejo instance (GitHub is a read-only mirror) using the repository template. Describe the purpose and
 scope, list commands run and their results, and call out effects on
 authentication, data, analytics, or infrastructure. Maintainers may ask for a
 separate contributor agreement before accepting substantial contributions.

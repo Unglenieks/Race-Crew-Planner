@@ -21,6 +21,36 @@ Each environment has independent Clerk and PostHog configuration, Convex
 credentials, database data, object-store credentials/prefix, and public domain.
 No secret value belongs in this repository.
 
+## Deployment trigger
+
+Forgejo is the canonical repository; GitHub is a read-only mirror updated about
+every two minutes. Railway's `web` source is `github("Unglenieks/Race-Crew-Planner")`,
+so Railway auto-deploys each lane from the **GitHub mirror** a few minutes after
+a merge on Forgejo. Production stays on Railway; only the trigger depends on
+GitHub.
+
+Two consequences of CI moving to Forgejo Actions:
+
+- Railway's "Wait for CI" option (`checkSuites`) waits for GitHub check suites.
+  GitHub no longer runs this repository's workflows, so it no longer gates a
+  deployment on CI. Branch protection on Forgejo (required `Bootstrap
+  integrity`) is the gate: nothing reaches `dev`, `preview`, or `main` without
+  a green PR.
+- If GitHub or the mirror sync is down, merges do not deploy until it recovers.
+  Deploy by hand with `railway up` (below) if a release cannot wait.
+
+To remove the GitHub dependency, deploy from Forgejo Actions instead: a
+`deploy` job in `Validate`, `needs: validate`, on pushes to `dev`, `preview`
+and `main` only, running
+`railway up --ci --service web --environment <environment>` with a
+Railway project token for that environment (`RAILWAY_TOKEN`, a Forgejo Actions
+secret scoped per lane). Then disconnect the `web` GitHub source in Railway and
+drop the `github(...)` source from `.railway/railway.ts`. `railway up` uploads
+the checkout and Railway runs the same build command, so the Convex publish in
+the build keeps working; set `NEXT_PUBLIC_RELEASE_SHA` from `${{ github.sha }}`
+because `RAILWAY_GIT_COMMIT_SHA` is only set for Git-sourced builds. This is a
+reviewed infrastructure change; it is not made yet.
+
 ## Applying a reviewed topology change
 
 Run these commands from a clean worktree after the infrastructure PR has been
@@ -136,6 +166,10 @@ See [Convex self-hosted upgrades](convex-upgrades.md) for the runtime-specific
 backup, upgrade, and recovery procedure.
 
 ## Repairing a missing GitHub auto-deploy trigger
+
+First confirm the commit reached the GitHub mirror (`git ls-remote
+https://github.com/Unglenieks/Race-Crew-Planner.git dev`). If the mirror is
+behind Forgejo, the mirror sync is the problem, not Railway.
 
 The `web` service in the `development` lane must be connected to
 `Unglenieks/Race-Crew-Planner` branch `dev`. If a merge reaches `dev` but no

@@ -1,6 +1,6 @@
 # Security policy
 
-Do not report suspected vulnerabilities through public GitHub issues or post
+Do not report suspected vulnerabilities through public issues or post
 credentials, personal data, deployment URLs with private access, or exploit
 details publicly.
 

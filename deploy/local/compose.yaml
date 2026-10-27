@@ -7,8 +7,9 @@ name: ${RCP_LOCAL_PROJECT:-rcp-local}
 
 services:
   convex-backend:
-    # Keep in step with convexImageRevision in .railway/railway.ts.
-    image: ghcr.io/get-convex/convex-backend:${RCP_CONVEX_IMAGE_REVISION:-075bad9adce93eb2f63fffad76db5cb27e9e35bd}
+    # Same revision as convexImageRevision in .railway/railway.ts. Convex now
+    # publishes to ghcr.io/convex; ghcr.io/get-convex denies anonymous pulls.
+    image: ghcr.io/convex/convex-backend:${RCP_CONVEX_IMAGE_REVISION:-075bad9adce93eb2f63fffad76db5cb27e9e35bd}
     stop_grace_period: 10s
     stop_signal: SIGINT
     ports:
@@ -30,7 +31,7 @@ services:
       start_period: 10s
 
   convex-dashboard:
-    image: ghcr.io/get-convex/convex-dashboard:${RCP_CONVEX_IMAGE_REVISION:-075bad9adce93eb2f63fffad76db5cb27e9e35bd}
+    image: ghcr.io/convex/convex-dashboard:${RCP_CONVEX_IMAGE_REVISION:-075bad9adce93eb2f63fffad76db5cb27e9e35bd}
     stop_grace_period: 10s
     stop_signal: SIGINT
     ports:

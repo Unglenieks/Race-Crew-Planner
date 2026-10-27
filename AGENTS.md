@@ -8,8 +8,12 @@ These instructions apply to every automated or human contributor.
 2. Every change, including documentation and infrastructure, is delivered in a pull request. Do not push directly to `dev`, `preview`, or `main`.
 3. An author may merge their own PR only after a human explicitly authorizes that merge in the shared conversation. Record the authorization in a PR comment before merging; an agent must never infer it from silence or a general request.
 4. Keep PRs focused. Do not mix product work, dependency upgrades, infrastructure changes, and broad formatting in one PR.
-5. Never print, commit, or copy secrets. Use `.env.example` for variable names only and Railway/GitHub secret stores for values.
+5. Never print, commit, or copy secrets. Use `.env.example` for variable names only and Railway or Forgejo Actions secret stores for values.
 6. State the commands run and their results in the PR description. If a check cannot run, say why.
+
+## Code hosting and CI
+
+`origin` is Forgejo (`ssh://git@git.home.unglenieks.com:2222/Unglenieks/Race-Crew-Planner.git`); GitHub is a read-only mirror. Push to Forgejo and open PRs there (web UI or `POST /api/v1/repos/Unglenieks/Race-Crew-Planner/pulls`); do not use `gh` or GitHub for this repository. CI runs on Forgejo Actions; check it with `fleet-ci runs Race-Crew-Planner` and `fleet-ci logs Race-Crew-Planner <run>` (see [docs/delivery.md](docs/delivery.md#continuous-integration)). To run the app for testing, use the [local environment](docs/local-environments.md), not a Railway environment.
 
 ## Required workflow
 

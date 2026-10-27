@@ -34,7 +34,8 @@ domains, accounts, data, and operational responsibility.
 - [Product plan](docs/product-plan.md) — remaining product work in dependency order.
 - [Platform and environment plan](docs/platform.md) — Railway, Convex, Clerk, and PostHog boundaries.
 - [Parallel agent worktree playbook](docs/agent-worktrees.md) — required workflow for every agent change.
-- [Delivery and PR policy](docs/delivery.md) — branch promotion, checks, review, and merging.
+- [Delivery and PR policy](docs/delivery.md) — Forgejo hosting, CI, branch promotion, review, and merging.
+- [Local environments](docs/local-environments.md) — run a full stack for testing without Railway.
 - [HTML reference material](docs/html/) — the supplied UX/demo material and project scaffold visual.
 
 ## Current application status
@@ -59,3 +60,9 @@ pnpm --filter @race-planner/web dev
 ```
 
 Copy `apps/web/.env.example` to `apps/web/.env.local` and fill only development values. Never commit it.
+
+To run the complete stack (self-hosted Convex, dashboard, and web) in Docker,
+use `scripts/local-env.sh up`; see [local environments](docs/local-environments.md).
+
+The canonical repository is on Forgejo; GitHub is a read-only mirror. CI runs
+on Forgejo Actions ([delivery](docs/delivery.md#code-hosting)).

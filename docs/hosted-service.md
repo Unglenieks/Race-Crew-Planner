@@ -18,12 +18,14 @@ Before accepting customers, the service operator must:
 - keep production in a Railway workspace controlled by the operator, with
   least-privilege membership, MFA, recovery contacts, and periodic access
   review;
-- connect Railway only to the canonical GitHub repository and protected release
-  branches; untrusted pull requests and forks must not receive production
-  deployment credentials or trigger deployments to shared environments;
+- deploy only the canonical repository's protected release branches (Railway
+  builds them from the canonical repository's GitHub mirror, or a Forgejo
+  workflow deploys them with a Railway token); untrusted pull requests and
+  forks must not receive production deployment credentials or trigger
+  deployments to shared environments;
 - use separate development, preview, and production services, data stores,
   storage, Clerk applications, PostHog projects, domains, and credentials;
-- store private values only in Railway or GitHub environment secret stores,
+- store private values only in Railway or Forgejo Actions secret stores,
   never in the repository, build output, pull-request logs, or fork-accessible
   workflows;
 - keep administrative services, Postgres, and object storage private, expose

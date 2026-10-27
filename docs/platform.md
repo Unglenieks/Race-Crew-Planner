@@ -8,7 +8,10 @@
 | `preview` | `preview` | Shared release validation | Promotion PR from `dev` only |
 | `main` | `production` | Customer-facing release | Promotion PR from `preview` only |
 
-Railway must automatically deploy the matching branch after GitHub checks pass. Each deployment records the commit SHA and has a health check. Never promote by manually copying code or variables between environments.
+Railway must automatically deploy the matching branch after CI passes. CI runs on Forgejo Actions ([delivery](delivery.md#continuous-integration)); how Railway is triggered is in [Railway](railway.md#deployment-trigger). Each deployment records the commit SHA and has a health check. Never promote by manually copying code or variables between environments.
+
+Non-production work by agents does not need a Railway environment: use the
+[local environment](local-environments.md) instead.
 
 ## Railway services per environment
 
@@ -49,7 +52,7 @@ The web service receives `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`, 
 | --- | --- | --- |
 | Web | Clerk publishable/secret keys, Convex URL, PostHog key/host | Railway environment variables |
 | Convex | Clerk issuer/JWT config, database and object-storage credentials | Railway private variables/service configuration |
-| CI | Railway deploy token or GitHub integration credentials | GitHub environment secrets or Railway GitHub integration |
+| CI / deploy | Railway project token per environment (only if Forgejo triggers deploys), Railway GitHub integration | Forgejo Actions repository secrets; Railway GitHub integration |
 
 Only variable names belong in Git. Production secret rotation and restore ownership must be recorded before launch.
 

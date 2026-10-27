@@ -18,7 +18,7 @@ The work packages below are the foundation and delivery concerns, and they are c
 | 4 | Clerk integration | Sign-in/session flow works; Clerk JWT verification reaches Convex; authorization tests cover protected functions. |
 | 5 | Analytics | PostHog initialization, consent policy, release/environment tagging, and a minimal event catalog are present. |
 | 6 | Railway topology | Reviewed infrastructure configuration exists for web, Convex, Postgres, storage, health checks, and backups in each environment. |
-| 7 | Delivery automation | GitHub checks, protected branches, Railway deployment mappings, promotion PRs, and a rollback runbook are tested. |
+| 7 | Delivery automation | Forgejo Actions checks, protected branches, Railway deployment mappings, promotion PRs, and a rollback runbook are tested. |
 
 ## Code boundaries
 
@@ -44,4 +44,4 @@ infra/railway/         versioned Railway configuration and deployment notes
 - New authentication/data paths have authorization coverage.
 - Analytics events are added to `docs/analytics-events.md` in the same PR.
 - Infrastructure or environment changes update `docs/platform.md` and the relevant runbook.
-- A human explicitly authorizes the merge after reviewing the PR handoff; the authoring agent may then merge it once GitHub checks are green.
+- A human explicitly authorizes the merge after reviewing the PR handoff; the authoring agent may then merge it once Forgejo checks are green.

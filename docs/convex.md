@@ -9,8 +9,9 @@ resource-level checks remain in Convex.
 1. Copy the root `.env.example` to `.env.local` and obtain development-only
    access from the environment operator. Do not copy production credentials
    into a local file.
-2. Ensure the self-hosted Convex development environment is available. Railway
-   provisioning is intentionally deferred to Work Package 6.
+2. Start a local self-hosted Convex backend with `scripts/local-env.sh up`
+   ([local environments](local-environments.md)), or use the Railway
+   `development` deployment where it exists.
 3. In Clerk, activate the Convex integration. It provisions the `convex` JWT
    template. Copy Clerk's Frontend API URL to `CLERK_JWT_ISSUER_DOMAIN` in the
    matching Convex environment. Verify the template issues `aud: convex`; a
@@ -44,7 +45,9 @@ development backend by hand from a clean worktree:
 railway run --environment development --service convex-backend -- pnpm convex:deploy
 ```
 
-For the Railway self-hosted development deployment, run code generation through
+Prefer generating against the local backend
+([local environments](local-environments.md#the-local-stack)). For the Railway
+self-hosted development deployment, run code generation through
 the backend service so the CLI receives the private deployment URL and admin
 key from Railway without copying either into a local environment file:
 
