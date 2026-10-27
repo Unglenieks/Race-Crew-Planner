@@ -1,0 +1,54 @@
+name: Local environment
+
+# Proves the docker compose agent-build stack still starts: self-hosted Convex,
+# functions published to it, web built and healthy. Everything runs in
+# throwaway containers on the fleet runner and is deleted afterwards; nothing
+# is deployed to Railway. See docs/local-environments.md.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - deploy/local/**
+      - scripts/local-env.sh
+      - .forgejo/workflows/local-environment.yml
+      - convex/**
+      - pnpm-lock.yaml
+
+permissions:
+  contents: read
+
+jobs:
+  stack:
+    name: Compose stack smoke test
+    runs-on: ubuntu-latest
+    env:
+      # Jobs share the runner VM's host network; use a per-run project name
+      # and ports unlikely to clash with another job.
+      RCP_LOCAL_PROJECT: rcp-ci-${{ github.run_id }}
+      RCP_WEB_PORT: "43000"
+      RCP_CONVEX_PORT: "43210"
+      RCP_CONVEX_SITE_PORT: "43211"
+      RCP_DASHBOARD_PORT: "43791"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: docker compose version
+      - run: scripts/local-env.sh up
+      - name: Check web, Convex and dashboard
+        run: |
+          scripts/local-env.sh status
+          curl -fsS -o /dev/null -w 'home %{http_code}\n' http://127.0.0.1:43000/
+          curl -fsS -o /dev/null -w 'dashboard %{http_code}\n' http://127.0.0.1:43791/
+      - name: Logs on failure
+        if: failure()
+        run: scripts/local-env.sh logs --tail 200
+      - name: Remove stack
+        if: always()
+        run: scripts/local-env.sh down

@@ -1,0 +1,74 @@
+# Local, non-production Race Crew Planner stack: self-hosted Convex (SQLite and
+# local file storage in a named volume), its dashboard, and the web app.
+# Drive it with scripts/local-env.sh; see docs/local-environments.md.
+# Nothing here talks to Railway. No bind mounts, so it also works when the
+# Docker daemon is remote (for example the Forgejo runner's socket).
+name: ${RCP_LOCAL_PROJECT:-rcp-local}
+
+services:
+  convex-backend:
+    # Keep in step with convexImageRevision in .railway/railway.ts.
+    image: ghcr.io/get-convex/convex-backend:${RCP_CONVEX_IMAGE_REVISION:-075bad9adce93eb2f63fffad76db5cb27e9e35bd}
+    stop_grace_period: 10s
+    stop_signal: SIGINT
+    ports:
+      - "${RCP_BIND:-127.0.0.1}:${RCP_CONVEX_PORT:-3210}:3210"
+      - "${RCP_BIND:-127.0.0.1}:${RCP_CONVEX_SITE_PORT:-3211}:3211"
+    volumes:
+      - convex-data:/convex/data
+    environment:
+      INSTANCE_NAME: ${RCP_INSTANCE_NAME:-rcp_local}
+      CONVEX_CLOUD_ORIGIN: ${RCP_CONVEX_URL:-http://127.0.0.1:3210}
+      CONVEX_SITE_ORIGIN: ${RCP_CONVEX_SITE_URL:-http://127.0.0.1:3211}
+      DISABLE_BEACON: "true"
+      DO_NOT_REQUIRE_SSL: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3210/version"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+
+  convex-dashboard:
+    image: ghcr.io/get-convex/convex-dashboard:${RCP_CONVEX_IMAGE_REVISION:-075bad9adce93eb2f63fffad76db5cb27e9e35bd}
+    stop_grace_period: 10s
+    stop_signal: SIGINT
+    ports:
+      - "${RCP_BIND:-127.0.0.1}:${RCP_DASHBOARD_PORT:-6791}:6791"
+    environment:
+      NEXT_PUBLIC_DEPLOYMENT_URL: ${RCP_CONVEX_URL:-http://127.0.0.1:3210}
+    depends_on:
+      convex-backend:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/local/web.Dockerfile
+      args:
+        # Inlined into the browser bundle, so it must be the URL a browser
+        # uses to reach convex-backend.
+        NEXT_PUBLIC_CONVEX_URL: ${RCP_CONVEX_URL:-http://127.0.0.1:3210}
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}
+        NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:-local}
+        NEXT_PUBLIC_RELEASE_SHA: ${NEXT_PUBLIC_RELEASE_SHA:-}
+    ports:
+      - "${RCP_BIND:-127.0.0.1}:${RCP_WEB_PORT:-3000}:3000"
+    environment:
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
+    depends_on:
+      convex-backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+
+volumes:
+  convex-data:
