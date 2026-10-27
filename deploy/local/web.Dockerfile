@@ -16,9 +16,12 @@ ARG NEXT_PUBLIC_CONVEX_URL
 ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 ARG NEXT_PUBLIC_APP_ENV=local
 ARG NEXT_PUBLIC_RELEASE_SHA
-# Next.js inlines NEXT_PUBLIC_* at build time. An empty Clerk key means the
-# app runs without Clerk (signed-out only); unset it rather than pass "".
-RUN if [ -z "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ]; then unset NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY; fi; \
+# Next.js inlines NEXT_PUBLIC_* at build time. Without a Clerk key the app can
+# only build signed-out: the Convex client needs Clerk's provider, so drop the
+# Convex URL too (the same shape CI builds) rather than pass empty values.
+RUN if [ -z "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ]; then \
+      unset NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY NEXT_PUBLIC_CONVEX_URL; \
+    fi; \
     pnpm build
 
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0

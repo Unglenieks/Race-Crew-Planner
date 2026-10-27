@@ -59,8 +59,10 @@ so it also works against a remote Docker daemon (`DOCKER_HOST=ssh://…`).
 
 ### Sign-in
 
-Without Clerk values the app builds and serves its public pages, but every
-authenticated screen needs sign-in. For real testing, export the shared Clerk
+Without Clerk values the web image is built signed-out: it serves its public
+pages and `/health`, but has no Convex client, because the app's Convex
+provider depends on Clerk. Convex itself still runs and receives the functions,
+so backend work (codegen, `convex run`, the dashboard) works without Clerk. For real testing, export the shared Clerk
 **development** instance's `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`,
 `CLERK_SECRET_KEY` and `CLERK_JWT_ISSUER_DOMAIN` before `up`. Clerk
 development instances accept any origin, so the same instance works for every
